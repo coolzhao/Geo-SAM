@@ -55,7 +55,7 @@ Then install the libraries.
 
 ### Install the GeoSAM Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/tags/v1.0.1-alpha.zip), unzip it and put the contents in the QGIS plugin folder (please remove the version suffix of the folder to avoid potential path issues, be aware of undesired nested folders after unzipping), then restart QGIS.
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/tags/v1.0.2.zip), unzip it and put the contents in the QGIS plugin folder (please remove the version suffix of the folder to avoid potential path issues, be aware of undesired nested folders after unzipping), then restart QGIS.
 
 #### How to Locate the QGIS Plugin folder
 
