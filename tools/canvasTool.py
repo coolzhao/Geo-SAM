@@ -12,16 +12,16 @@ from qgis.PyQt.QtCore import QVariant
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 
-from .geoTool import TransformCRS, LayerExtent
+from .geoTool import ImageCRSManager, LayerExtent
 
 
 class RectangleMapTool(QgsMapToolEmitPoint):
-    def __init__(self, canvas_rect, execute_SAM, transform_crs: TransformCRS):
+    def __init__(self, canvas_rect, execute_SAM, img_crs_manager: ImageCRSManager):
         self.qgis_project = QgsProject.instance()
         self.canvas_rect = canvas_rect
         self.rubberBand = canvas_rect.rubberBand
         self.execute_SAM = execute_SAM
-        self.transform_crs = transform_crs
+        self.img_crs_manager = img_crs_manager
         QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
 
         self.reset()
@@ -76,10 +76,10 @@ class RectangleMapTool(QgsMapToolEmitPoint):
             return None
         else:
             # TODO startPoint endPoint transform
-            if self.qgis_project.crs() != self.transform_crs.feature_crs:
-                self.startPoint = self.transform_crs.transform_point_to_feature_crs(
+            if self.qgis_project.crs() != self.img_crs_manager.img_crs:
+                self.startPoint = self.img_crs_manager.point_to_img_crs(
                     self.startPoint, self.qgis_project.crs())
-                self.endPoint = self.transform_crs.transform_point_to_feature_crs(
+                self.endPoint = self.img_crs_manager.point_to_img_crs(
                     self.endPoint, self.qgis_project.crs())
             return [self.startPoint.x(), self.startPoint.y(), self.endPoint.x(), self.endPoint.y()]
 
@@ -135,10 +135,10 @@ class ClickTool(QgsMapToolEmitPoint):
 
 
 class Canvas_Points:
-    def __init__(self, canvas, transform_crs: TransformCRS):
+    def __init__(self, canvas, img_crs_manager: ImageCRSManager):
         self.canvas = canvas
         self.qgis_project = QgsProject.instance()
-        self.transform_crs = transform_crs
+        self.img_crs_manager = img_crs_manager
 
     def init_points_layer(self):
         """initialize the points layer"""
@@ -157,7 +157,7 @@ class Canvas_Points:
         else:
             layer = QgsVectorLayer("Point", layer_name, "memory")
             layer.setCrs(self.qgis_project.crs())
-            # layer.setCrs(self.transform_crs.feature_crs)
+            # layer.setCrs(self.img_crs_manager.img_crs)
 
             # set default color
             symbol = QgsMarkerSymbol.createSimple(
@@ -193,8 +193,8 @@ class Canvas_Points:
             labels = []
             for feature in self.layer_fg.getFeatures():
                 point = feature.geometry().asPoint()
-                if self.layer_fg.crs() != self.transform_crs.feature_crs:
-                    point = self.transform_crs.transform_point_to_feature_crs(
+                if self.layer_fg.crs() != self.img_crs_manager.img_crs:
+                    point = self.img_crs_manager.point_to_img_crs(
                         point, self.layer_fg.crs())
                 row_point, col_point = rowcol(tf, point.x(), point.y())
                 points.append((col_point, row_point))
@@ -202,8 +202,8 @@ class Canvas_Points:
 
             for feature in self.layer_bg.getFeatures():
                 point = feature.geometry().asPoint()
-                if self.layer_bg.crs() != self.transform_crs.feature_crs:
-                    point = self.transform_crs.transform_point_to_feature_crs(
+                if self.layer_bg.crs() != self.img_crs_manager.img_crs:
+                    point = self.img_crs_manager.point_to_img_crs(
                         point, self.layer_bg.crs())
                 row_point, col_point = rowcol(tf, point.x(), point.y())
                 points.append((col_point, row_point))
@@ -214,18 +214,17 @@ class Canvas_Points:
 
     @property
     def extent(self):
-        e = LayerExtent.union_layer_extent(
-            self.layer_fg, self.layer_bg, self.transform_crs)
-        print(e)
-        return e
+        extent = LayerExtent.union_layer_extent(
+            self.layer_fg, self.layer_bg, self.img_crs_manager)
+        return extent
 
 
 class Canvas_Rectangle:
-    def __init__(self, canvas, transform_crs: TransformCRS):
+    def __init__(self, canvas, img_crs_manager: ImageCRSManager):
         self.canvas = canvas
         self.qgis_project = QgsProject.instance()
         self.box_geo = None
-        self.transform_crs = transform_crs
+        self.img_crs_manager = img_crs_manager
 
     def _init_rect_layer(self):
         self.rubberBand = QgsRubberBand(
@@ -263,10 +262,10 @@ class Canvas_Rectangle:
 
 
 class SAM_PolygonFeature:
-    def __init__(self, transform_crs: TransformCRS, shapefile=None):
+    def __init__(self, img_crs_manager: ImageCRSManager, shapefile=None):
         '''SAM_PolygonFeature class'''
         self.qgis_project = QgsProject.instance()
-        self.transform_crs = transform_crs
+        self.img_crs_manager = img_crs_manager
         if shapefile:
             self._load_shapefile(shapefile)
         else:
@@ -287,7 +286,7 @@ class SAM_PolygonFeature:
         else:
             self.layer = QgsVectorLayer('Polygon', 'polygon_sam', 'memory')
             # self.layer.setCrs(self.qgis_project.crs())
-            self.layer.setCrs(self.transform_crs.feature_crs)
+            self.layer.setCrs(self.img_crs_manager.img_crs)
         # Set the provider to accept the data source
         prov = self.layer.dataProvider()
         prov.addAttributes([QgsField("id", QVariant.Int),
@@ -313,10 +312,10 @@ class SAM_PolygonFeature:
             points = []
             coordinates = geom['geometry']['coordinates'][0]
             for coord in coordinates:
-                # TODO transform pointXY from feature_crs to polygon layer crs, if not match
+                # TODO transform pointXY from img_crs to polygon layer crs, if not match
                 point = QgsPointXY(*coord)
-                if self.layer.crs() != self.transform_crs.feature_crs:
-                    point = self.transform_crs.transform_point_from_feature_crs(
+                if self.layer.crs() != self.img_crs_manager.img_crs:
+                    point = self.img_crs_manager.img_point_to_crs(
                         point, self.layer.crs())
                 points.append(point)
 

@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 from PyQt5 import uic
 
-from .tools.geoTool import TransformCRS, LayerExtent
+from .tools.geoTool import ImageCRSManager, LayerExtent
 from .tools.SAMTool import SAM_Model
 from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
 
@@ -72,9 +72,9 @@ class Geo_SAM(QObject):
 
     def _init_feature_related(self):
         self.sam_model = SAM_Model(self.feature_dir, self.cwd)
-        self.transform_crs = TransformCRS(self.sam_model.feature_crs)
-        self.canvas_points = Canvas_Points(self.canvas, self.transform_crs)
-        self.canvas_rect = Canvas_Rectangle(self.canvas, self.transform_crs)
+        self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
+        self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
+        self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
 
         self.canvas_points.init_points_layer()
         self.canvas_rect._init_rect_layer()
@@ -93,7 +93,7 @@ class Geo_SAM(QObject):
         self.tool_click_bg = ClickTool(
             self.canvas, self.canvas_points.feature_bg, self.canvas_points.layer_bg, self.execute_SAM)
         self.tool_click_rect = RectangleMapTool(
-            self.canvas_rect, self.execute_SAM, self.transform_crs)
+            self.canvas_rect, self.execute_SAM, self.img_crs_manager)
 
     def create_widget_selector(self):
         self._init_feature_related()
@@ -220,7 +220,7 @@ class Geo_SAM(QObject):
 
     def load_shp_file(self):
         text = self.wdg_sel.path_out.text()
-        self.polygon = SAM_PolygonFeature(self.transform_crs, text)
+        self.polygon = SAM_PolygonFeature(self.img_crs_manager, text)
 
     def find_feature(self):
         feature_dir_str = QFileDialog.getExistingDirectory(

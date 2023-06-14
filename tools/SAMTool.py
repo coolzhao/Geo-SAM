@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QMessageBox
 from torch.utils.data import DataLoader
 from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
 from .sam_ext import sam_model_registry_no_encoder, SamPredictorNoImgEncoder
-from .geoTool import LayerExtent, TransformCRS
+from .geoTool import LayerExtent, ImageCRSManager
 from torchgeo.datasets import BoundingBox, stack_samples
 from torchgeo.samplers import Units
 
@@ -24,7 +24,7 @@ class SAM_Model:
         """Prepares data and layer."""
         self.test_features = SamTestFeatureDataset(
             root=self.feature_dir, bands=None, cache=False)  # display(test_imgs.index) #
-        self.feature_crs = str(self.test_features.crs)
+        self.img_crs = str(self.test_features.crs)
         # Load sam decoder
         sam = sam_model_registry_no_encoder[self.model_type](
             checkpoint=self.sam_checkpoint)

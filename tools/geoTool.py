@@ -4,36 +4,83 @@ import numpy as np
 from qgis.core import (QgsProject, QgsCoordinateReferenceSystem,
                        QgsCoordinateTransform, QgsPointXY,  QgsRectangle, QgsVectorLayer)
 
+from qgis.core import (
+    QgsMessageLog,
+    QgsGeometry,
+)
 
-class TransformCRS:
-    def __init__(self, feature_crs) -> None:
+from qgis.gui import (
+    QgsMessageBar,
+)
+
+from qgis.PyQt.QtWidgets import (
+    QSizePolicy,
+    QPushButton,
+    QDialog,
+    QGridLayout,
+    QDialogButtonBox,
+)
+
+from qgis.core import Qgis
+
+
+class ImageCRSManager:
+    def __init__(self, img_crs) -> None:
         # self.rect_crs = self.point_crs
         # self.polygon_crs = QgsCoordinateReferenceSystem(polygon_crs)
-        self.feature_crs = QgsCoordinateReferenceSystem(
-            feature_crs)  # from str to QgsCRS
-        print(self.feature_crs.authid())
+        self.img_crs = QgsCoordinateReferenceSystem(
+            img_crs)  # from str to QgsCRS
+        print(self.img_crs.authid())
 
-    def transform_point_from_feature_crs(self, point: QgsPointXY, point_crs: QgsCoordinateReferenceSystem):
-        '''transform point from feature crs to point crs'''
-        # point_crs = QgsCoordinateReferenceSystem(point_crs)
+    def img_point_to_crs(
+        self, point: QgsPointXY, dst_crs: QgsCoordinateReferenceSystem
+    ):
+        """transform point from this image crs to destination crs
+
+        Parameters:
+        ----------
+        point: QgsPointXY
+            point in this image crs
+        dst_crs: QgsCoordinateReferenceSystem
+            destination crs for point
+        """
         transform = QgsCoordinateTransform(
-            self.feature_crs, point_crs, QgsProject.instance())
+            self.img_crs, dst_crs, QgsProject.instance())
         point_transformed = transform.transform(point)
         return point_transformed
 
-    def transform_point_to_feature_crs(self, point: QgsPointXY, point_crs: QgsCoordinateReferenceSystem):
-        '''transform point from point crs to feature crs'''
-        # point_crs = QgsCoordinateReferenceSystem(point_crs)
+    def point_to_img_crs(
+        self, point: QgsPointXY, point_crs: QgsCoordinateReferenceSystem
+    ):
+        """transform point from point crs to this image crs
+
+        Parameters:
+        ----------
+        point: QgsPointXY
+            point in itself crs
+        point_crs: QgsCoordinateReferenceSystem
+            crs of point
+        """
         transform = QgsCoordinateTransform(
-            point_crs, self.feature_crs, QgsProject.instance())
+            point_crs, self.img_crs, QgsProject.instance()
+        )
         point_transformed = transform.transform(point)  # direction can be used
         return point_transformed
 
-    def transform_extent_to_feature_crs(self, extent: QgsRectangle, point_crs: QgsCoordinateReferenceSystem):
-        '''transform extent from point crs to feature crs'''
-        # point_crs = QgsCoordinateReferenceSystem(point_crs)
+    def extent_to_img_crs(
+        self, extent: QgsRectangle, dst_crs: QgsCoordinateReferenceSystem
+    ):
+        """transform extent from point crs to this image crs
+
+        Parameters:
+        ----------
+        extent: QgsRectangle
+            extent in itself crs
+        dst_crs: QgsCoordinateReferenceSystem
+            destination crs for extent
+        """
         transform = QgsCoordinateTransform(
-            point_crs, self.feature_crs, QgsProject.instance())
+            dst_crs, self.img_crs, QgsProject.instance())
         extent_transformed = transform.transformBoundingBox(extent)
         return extent_transformed
 
@@ -43,27 +90,37 @@ class LayerExtent:
         pass
 
     @staticmethod
-    def get_layer_extent(layer: QgsVectorLayer, transform_crs: TransformCRS = None):
-        '''Get the extent of the layer'''
+    def from_qgis_extent(extent: QgsRectangle):
+        max_x = extent.xMaximum()
+        max_y = extent.yMaximum()
+        min_x = extent.xMinimum()
+        min_y = extent.yMinimum()
+        return min_x, max_x, min_y, max_y
+
+    @classmethod
+    def get_layer_extent(
+        cls, layer: QgsVectorLayer, img_crs_manager: ImageCRSManager = None
+    ):
+        """Get the extent of the layer"""
         if layer.featureCount() == 0:
             return None
         else:
-            layer_ext = layer.extent()
             layer.updateExtents()
             layer_ext = layer.extent()
-            # TODO transform extent
-            if layer.crs() != transform_crs.feature_crs:
-                layer_ext = transform_crs.transform_extent_to_feature_crs(
-                    layer_ext, layer.crs())
-            max_x = layer_ext.xMaximum()
-            max_y = layer_ext.yMaximum()
-            min_x = layer_ext.xMinimum()
-            min_y = layer_ext.yMinimum()
-            return min_x, max_x, min_y, max_y
+            if layer.crs() != img_crs_manager.img_crs:
+                try:
+                    layer_ext = img_crs_manager.extent_to_img_crs(
+                        layer_ext, layer.crs())
+                except Exception as e:
+                    QgsMessageLog.logMessage(
+                        f">>> Error in extent: {layer_ext} \n type:{type(layer_ext)} \n: {e}", level=Qgis.Critical)
+                    return None
+
+            return cls.from_qgis_extent(layer_ext)
 
     @staticmethod
     def _union_extent(extent1, extent2):
-        '''Get the union of two extents'''
+        """Get the union of two extents"""
         min_x1, max_x1, min_y1, max_y1 = extent1
         min_x2, max_x2, min_y2, max_y2 = extent2
 
@@ -76,7 +133,7 @@ class LayerExtent:
 
     @classmethod
     def union_extent(cls, extent1, extent2):
-        '''Get the union of two extents (None is allowed)'''
+        """Get the union of two extents (None is allowed)"""
         if extent1 is not None and extent2 is not None:
             min_x, max_x, min_y, max_y = cls._union_extent(extent1, extent2)
         elif extent1 is None and extent2 is not None:
@@ -89,9 +146,13 @@ class LayerExtent:
         return min_x, max_x, min_y, max_y
 
     @classmethod
-    def union_layer_extent(cls, layer1, layer2, transform_crs: TransformCRS = None):
-        '''Get the union of two layer extents'''
-        extent_fg = cls.get_layer_extent(layer1, transform_crs)
-        extent_bg = cls.get_layer_extent(layer2, transform_crs)
+    def union_layer_extent(
+        cls, layer1, layer2, img_crs_manager: ImageCRSManager = None
+    ):
+        """Get the union of two layer extents"""
+        extent1 = cls.get_layer_extent(layer1, img_crs_manager)
+        QgsMessageLog.logMessage(f"extent1:{extent1}", level=Qgis.Info)
+        extent2 = cls.get_layer_extent(layer2, img_crs_manager)
+        QgsMessageLog.logMessage(f"extent2:{extent2}", level=Qgis.Info)
 
-        return cls.union_extent(extent_fg, extent_bg)
+        return cls.union_extent(extent1, extent2)
