@@ -4,19 +4,17 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [CryoLab](https://cryoc
 
 ## Introduction
 
-Geo SAM is a tool that aims to help people segment, delineate or label landforms with large-size geo-spatial raster images.
-[Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with super power, but the model size is large and using it to process images can take a long time even with a modern GPU.
-With the pre-generated image features using the Vision Transformer image encoder, the interactive segmentation process can be run in real-time on a laptop by only using CPU.
+Geo SAM is a tool that aims to help people segment, delineate or label landforms with large-size geo-spatial raster images.  [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with super power, but the model size is huge and using it to process images can take a long time even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model, the interactive segmentation process can be run in real-time on a laptop by only using CPU.
 
 ## Installation
 
 ### Install QGIS
 
-You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html), since the plugin has only been tested on the versions later than QGIS 3.30 (at least ver. 3.28 is recommended).
+You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html), since the plugin has only been tested on the versions newer than QGIS 3.30 (at least ver. 3.28 is recommended).
 
-## Install Library Dependencies
+### Install Library Dependencies
 
-### For Windows Users
+#### For Windows Users
 
 ![OsGeo4WShell](./assets/OsGeo4WShell.png)
 
@@ -34,7 +32,7 @@ pip3 install segment-anything
 pip3 install rasterio==1.3.7
 ```
 
-### For Mac or Linux Users
+#### For Mac or Linux Users
 
 Open your own terminal application, and change the directory to the QGIS Python environment.
 
@@ -48,19 +46,20 @@ cd /<qgispath>/share/qgis/python
 Then install the libraries.
 
 ```bash
+# add ./ to avoid using your default python in the system
 ./pip3 install torch==1.13.1 torchvision==0.14.1
 ./pip3 install torchgeo
 ./pip3 install segment-anything
 ./pip3 install rasterio==1.3.7
 ```
 
-## Install the GeoSAM Plugin
+### Install the GeoSAM Plugin
 
 Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/main.zip), unzip it (avoid nested folder after unzipping) and put the contents in the QGIS plugin folder, then restart QGIS.
 
-### How to Locate the QGIS Plugin folder
+#### How to Locate the QGIS Plugin folder
 
-From the `Settings` Menu, `User Profiles`, select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder you may find a `python` folder, the plugins folder should be right inside the python folder. Open the `plugins` folder, then put the entire `Geo-SAM`(or `Geo-SAM-main`) folder in it, then restart QGIS.
+From the `Settings` Menu, select `User Profiles`, then select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder you may find a `python` folder, the `plugins` folder should be right inside the python folder. Open the `plugins` folder, then put the entire `Geo-SAM`(or `Geo-SAM-main`) folder in it, then restart QGIS.
 
 Below are some general paths of different systems for your reference.
 
@@ -73,28 +72,31 @@ Below are some general paths of different systems for your reference.
 ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins
 ```
 
-### Activate Geo SAM Plugin
+#### Activate Geo SAM Plugin
 
 After restarting QGIS, you may go to the `Plugins` menu, select `Manage and Install Plugins`, under `Installed`, you may find the `Geo SAM` plugin, check it to activate the plugin.
 
 ![active geo sam](assets/Active_geo_sam.png)
 
-### Find the Geo SAM Tool
+#### Find the Geo SAM Tool
 
-After activating the Geo SAM plugin, you may find the tool under the `Plugins` menu, 
+After activating the Geo SAM plugin, you may find the tool under the `Plugins` menu,
 
-![Plugin menu geo sam](assets/Plugin_menu_geo_sam.png)
+<p align="center">
+  <img src="assets/Plugin_menu_geo_sam.png" width="350" title="Plugin menu">
+</p>
 
-or somewhere on the toolbar near the python plugin.
+or somewhere on the toolbar near the Python Plugin.
 
-![Toolbar geo sam](assets/Toolbar_geo_sam.png)
+<p align="center">
+  <img src="assets/Toolbar_geo_sam.png" width="350" title="Plugin menu">
+</p>
 
 ## Use the GeoSAM Tool
 
-Click the toolbar icon to open the widget of the tool. You will be shown a demo raster image with Thaw Slump and small pond landforms for you to try the tool. With a single click, a segmentation result will be generated.
+Click the toolbar icon to open the widget of the tool. You will be shown a demo raster image with thaw slump and small pond landforms for you to try the tool. With a single click on the map, a segmentation result will be generated.
 
 ![try geo sam](assets/try_geo_sam.png)
-
 
 A user interface will be shown as below.
 
@@ -102,11 +104,12 @@ A user interface will be shown as below.
 
 ### Add Points
 
-Click the buttons to select between foreground and background points. Use Foreground points to add areas you desire, and use Background points to remove areas you don't want.
+Click the buttons to select between `Foreground` and `Background` points. Use `Foreground` points to add areas you desire, and use `Background` points to remove areas you don't want.
 
 ### Add Bounding Box (BBox)
 
-Use rectangle tool to segment subject with a BBox, this can be used together with adding points or independently.
+Click the `Rectangle` button to active the BBox tool to draw a rectangle on the map for segmenting a subject.
+The BBox tool can be used together with adding points or independently.
 
 ### Save Current Results
 
@@ -116,9 +119,23 @@ After adding points and rectangle for segmenting a subject, you can save the seg
 
 You can use the `Clear` button to clear the added points and rectangles.
 
-### Disable the tool
+### Disable the Tool
 
-You can uncheck the `enable` button to temporally disable the tool and navigate on the map.
+You can uncheck the `Enable` button to temporally disable the tool and navigate on the map.
+
+### Load Selected Image Features
+
+The plugin is initialized with features for demo purpose, you can use the `Feature Folder` selection tool to select the folder that include the image features you need.
+
+<p align="center">
+  <img src="assets/Select_feature_folder.png" width="300" title="Select feature folder">
+</p>
+
+After selecting the feature folder, you may press the `Load` button to load the features, it may take several seconds when you load the folder for the first time. Remember to add the corresponding raster image to the QGIS project.
+
+<p align="center">
+  <img src="assets/Load_image_feature.png" width="300" title="Load feature folder">
+</p>
 
 ## Tips for Using GeoSAM Tool
 
@@ -126,7 +143,7 @@ You can uncheck the `enable` button to temporally disable the tool and navigate 
 - Use **Background Points** to exclude unwanted parts
 - Use **Bounding Box (BBox)** to limit the segment polygon boundary
 - The **BBox** should cover the entire subject
-
+- Remember to press `Save` button after the segmentation of the chosen subject
 
 ## Future Works
 
