@@ -57,9 +57,6 @@ class Geo_SAM(QObject):
                 rlayer = QgsRasterLayer(img_path, self.demo_img_name)
                 if rlayer.isValid():
                     QgsProject.instance().addMapLayer(rlayer)
-                    canvas = self.iface.mapCanvas()
-                    canvas.setExtent(rlayer.extent())
-                    canvas.refresh()
                 else:
                     print("Demo image layer failed to load!")
                 # self.iface.addRasterLayer(img_path, self.demo_img_name)
@@ -76,6 +73,11 @@ class Geo_SAM(QObject):
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
 
+        canvas = self.iface.mapCanvas()
+        extent_canvas = self.transform_crs.transform_extent_from_feature_crs(self.sam_model.extent, QgsProject.instance().crs())
+        canvas.setExtent(extent_canvas)
+        canvas.refresh()
+        
         self.canvas_points.clear()
         self.canvas_rect._init_rect_layer()
 
