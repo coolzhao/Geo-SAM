@@ -1,6 +1,6 @@
 # Geo SAM
 
-By Joey and [Fancy](https://github.com/Fanchengyan) from [CryoLab](https://cryocuhk.github.io/), ESSC, CUHK.
+By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
 ## Introduction
 
@@ -55,11 +55,11 @@ Then install the libraries.
 
 ### Install the GeoSAM Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/main.zip), unzip it (avoid nested folder after unzipping) and put the contents in the QGIS plugin folder, then restart QGIS.
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/tags/v1.0.1-alpha.zip), unzip it and put the contents in the QGIS plugin folder (please remove the version suffix of the folder to avoid potential path issues, be aware of undesired nested folders after unzipping), then restart QGIS.
 
 #### How to Locate the QGIS Plugin folder
 
-From the `Settings` Menu, select `User Profiles`, then select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder you may find a `python` folder, the `plugins` folder should be right inside the python folder. Open the `plugins` folder, then put the entire `Geo-SAM`(or `Geo-SAM-main`) folder in it, then restart QGIS.
+From the `Settings` Menu, select `User Profiles`, then select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder you may find a `python` folder, the `plugins` folder should be right inside the python folder. Open the `plugins` folder, then put the entire `Geo-SAM` folder in it, then restart QGIS.
 
 Below are some general paths of different systems for your reference.
 
