@@ -76,7 +76,7 @@ class Geo_SAM(QObject):
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
 
-        self.canvas_points.init_points_layer()
+        self.canvas_points.clear()
         self.canvas_rect._init_rect_layer()
 
         # self.shortcut_undo = QShortcut(QKeySequence(Qt.ControlModifier + Qt.Key_Z), self.iface.mainWindow())
@@ -89,13 +89,30 @@ class Geo_SAM(QObject):
 
         # init tools
         self.tool_click_fg = ClickTool(
-            self.canvas, self.canvas_points.feature_fg, self.canvas_points.layer_fg, self.execute_SAM)
+            self.canvas,
+            self.canvas_points,
+            'fgp',
+            self.execute_SAM,
+        )
         self.tool_click_bg = ClickTool(
-            self.canvas, self.canvas_points.feature_bg, self.canvas_points.layer_bg, self.execute_SAM)
+            self.canvas,
+            self.canvas_points,
+            'bgp',
+            self.execute_SAM,
+        )
         self.tool_click_rect = RectangleMapTool(
-            self.canvas_rect, self.execute_SAM, self.img_crs_manager)
+            self.canvas_rect, self.execute_SAM, self.img_crs_manager
+        )
 
     def create_widget_selector(self):
+        '''Create widget selector'''
+
+        # clear last layers if reloaded
+        if hasattr(self, "canvas_points"):
+            self.canvas_points.clear()
+        if hasattr(self, "canvas_rect"):
+            self.canvas_rect.clear()
+
         self._init_feature_related()
         self.load_demo_img()
 
@@ -234,8 +251,8 @@ class Geo_SAM(QObject):
         self.draw_foreground_point()
 
     def clear_layers(self):
-        self.canvas_points._reset_points_layer()
-        self.canvas_rect._reset_rect_layer()
+        self.canvas_points.clear()
+        self.canvas_rect.clear()
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
         # self.activate_fg.emit()

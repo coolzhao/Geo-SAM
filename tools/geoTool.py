@@ -1,27 +1,10 @@
 import os
 import typing
 import numpy as np
-from qgis.core import (QgsProject, QgsCoordinateReferenceSystem,
+from qgis.core import (QgsProject, QgsCoordinateReferenceSystem, Qgis,
                        QgsCoordinateTransform, QgsPointXY,  QgsRectangle, QgsVectorLayer)
 
-from qgis.core import (
-    QgsMessageLog,
-    QgsGeometry,
-)
-
-from qgis.gui import (
-    QgsMessageBar,
-)
-
-from qgis.PyQt.QtWidgets import (
-    QSizePolicy,
-    QPushButton,
-    QDialog,
-    QGridLayout,
-    QDialogButtonBox,
-)
-
-from qgis.core import Qgis
+from qgis.core import QgsMessageLog
 
 
 class ImageCRSManager:

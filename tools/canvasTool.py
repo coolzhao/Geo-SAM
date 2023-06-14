@@ -2,20 +2,22 @@ import typing
 import os
 import numpy as np
 from pathlib import Path
-from rasterio.transform import rowcol
+from rasterio.transform import rowcol, Affine
 from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry
-from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan
+from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker
 from qgis.core import (
     QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFillSymbol,
     QgsGeometry, QgsFeature, QgsVectorLayer)
 from qgis.PyQt.QtCore import QVariant
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 
 from .geoTool import ImageCRSManager, LayerExtent
 
 
 class RectangleMapTool(QgsMapToolEmitPoint):
+    '''A map tool to draw a rectangle on canvas'''
+
     def __init__(self, canvas_rect, execute_SAM, img_crs_manager: ImageCRSManager):
         self.qgis_project = QgsProject.instance()
         self.canvas_rect = canvas_rect
@@ -88,152 +90,26 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.deactivated.emit()
 
 
-class ClickTool(QgsMapToolEmitPoint):
-    def __init__(self, canvas, feature, layer, execute_SAM):
-        self.canvas = canvas
-        self.feature = feature
-        self.layer = layer
-        self.execute_SAM = execute_SAM
-        QgsMapToolEmitPoint.__init__(self, self.canvas)
-
-    def canvasPressEvent(self, event):
-        point = self.toMapCoordinates(event.pos())
-        self.feature.setGeometry(QgsGeometry.fromPointXY(point))
-        # self.layer.dataProvider().addFeatures([self.feature])
-        self.layer.addFeatures([self.feature])  # add by zyzhao
-        # self.layer.updateExtents() # add by zyzhao
-        self.layer.triggerRepaint()
-        self.execute_SAM.emit()
-
-        # Convert all points to string and print to console
-        points_str = ""
-        for feature in self.layer.getFeatures():
-            point = feature.geometry().asPoint()
-            points_str += f"{point.x()}, {point.y()}\n"
-        print(points_str)
-
-    def activate(self):
-        QgsProject.instance().addMapLayer(self.layer)
-        if not self.layer.isEditable():  # add by zyzhao
-            self.layer.startEditing()
-        QgsMapToolEmitPoint.activate(self)
-
-    def deactivate(self):
-        QgsMapToolEmitPoint.deactivate(self)
-
-    def isZoomTool(self):
-        return False
-
-    def isTransient(self):
-        return False
-
-    def isEditTool(self):
-        return True
-
-    def edit(self):
-        pass
-
-
-class Canvas_Points:
-    def __init__(self, canvas, img_crs_manager: ImageCRSManager):
-        self.canvas = canvas
-        self.qgis_project = QgsProject.instance()
-        self.img_crs_manager = img_crs_manager
-
-    def init_points_layer(self):
-        """initialize the points layer"""
-        self.layer_fg = self._init_points_layer("Foreground Points", "blue")
-        self.layer_bg = self._init_points_layer("Background Points", "red")
-
-        self.feature_fg = QgsFeature()
-        self.feature_bg = QgsFeature()
-
-    def _init_points_layer(self, layer_name, color):
-        """find the layer with the given name, or create it if it doesn't exist"""
-        layer_list = QgsProject.instance().mapLayersByName(layer_name)
-        if layer_list:
-            layer = layer_list[0]
-            layer.commitChanges()
-        else:
-            layer = QgsVectorLayer("Point", layer_name, "memory")
-            layer.setCrs(self.qgis_project.crs())
-            # layer.setCrs(self.img_crs_manager.img_crs)
-
-            # set default color
-            symbol = QgsMarkerSymbol.createSimple(
-                {'name': 'circle', 'color': color})
-            layer.renderer().setSymbol(symbol)
-            layer.triggerRepaint()
-
-        return layer
-
-    def _del_layer(self, layer):
-        """Delete the layer from the map canvas"""
-        QgsProject.instance().removeMapLayer(layer.id())
-        self.canvas.refresh()
-
-    def _clear_features(self, layer):
-        '''Clear all features from the layer'''
-        # layer.commitChanges()
-        # layer.startEditing()
-        layer.deleteFeatures([f.id() for f in layer.getFeatures()])
-
-    def _reset_points_layer(self):
-        """Delete all points from the layer"""
-        self._clear_features(self.layer_fg)
-        self._clear_features(self.layer_bg)
-        self.canvas.refresh()
-
-    def get_points_and_labels(self, tf):
-        '''Get the points and labels from the foreground and background layers'''
-        if self.layer_fg.featureCount() == 0 and self.layer_bg.featureCount() == 0:
-            return None, None
-        else:
-            points = []
-            labels = []
-            for feature in self.layer_fg.getFeatures():
-                point = feature.geometry().asPoint()
-                if self.layer_fg.crs() != self.img_crs_manager.img_crs:
-                    point = self.img_crs_manager.point_to_img_crs(
-                        point, self.layer_fg.crs())
-                row_point, col_point = rowcol(tf, point.x(), point.y())
-                points.append((col_point, row_point))
-                labels.append(1)
-
-            for feature in self.layer_bg.getFeatures():
-                point = feature.geometry().asPoint()
-                if self.layer_bg.crs() != self.img_crs_manager.img_crs:
-                    point = self.img_crs_manager.point_to_img_crs(
-                        point, self.layer_bg.crs())
-                row_point, col_point = rowcol(tf, point.x(), point.y())
-                points.append((col_point, row_point))
-                labels.append(0)
-            points, labels = np.array(points), np.array(labels)
-
-            return points, labels
-
-    @property
-    def extent(self):
-        extent = LayerExtent.union_layer_extent(
-            self.layer_fg, self.layer_bg, self.img_crs_manager)
-        return extent
-
-
 class Canvas_Rectangle:
+    '''A class to manage Rectangle on canvas.'''
+
     def __init__(self, canvas, img_crs_manager: ImageCRSManager):
         self.canvas = canvas
         self.qgis_project = QgsProject.instance()
         self.box_geo = None
         self.img_crs_manager = img_crs_manager
+        self.rubberBand = None
 
     def _init_rect_layer(self):
+        '''Initialize the rectangle layer'''
         self.rubberBand = QgsRubberBand(
             self.canvas, QgsWkbTypes.PolygonGeometry)
         self.rubberBand.setColor(Qt.blue)
         self.rubberBand.setFillColor(QColor(0, 0, 255, 10))
         self.rubberBand.setWidth(1)
 
-    def _reset_rect_layer(self):
+    def clear(self):
+        '''Clear the rectangle on canvas'''
         self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
         self.canvas.refresh()
         self.box_geo = None
@@ -253,6 +129,7 @@ class Canvas_Rectangle:
             return None
 
     def get_img_box(self, tf):
+        '''Return the box for SAM image'''
         if self.box_geo is not None:
             rowcol1 = rowcol(tf, self.box_geo[0], self.box_geo[1])
             rowcol2 = rowcol(tf, self.box_geo[2], self.box_geo[3])
@@ -261,9 +138,166 @@ class Canvas_Rectangle:
             return None
 
 
+class Canvas_Points(QgsVertexMarker):
+    """
+    A class to manage points on canvas.
+    """
+
+    def __init__(self, canvas, img_crs_manager: ImageCRSManager):
+        '''
+        Parameters:
+        ----------
+        canvas: QgsMapCanvas
+            canvas to add points
+        img_crs_manager: ImageCRSManager
+            The manager to transform points between image crs and other crs
+        '''
+        super().__init__(canvas)
+        self.canvas = canvas
+        self.extent = None
+        self.img_crs_manager = img_crs_manager
+        self.markers: List[QgsVertexMarker] = []
+        self.points_img_crs: List[QgsPointXY] = []
+        self.labels: List[bool] = []
+
+    @property
+    def project_crs(self):
+        return QgsProject.instance().crs()
+
+    def addPoint(self, point: QgsPointXY, foreground: bool):
+        """
+        Parameters:
+        ----------
+        point: QgsPointXY
+            point to add marker
+        foreground: bool
+            True for foreground, False for background
+        """
+        m = QgsVertexMarker(self.canvas)
+        m.setCenter(point)
+        if foreground:
+            m.setColor(QColor(0, 0, 255))
+            m.setFillColor(QColor(0, 0, 255))
+        else:
+            m.setColor(QColor(255, 0, 0))
+            m.setFillColor(QColor(255, 0, 0))
+        m.setIconSize(10)
+        m.setIconType(QgsVertexMarker.ICON_CIRCLE)
+
+        # add to markers and labels
+        self.markers.append(m)
+        point_img_crs = self.img_crs_manager.point_to_img_crs(
+            point, self.project_crs)
+        self.points_img_crs.append(point_img_crs)
+        self.labels.append(foreground)
+
+        self._update_extent()
+
+    def popPoint(self):
+        """remove the last marker"""
+        m = self.markers.pop()
+        self.canvas.scene().removeItem(m)
+        self.labels.pop()
+
+        self._update_extent()
+
+    def clear(self):
+        """remove all markers"""
+        for m in self.markers:
+            self.canvas.scene().removeItem(m)
+        self.canvas.refresh()
+
+        self.markers = []
+        self.points_img_crs = []
+        self.labels = []
+        self.extent = None
+
+    def _update_extent(self):
+        """update extent of markers with image crs"""
+        points = []
+        if len(self.markers) == 0:
+            self.extent = None
+        else:
+            for m in self.markers:
+                points.append(m.center())
+            extent = QgsGeometry.fromMultiPointXY(points).boundingBox()
+            if self.project_crs != self.img_crs_manager.img_crs:
+                extent = self.img_crs_manager.extent_to_img_crs(
+                    extent, self.project_crs
+                )
+            self.extent = LayerExtent.from_qgis_extent(extent)
+
+    def get_points_and_labels(self, tf: Affine):
+        '''Returns points and labels for SAM image'''
+        if len(self.markers) == 0:
+            return None, None
+        else:
+            points = []
+            for point in self.points_img_crs:
+                row_point, col_point = rowcol(tf, point.x(), point.y())
+                points.append((col_point, row_point))
+
+            points = np.array(points)
+            labels = np.array(self.labels).astype(np.uint8)
+            return points, labels
+
+
+class ClickTool(QgsMapToolEmitPoint):
+    '''A tool to add points to canvas_points'''
+
+    def __init__(
+        self,
+        canvas,
+        canvas_points: Canvas_Points,
+        prompt_type: str,
+        execute_SAM: pyqtSignal,
+    ):
+
+        self.canvas = canvas
+        self.canvas_points = canvas_points
+        if prompt_type not in ["fgp", "bgp", "bbox"]:
+            raise ValueError(
+                f"prompt_type must be one of ['fgp', 'bgp', 'bbox'], not {prompt_type}"
+            )
+        self.prompt_type = prompt_type
+        self.execute_SAM = execute_SAM
+        QgsMapToolEmitPoint.__init__(self, self.canvas)
+
+    def canvasPressEvent(self, event):
+        point = self.toMapCoordinates(event.pos())
+        if self.prompt_type == "fgp":
+            self.canvas_points.addPoint(point, foreground=True)
+        elif self.prompt_type == "bgp":
+            self.canvas_points.addPoint(point, foreground=False)
+        else:
+            # TODO: whether will have bbox case?
+            pass
+        self.execute_SAM.emit()
+
+    def activate(self):
+        # QgsProject.instance().addMapLayer(self.layer)
+        QgsMapToolEmitPoint.activate(self)
+
+    def deactivate(self):
+        QgsMapToolEmitPoint.deactivate(self)
+
+    def isZoomTool(self):
+        return False
+
+    def isTransient(self):
+        return False
+
+    def isEditTool(self):
+        return True
+
+    def edit(self):
+        pass
+
+
 class SAM_PolygonFeature:
+    '''A polygon feature for SAM output'''
+
     def __init__(self, img_crs_manager: ImageCRSManager, shapefile=None):
-        '''SAM_PolygonFeature class'''
         self.qgis_project = QgsProject.instance()
         self.img_crs_manager = img_crs_manager
         if shapefile:
@@ -272,6 +306,7 @@ class SAM_PolygonFeature:
             self._init_layer()
 
     def _load_shapefile(self, shapefile):
+        '''Load the shapefile to the layer.'''
         if isinstance(shapefile, Path):
             shapefile = str(shapefile)
         self.layer = QgsVectorLayer(shapefile, "polygon_sam", "ogr")
@@ -279,6 +314,7 @@ class SAM_PolygonFeature:
         self.ensure_edit_mode()
 
     def _init_layer(self,):
+        '''Initialize the layer. If the layer exists, load it. If not, create a new one on memory'''
         layer_list = QgsProject.instance().mapLayersByName("polygon_sam")
         if layer_list:
             self.layer = layer_list[0]
@@ -296,6 +332,7 @@ class SAM_PolygonFeature:
         self.ensure_edit_mode()
 
     def show_layer(self):
+        '''Show the layer on canvas'''
         self.qgis_project.addMapLayer(self.layer)
         self.layer.startEditing()
         symbol = QgsFillSymbol.createSimple({'color': '0,255,0,40',
@@ -306,6 +343,7 @@ class SAM_PolygonFeature:
         self.layer.triggerRepaint()
 
     def add_geojson_feature(self, geojson):
+        '''Add a geojson feature to the layer'''
         features = []
         num_polygons = self.layer.featureCount()
         for idx, geom in enumerate(geojson):
@@ -332,10 +370,12 @@ class SAM_PolygonFeature:
         self.layer.updateExtents()
 
     def ensure_edit_mode(self):
+        '''Ensure the layer is in edit mode'''
         if not self.layer.isEditable():
             self.layer.startEditing()
 
     def rollback_changes(self):
+        '''Roll back the changes'''
         try:
             self.layer.rollBack()
         except RuntimeError as inst:
@@ -350,4 +390,5 @@ class SAM_PolygonFeature:
             raise
 
     def commit_changes(self):
+        '''Commit the changes'''
         self.layer.commitChanges()
