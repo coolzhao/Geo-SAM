@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import rasterio as rio
 from PyQt5.QtWidgets import QMessageBox
+from qgis.core import QgsRectangle
 from torch.utils.data import DataLoader
 from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
 from .sam_ext import sam_model_registry_no_encoder, SamPredictorNoImgEncoder
@@ -29,6 +30,8 @@ class SAM_Model:
         sam = sam_model_registry_no_encoder[self.model_type](
             checkpoint=self.sam_checkpoint)
         self.predictor = SamPredictorNoImgEncoder(sam)
+        feature_bounds = self.test_features.index.bounds # list [minx, maxx, miny, maxy, mint, maxt]
+        self.extent = QgsRectangle(feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
 
     def sam_predict(self, canvas_points, canvas_rect, sam_polygon):
         min_x, max_x, min_y, max_y = LayerExtent.union_extent(
