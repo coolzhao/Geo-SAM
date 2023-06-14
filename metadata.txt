@@ -1,0 +1,11 @@
+[general]
+name=Geo SAM
+description=Segment Landform with Segment-Anything AI Model (SAM)
+about=This tool uses SAM model to help segment landforms
+category=Raster
+version=1.0
+qgisMinimumVersion=3.20
+author=Joey, Fancy
+email=joey_fancy@cryolab.com
+tags=raster, vector, segmentation, segment-anything, labeling
+icon=icons/geo_sam_tool.png
