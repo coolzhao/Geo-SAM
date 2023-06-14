@@ -77,7 +77,7 @@ class ImageCRSManager:
         dst_crs: QgsCoordinateReferenceSystem
             destination crs for extent
         '''
-        transform = QgsCoordinateTransform(self.feature_crs, dst_crs, QgsProject.instance())
+        transform = QgsCoordinateTransform(self.img_crs, dst_crs, QgsProject.instance())
         extent_transformed = transform.transformBoundingBox(extent)
         return extent_transformed
 

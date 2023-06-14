@@ -74,7 +74,7 @@ class Geo_SAM(QObject):
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
 
         canvas = self.iface.mapCanvas()
-        extent_canvas = self.transform_crs.transform_extent_from_feature_crs(self.sam_model.extent, QgsProject.instance().crs())
+        extent_canvas = self.img_crs_manager.img_extent_to_crs(self.sam_model.extent, QgsProject.instance().crs())
         canvas.setExtent(extent_canvas)
         canvas.refresh()
         
