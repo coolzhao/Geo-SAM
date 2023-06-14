@@ -3,4 +3,5 @@ __pycache__/sam_ext.cpython-39.pyc
 __pycache__/__init__.cpython-39.pyc
 __pycache__/torchgeo_sam.cpython-39.pyc
 features/**/*.csv
+rasters/**/*.aux.xml
 .DS_Store

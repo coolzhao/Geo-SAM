@@ -569,7 +569,7 @@ class Geo_SAM(QObject):
         self.cwd = cwd
         self.canvas = iface.mapCanvas()
         # self.create_toolbar()
-        self.demo_img_name = "beiluhe_google_img_201211_utm_new_export_pyramid_clip"
+        self.demo_img_name = "beiluhe_google_img_201211_clip"
         feature_dir = cwd + "/features/" + self.demo_img_name
         self.feature_dir = feature_dir
         self.toolPan = QgsMapToolPan(self.canvas)

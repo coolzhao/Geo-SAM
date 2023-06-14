@@ -1,18 +1,18 @@
 # Geo-SAM
 
-By Joey and Fancy from CryoLab, ESSC, CUHK.
+By Joey and Fancy from [CryoLab](https://cryocuhk.github.io/), ESSC, CUHK.
 
 ## Introduction
 
-Geo SAM is a tool aims to help people segment, delineate or label landforms with large-size geo-spatial raster images.
-Segment Anything Model (SAM) is foundation AI vision model with super power, but the model size is large and using it to process images can take a long time, and a modern GPU is usually needed.
-With the pre-generated image features using Vision Transformer image encoder, the interactive segmentation process can be run in real-time on a laptop without dedicated GPU.
+Geo SAM is a tool that aims to help people segment, delineate or label landforms with large-size geo-spatial raster images.
+[Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with super power, but the model size is large and using it to process images can take a long time even with a modern GPU.
+With the pre-generated image features using the Vision Transformer image encoder, the interactive segmentation process can be run in real-time on a laptop by only using CPU.
 
 ## Installation
 
 ### Install QGIS
 
-You are recommended to install the latest version of QGIS, since the plugin has only been tested on the versions later than QGIS 3.30, at least ver. 2.28 is recommended.
+You are recommended to install the latest version of QGIS, since the plugin has only been tested on the versions later than QGIS 3.30, at least ver. 3.28 is recommended.
 
 ## Install Library Dependencies
 
