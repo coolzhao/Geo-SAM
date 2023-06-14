@@ -8,9 +8,8 @@ from qgis.core import QgsMessageLog
 
 
 class ImageCRSManager:
+    '''Manage image crs and transform point and extent between image crs and other crs'''
     def __init__(self, img_crs) -> None:
-        # self.rect_crs = self.point_crs
-        # self.polygon_crs = QgsCoordinateReferenceSystem(polygon_crs)
         self.img_crs = QgsCoordinateReferenceSystem(
             img_crs)  # from str to QgsCRS
         print(self.img_crs.authid())
@@ -148,8 +147,6 @@ class LayerExtent:
     ):
         """Get the union of two layer extents"""
         extent1 = cls.get_layer_extent(layer1, img_crs_manager)
-        QgsMessageLog.logMessage(f"extent1:{extent1}", level=Qgis.Info)
         extent2 = cls.get_layer_extent(layer2, img_crs_manager)
-        QgsMessageLog.logMessage(f"extent2:{extent2}", level=Qgis.Info)
 
         return cls.union_extent(extent1, extent2)
