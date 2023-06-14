@@ -682,7 +682,8 @@ class Geo_SAM(QObject):
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
 
         # start with fg 
-        self.draw_foreground_point()
+        # self.draw_foreground_point()
+        self.reset_label_tool() # default is fgpt, but do not change when reloading feature folder
         
     def destruct(self):
         self.save_shp_file()
@@ -705,6 +706,8 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_fg.setEnabled(False)
             self.wdg_sel.pushButton_bg.setEnabled(False)
             self.wdg_sel.pushButton_rect.setEnabled(False)
+            self.wdg_sel.pushButton_clear.setEnabled(False)
+            self.wdg_sel.pushButton_save.setEnabled(False)
             # self.tool_click_fg.deactivate()
             # self.tool_click_bg.deactivate()
             # self.tool_click_rect.deactivate()
@@ -715,6 +718,8 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_fg.setEnabled(True)
             self.wdg_sel.pushButton_bg.setEnabled(True)
             self.wdg_sel.pushButton_rect.setEnabled(True)
+            self.wdg_sel.pushButton_clear.setEnabled(True)
+            self.wdg_sel.pushButton_save.setEnabled(True)
             self.reset_label_tool()
 
             # UI_Selector.setEnabled(True)
@@ -800,7 +805,8 @@ class Geo_SAM(QObject):
             self.clear_layers()
             self._init_feature_related()
             self.load_shp_file()
-            self.draw_foreground_point()
+            # self.draw_foreground_point()
+            self.reset_label_tool() # do not change tool
         else:
             self.iface.messageBar().pushMessage("Feature folder not exist", "choose a another folder", level=Qgis.Info)
 
@@ -824,7 +830,8 @@ class Geo_SAM(QObject):
                 self.draw_rect()
             else:
                 self.draw_foreground_point()
-                self.prompt_type = 'fgpt'
+        else:
+            self.draw_foreground_point()
 
 
 # gs = Geo_SAM(iface, cwd)
