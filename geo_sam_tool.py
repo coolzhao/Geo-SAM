@@ -101,6 +101,13 @@ class TransformCRS:
         extent_transformed = transform.transformBoundingBox(extent)
         return extent_transformed
 
+    def transform_extent_from_feature_crs(self, extent: QgsRectangle, point_crs: QgsCoordinateReferenceSystem):
+        '''transform extent from feature crs to point crs'''
+        # point_crs = QgsCoordinateReferenceSystem(point_crs)
+        transform = QgsCoordinateTransform(self.feature_crs, point_crs, QgsProject.instance())
+        extent_transformed = transform.transformBoundingBox(extent)
+        return extent_transformed
+
 
 class LayerExtent:
     def __init__(self):
@@ -497,6 +504,8 @@ class SAM_Model:
         # Load sam decoder
         sam = sam_model_registry_no_encoder[self.model_type](checkpoint=self.sam_checkpoint)
         self.predictor = SamPredictorNoImgEncoder(sam)
+        feature_bounds = self.test_features.index.bounds # list [minx, maxx, miny, maxy, mint, maxt]
+        self.extent = QgsRectangle(feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
 
     def sam_predict(self, canvas_points, canvas_rect, sam_polygon):
         min_x, max_x, min_y, max_y = LayerExtent.union_extent(canvas_points.extent, canvas_rect.extent)    
@@ -601,9 +610,6 @@ class Geo_SAM(QObject):
                 rlayer = QgsRasterLayer(img_path, self.demo_img_name)
                 if rlayer.isValid():
                     QgsProject.instance().addMapLayer(rlayer)
-                    canvas = self.iface.mapCanvas()
-                    canvas.setExtent(rlayer.extent())
-                    canvas.refresh()
                 else:
                     print("Demo image layer failed to load!")
                 # self.iface.addRasterLayer(img_path, self.demo_img_name)
@@ -619,6 +625,11 @@ class Geo_SAM(QObject):
         self.transform_crs = TransformCRS(self.sam_model.feature_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.transform_crs)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.transform_crs)
+
+        canvas = self.iface.mapCanvas()
+        extent_canvas = self.transform_crs.transform_extent_from_feature_crs(self.sam_model.extent, QgsProject.instance().crs())
+        canvas.setExtent(extent_canvas)
+        canvas.refresh()
 
         self.canvas_points.init_points_layer()
         self.canvas_rect._init_rect_layer()
