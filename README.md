@@ -1,4 +1,4 @@
-# Geo-SAM
+# Geo SAM
 
 By Joey and [Fancy](https://github.com/Fanchengyan) from [CryoLab](https://cryocuhk.github.io/), ESSC, CUHK.
 
@@ -152,4 +152,4 @@ After selecting the feature folder, you may press the `Load` button to load the 
 
 ## Acknowledgement
 
-This repo benefits from Segment Anything and TorchGeo. Thanks for their wonderful works.
+This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [TorchGeo](https://github.com/microsoft/torchgeo). Thanks for their wonderful works.

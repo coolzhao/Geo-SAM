@@ -66,6 +66,20 @@ class ImageCRSManager:
             dst_crs, self.img_crs, QgsProject.instance())
         extent_transformed = transform.transformBoundingBox(extent)
         return extent_transformed
+    
+    def img_extent_to_crs(self, extent: QgsRectangle, dst_crs: QgsCoordinateReferenceSystem):
+        '''transform extent from this image crs to destination crs
+        
+        Parameters:
+        ----------
+        extent: QgsRectangle
+            extent in this image crs
+        dst_crs: QgsCoordinateReferenceSystem
+            destination crs for extent
+        '''
+        transform = QgsCoordinateTransform(self.feature_crs, dst_crs, QgsProject.instance())
+        extent_transformed = transform.transformBoundingBox(extent)
+        return extent_transformed
 
 
 class LayerExtent:
