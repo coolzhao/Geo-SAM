@@ -1,7 +1,7 @@
 from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan
 from qgis.core import (
-    QgsPointXY, QgsWkbTypes,QgsMarkerSymbol, QgsRectangle, QgsField, QgsFillSymbol,
+    QgsPointXY, QgsWkbTypes,QgsMarkerSymbol, QgsRectangle, QgsField, QgsFillSymbol, QgsMessageLog, Qgis,
     QgsGeometry, QgsFeature, QgsVectorLayer, QgsRasterLayer, QgsSimpleMarkerSymbolLayer, QgsSingleSymbolRenderer)
 from qgis.PyQt.QtCore import QCoreApplication,QVariant
 from PyQt5.QtCore import Qt, pyqtSignal, QEvent, QObject, QTimer
@@ -542,7 +542,7 @@ class SAM_Model:
 
         input_point, input_label = canvas_points.get_points_and_labels(img_clip_transform)
         box = canvas_rect.get_img_box(img_clip_transform)
-        print("box", box)
+        # print("box", box)
         
         img_features = batch['image']
         self.predictor.set_image_feature(img_features, img_shape=(1024, 1024))
@@ -553,7 +553,8 @@ class SAM_Model:
             box=box,
             multimask_output=False,
         )
-        print(masks.shape)  # (number_of_masks) x H x W
+        QgsMessageLog.logMessage("SAM predict executed", 'Geo SAM', level=Qgis.Info)
+        # print(masks.shape)  # (number_of_masks) x H x W
 
         mask = masks[0, ...]
         # mask = mask_morph
@@ -639,8 +640,6 @@ class Geo_SAM(QObject):
         # self.shortcut_undo.setContext(Qt.ApplicationShortcut)
         # self.shortcut_undo.activated.connect(self.execute_segmentation)
         
-        self.execute_SAM.connect(self.execute_segmentation)
-        self.activate_fg.connect(self.draw_foreground_point)
         
         # init tools
         self.tool_click_fg = ClickTool(self.canvas, self.canvas_points.feature_fg, self.canvas_points.layer_fg, self.execute_SAM)
@@ -650,6 +649,11 @@ class Geo_SAM(QObject):
     def create_widget_selector(self):
         self._init_feature_related()
         self.load_demo_img()
+
+        receiversCount = self.receivers(self.execute_SAM)
+        if receiversCount == 0:
+            self.execute_SAM.connect(self.execute_segmentation)
+            self.activate_fg.connect(self.draw_foreground_point)
         
         UI_Selector = uic.loadUi(os.path.join(self.cwd, "ui/Selector.ui"))
         # connect signals for buttons
@@ -669,6 +673,9 @@ class Geo_SAM(QObject):
         self.wdg_sel.pushButton_fg.setCheckable(True)
         self.wdg_sel.pushButton_bg.setCheckable(True)
         self.wdg_sel.pushButton_rect.setCheckable(True)
+        # self.wdg_sel.closed.connect(self.destruct()) # qgis.gui.QgsDockWidget, actually QDockWidget no closed signal
+        # self.wdg_sel.closeEvent = self.destruct
+        # self.wdg_sel.visibilityChanged.connect(self.destruct)
         
         # add widget to QGIS
         self.wdg_sel.setFloating(True)
@@ -677,6 +684,15 @@ class Geo_SAM(QObject):
         # start with fg 
         self.draw_foreground_point()
         
+    def destruct(self):
+        self.save_shp_file()
+        receiversCount = self.receivers(self.execute_SAM)
+        if receiversCount > 0:
+            self.execute_SAM.disconnect()
+            self.activate_fg.disconnect()
+        self.canvas.setMapTool(self.toolPan)
+        # self.wdg_sel.destroy()
+    
     def enable_disable(self):
         radioButton = self.sender()
         if not radioButton.isChecked():
@@ -780,9 +796,13 @@ class Geo_SAM(QObject):
 
     def load_feature(self):
         self.feature_dir = self.wdg_sel.path_feature.text()
-        self._init_feature_related()
-        self.load_shp_file()
-        self.draw_foreground_point()
+        if self.feature_dir is not None and os.path.exists(self.feature_dir):
+            self.clear_layers()
+            self._init_feature_related()
+            self.load_shp_file()
+            self.draw_foreground_point()
+        else:
+            self.iface.messageBar().pushMessage("Feature folder not exist", "choose a another folder", level=Qgis.Info)
 
     def clear_layers(self):
         self.canvas_points._reset_points_layer()
@@ -793,16 +813,18 @@ class Geo_SAM(QObject):
         self.reset_label_tool()
         
     def save_shp_file(self):
-        self.polygon.commit_changes()
+        if hasattr(self, "polygon"):
+            self.polygon.commit_changes()
         self.clear_layers()
         # self.activate_fg.emit()
     
     def reset_label_tool(self):
-        if self.prompt_type == 'bbox':
-            self.draw_rect()
-        else:
-            self.draw_foreground_point()
-            self.prompt_type = 'fgpt'
+        if hasattr(self, "prompt_type"):
+            if self.prompt_type == 'bbox':
+                self.draw_rect()
+            else:
+                self.draw_foreground_point()
+                self.prompt_type = 'fgpt'
 
 
 # gs = Geo_SAM(iface, cwd)
