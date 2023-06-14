@@ -4,7 +4,7 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [CryoLab](https://cryoc
 
 ## Introduction
 
-Geo SAM is a tool that aims to help people segment, delineate or label landforms with large-size geo-spatial raster images.  [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with super power, but the model size is huge and using it to process images can take a long time even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model, the interactive segmentation process can be run in real-time on a laptop by only using CPU.
+Geo SAM is a tool that aims to help people segment, delineate or label landforms efficiently when using large-size geo-spatial raster images. [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with super power, but the model size is huge and using it to process images can take a long time even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model, the interactive segmentation process can be run in real-time on a laptop by only using CPU, making it a convenient and efficient tool to deal with satellite images.
 
 ## Installation
 
