@@ -4,7 +4,7 @@ from qgis.core import QgsProject
 from qgis.gui import QgsMapToolPan
 from qgis.core import QgsRasterLayer
 from qgis.PyQt.QtWidgets import QDockWidget
-from PyQt5.QtCore import Qt, pyqtSignal, QObject
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, QgsMessageLog, Qgis
 from PyQt5.QtWidgets import (
     QFileDialog,
     QAction,
@@ -126,7 +126,11 @@ class Geo_SAM(QObject):
 
         self._init_feature_related()
         self.load_demo_img()
-        
+        receiversCount = self.receivers(self.execute_SAM)
+        if receiversCount == 0:
+            self.execute_SAM.connect(self.execute_segmentation)
+            self.activate_fg.connect(self.draw_foreground_point)
+            
         self.wdg_sel = UI_Selector
         self.wdg_sel.pushButton_fg.clicked.connect(self.draw_foreground_point)
         self.wdg_sel.pushButton_bg.clicked.connect(self.draw_background_point)
@@ -143,19 +147,25 @@ class Geo_SAM(QObject):
         self.wdg_sel.pushButton_fg.setCheckable(True)
         self.wdg_sel.pushButton_bg.setCheckable(True)
         self.wdg_sel.pushButton_rect.setCheckable(True)
-
-        self.execute_SAM.connect(self.execute_segmentation)
-        self.activate_fg.connect(self.draw_foreground_point)
+        # self.wdg_sel.closed.connect(self.destruct()) # qgis.gui.QgsDockWidget, actually QDockWidget no closed signal
+        # self.wdg_sel.closeEvent = self.destruct
+        # self.wdg_sel.visibilityChanged.connect(self.destruct)
 
         # add widget to QGIS
         self.wdg_sel.setFloating(True)
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
 
-        # start with fg
-        self.draw_foreground_point()
+        # default is fgpt, but do not change when reloading feature folder
+        self.reset_label_tool()
 
-    def clean_up(self):
-        self.clear_canvas_layers_safely()
+    def destruct(self):
+        self.save_shp_file()
+        receiversCount = self.receivers(self.execute_SAM)
+        if receiversCount > 0:
+            self.execute_SAM.disconnect()
+            self.activate_fg.disconnect()
+        self.canvas.setMapTool(self.toolPan)
+        # self.wdg_sel.destroy()
 
     def enable_disable(self):
         radioButton = self.sender()
@@ -169,6 +179,8 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_fg.setEnabled(False)
             self.wdg_sel.pushButton_bg.setEnabled(False)
             self.wdg_sel.pushButton_rect.setEnabled(False)
+            self.wdg_sel.pushButton_clear.setEnabled(False)
+            self.wdg_sel.pushButton_save.setEnabled(False)
             # self.tool_click_fg.deactivate()
             # self.tool_click_bg.deactivate()
             # self.tool_click_rect.deactivate()
@@ -179,6 +191,8 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_fg.setEnabled(True)
             self.wdg_sel.pushButton_bg.setEnabled(True)
             self.wdg_sel.pushButton_rect.setEnabled(True)
+            self.wdg_sel.pushButton_clear.setEnabled(True)
+            self.wdg_sel.pushButton_save.setEnabled(True)
             self.reset_label_tool()
 
             # UI_Selector.setEnabled(True)
@@ -252,9 +266,15 @@ class Geo_SAM(QObject):
 
     def load_feature(self):
         self.feature_dir = self.wdg_sel.path_feature.text()
-        self._init_feature_related()
-        self.load_shp_file()
-        self.draw_foreground_point()
+        if self.feature_dir is not None and os.path.exists(self.feature_dir):
+            self.clear_layers()
+            self._init_feature_related()
+            self.load_shp_file()
+            # self.draw_foreground_point()
+            self.reset_label_tool()  # do not change tool
+        else:
+            self.iface.messageBar().pushMessage("Feature folder not exist",
+                                                "choose a another folder", level=Qgis.Info)
 
     def clear_layers(self):
         self.clear_canvas_layers_safely()
@@ -264,13 +284,16 @@ class Geo_SAM(QObject):
         self.reset_label_tool()
 
     def save_shp_file(self):
-        self.polygon.commit_changes()
+        if hasattr(self, "polygon"):
+            self.polygon.commit_changes()
         self.clear_layers()
         # self.activate_fg.emit()
 
     def reset_label_tool(self):
-        if self.prompt_type == 'bbox':
-            self.draw_rect()
+        if hasattr(self, "prompt_type"):
+            if self.prompt_type == 'bbox':
+                self.draw_rect()
+            else:
+                self.draw_foreground_point()
         else:
             self.draw_foreground_point()
-            self.prompt_type = 'fgpt'

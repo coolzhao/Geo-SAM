@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import rasterio as rio
 from PyQt5.QtWidgets import QMessageBox
-from qgis.core import QgsRectangle
+from qgis.core import QgsRectangle, QgsMessageLog, Qgis
 from torch.utils.data import DataLoader
 from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
 from .sam_ext import sam_model_registry_no_encoder, SamPredictorNoImgEncoder
@@ -86,7 +86,8 @@ class SAM_Model:
             box=box,
             multimask_output=False,
         )
-        print(masks.shape)  # (number_of_masks) x H x W
+        
+        QgsMessageLog.logMessage("SAM predict executed", 'Geo SAM', level=Qgis.Info)
 
         mask = masks[0, ...]
         # mask = mask_morph
