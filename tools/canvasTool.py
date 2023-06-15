@@ -265,13 +265,10 @@ class ClickTool(QgsMapToolEmitPoint):
 
     def canvasPressEvent(self, event):
         point = self.toMapCoordinates(event.pos())
-        if self.prompt_type == "fgp":
+        if self.prompt_type == "fgpt":
             self.canvas_points.addPoint(point, foreground=True)
-        elif self.prompt_type == "bgp":
+        elif self.prompt_type == "bgpt":
             self.canvas_points.addPoint(point, foreground=False)
-        else:
-            # TODO: whether will have bbox case?
-            pass
         self.execute_SAM.emit()
 
     def activate(self):
