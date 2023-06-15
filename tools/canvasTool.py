@@ -98,12 +98,12 @@ class Canvas_Rectangle:
         self.qgis_project = QgsProject.instance()
         self.box_geo = None
         self.img_crs_manager = img_crs_manager
-        self.rubberBand = None
+        self.rubberBand = QgsRubberBand(
+            self.canvas, QgsWkbTypes.PolygonGeometry)
+        self._init_rect_layer()
 
     def _init_rect_layer(self):
         '''Initialize the rectangle layer'''
-        self.rubberBand = QgsRubberBand(
-            self.canvas, QgsWkbTypes.PolygonGeometry)
         self.rubberBand.setColor(Qt.blue)
         self.rubberBand.setFillColor(QColor(0, 0, 255, 10))
         self.rubberBand.setWidth(1)
@@ -255,9 +255,9 @@ class ClickTool(QgsMapToolEmitPoint):
 
         self.canvas = canvas
         self.canvas_points = canvas_points
-        if prompt_type not in ["fgp", "bgp", "bbox"]:
+        if prompt_type not in ["fgpt", "bgpt", "bbox"]:
             raise ValueError(
-                f"prompt_type must be one of ['fgp', 'bgp', 'bbox'], not {prompt_type}"
+                f"prompt_type must be one of ['fgpt', 'bgpt', 'bbox'], not {prompt_type}"
             )
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
