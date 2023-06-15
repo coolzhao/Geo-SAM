@@ -30,8 +30,10 @@ class SAM_Model:
         sam = sam_model_registry_no_encoder[self.model_type](
             checkpoint=self.sam_checkpoint)
         self.predictor = SamPredictorNoImgEncoder(sam)
-        feature_bounds = self.test_features.index.bounds # list [minx, maxx, miny, maxy, mint, maxt]
-        self.extent = QgsRectangle(feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
+
+        feature_bounds = self.test_features.index.bounds
+        self.extent = QgsRectangle(
+            feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
 
     def sam_predict(self, canvas_points, canvas_rect, sam_polygon):
         min_x, max_x, min_y, max_y = LayerExtent.union_extent(
@@ -86,8 +88,9 @@ class SAM_Model:
             box=box,
             multimask_output=False,
         )
-        
-        QgsMessageLog.logMessage("SAM predict executed", 'Geo SAM', level=Qgis.Info)
+
+        QgsMessageLog.logMessage(
+            "SAM predict executed", 'Geo SAM', level=Qgis.Info)
 
         mask = masks[0, ...]
         # mask = mask_morph
