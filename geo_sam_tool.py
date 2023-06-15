@@ -3,6 +3,7 @@ import typing
 from qgis.core import QgsProject
 from qgis.gui import QgsMapToolPan
 from qgis.core import QgsRasterLayer
+from qgis.PyQt.QtWidgets import QDockWidget
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtWidgets import (
     QFileDialog,
@@ -15,6 +16,7 @@ from PyQt5 import uic
 from .tools.geoTool import ImageCRSManager, LayerExtent
 from .tools.SAMTool import SAM_Model
 from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
+from .ui import UI_Selector
 
 
 class Geo_SAM(QObject):
@@ -26,9 +28,9 @@ class Geo_SAM(QObject):
         self.iface = iface
         self.cwd = cwd
         self.canvas = iface.mapCanvas()
-        # self.create_toolbar()
         self.demo_img_name = "beiluhe_google_img_201211_clip"
         feature_dir = cwd + "/features/" + self.demo_img_name
+        # feature_dir = r"D:\Data\sam_data\features\mosaic_scripts_wp_4.77_sub_114"
         self.feature_dir = feature_dir
         self.toolPan = QgsMapToolPan(self.canvas)
 
@@ -37,12 +39,12 @@ class Geo_SAM(QObject):
 
         self.action = QAction(
             QIcon(icon_path),
-            "GeoSAM Tool",
+            "Geo-SAM Tool",
             self.iface.mainWindow()
         )
         self.action.triggered.connect(self.create_widget_selector)
         # self.toolbar.addAction(self.action)
-        self.iface.addPluginToMenu('&Geo SAM', self.action)
+        self.iface.addPluginToMenu('&Geo-SAM', self.action)
         self.iface.addToolBarIcon(self.action)
 
     def load_demo_img(self):
@@ -53,6 +55,7 @@ class Geo_SAM(QObject):
         else:
             img_path = os.path.join(
                 self.cwd, "rasters", self.demo_img_name+'.tif')
+            # img_path = r"D:\Data\sam_data\rasters\mosaic_scripts_wp_4.77_sub_114.tif"
             if os.path.exists(img_path):
                 rlayer = QgsRasterLayer(img_path, self.demo_img_name)
                 if rlayer.isValid():
@@ -65,41 +68,50 @@ class Geo_SAM(QObject):
 
     def unload(self):
         self.iface.removeToolBarIcon(self.action)
+        self.iface.removePluginMenu('&Geo-SAM', self.action)
         del self.action
 
+    def clear_canvas_layers_safely(self):
+        if hasattr(self, "canvas_points"):
+            self.canvas_points.clear()
+        if hasattr(self, "canvas_rect"):
+            self.canvas_rect.clear()
+
     def _init_feature_related(self):
+        '''Init or reload feature related objects'''
+
+        # clear canvas layers when loading new image
+        self.clear_canvas_layers_safely()
+
+        # init feature related objects
         self.sam_model = SAM_Model(self.feature_dir, self.cwd)
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
 
+        # reset canvas extent
         canvas = self.iface.mapCanvas()
-        extent_canvas = self.img_crs_manager.img_extent_to_crs(self.sam_model.extent, QgsProject.instance().crs())
+        extent_canvas = self.img_crs_manager.img_extent_to_crs(
+            self.sam_model.extent, QgsProject.instance().crs())
         canvas.setExtent(extent_canvas)
         canvas.refresh()
-        
-        self.canvas_points.clear()
-        self.canvas_rect._init_rect_layer()
 
         # self.shortcut_undo = QShortcut(QKeySequence(Qt.ControlModifier + Qt.Key_Z), self.iface.mainWindow())
         # self.shortcut_undo = QShortcut(QKeySequence("Ctrl+Z"), self.iface.mainWindow())
         # self.shortcut_undo.setContext(Qt.ApplicationShortcut)
         # self.shortcut_undo.activated.connect(self.execute_segmentation)
 
-        self.execute_SAM.connect(self.execute_segmentation)
-        self.activate_fg.connect(self.draw_foreground_point)
-
         # init tools
         self.tool_click_fg = ClickTool(
             self.canvas,
             self.canvas_points,
-            'fgp',
+            'fgpt',
             self.execute_SAM,
         )
         self.tool_click_bg = ClickTool(
             self.canvas,
             self.canvas_points,
-            'bgp',
+            'bgpt',
             self.execute_SAM,
         )
         self.tool_click_rect = RectangleMapTool(
@@ -109,17 +121,12 @@ class Geo_SAM(QObject):
     def create_widget_selector(self):
         '''Create widget selector'''
 
-        # clear last layers if reloaded
-        if hasattr(self, "canvas_points"):
-            self.canvas_points.clear()
-        if hasattr(self, "canvas_rect"):
-            self.canvas_rect.clear()
+        # clear canvas layers if reloaded
+        self.clear_canvas_layers_safely()
 
         self._init_feature_related()
         self.load_demo_img()
-
-        UI_Selector = uic.loadUi(os.path.join(self.cwd, "ui/Selector.ui"))
-        # connect signals for buttons
+        
         self.wdg_sel = UI_Selector
         self.wdg_sel.pushButton_fg.clicked.connect(self.draw_foreground_point)
         self.wdg_sel.pushButton_bg.clicked.connect(self.draw_background_point)
@@ -137,12 +144,18 @@ class Geo_SAM(QObject):
         self.wdg_sel.pushButton_bg.setCheckable(True)
         self.wdg_sel.pushButton_rect.setCheckable(True)
 
+        self.execute_SAM.connect(self.execute_segmentation)
+        self.activate_fg.connect(self.draw_foreground_point)
+
         # add widget to QGIS
         self.wdg_sel.setFloating(True)
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
 
         # start with fg
         self.draw_foreground_point()
+
+    def clean_up(self):
+        self.clear_canvas_layers_safely()
 
     def enable_disable(self):
         radioButton = self.sender()
@@ -177,15 +190,6 @@ class Geo_SAM(QObject):
             self.load_shp_file()
         self.sam_model.sam_predict(
             self.canvas_points, self.canvas_rect, self.polygon)
-
-    # def _set_button_selected(self, button):
-    #     buttons_map = {'foreground': self.wdg_sel.pushButton_fg,
-    #                    'background': self.wdg_sel.pushButton_bg,
-    #                    'rectangle': self.wdg_sel.pushButton_rect}
-    #     button_selected = buttons_map.pop(button)
-    #     button_selected.setStyleSheet(f"background-color: #c8c8c8")
-    #     for button_other in buttons_map:
-    #         buttons_map[button_other].setStyleSheet(f"background-color: #f0f0f0")
 
     def draw_foreground_point(self):
         self.canvas.setMapTool(self.tool_click_fg)
@@ -253,8 +257,7 @@ class Geo_SAM(QObject):
         self.draw_foreground_point()
 
     def clear_layers(self):
-        self.canvas_points.clear()
-        self.canvas_rect.clear()
+        self.clear_canvas_layers_safely()
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
         # self.activate_fg.emit()
