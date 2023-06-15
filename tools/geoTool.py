@@ -1,10 +1,8 @@
 import os
 import typing
 import numpy as np
-from qgis.core import (QgsProject, QgsCoordinateReferenceSystem, Qgis,
+from qgis.core import (QgsProject, QgsCoordinateReferenceSystem, Qgis, QgsMessageLog, 
                        QgsCoordinateTransform, QgsPointXY,  QgsRectangle, QgsVectorLayer)
-
-from qgis.core import QgsMessageLog
 
 
 class ImageCRSManager:
