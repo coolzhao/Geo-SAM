@@ -71,6 +71,15 @@ class Geo_SAM(QObject):
         self.iface.removePluginMenu('&Geo-SAM', self.action)
         del self.action
 
+    def topping_polygon_sam_layer(self):
+        if hasattr(self, "polygon"):
+            rg = self.iface.layerTreeCanvasBridge().rootGroup()
+            order = rg.layerOrder()
+            if self.polygon.layer in order and order[0] != self.polygon.layer:
+                order.remove(self.polygon.layer)
+                order.insert(0, self.polygon.layer)
+            rg.setCustomLayerOrder(order)
+
     def clear_canvas_layers_safely(self):
         if hasattr(self, "canvas_points"):
             self.canvas_points.clear()
@@ -130,7 +139,7 @@ class Geo_SAM(QObject):
         if receiversCount == 0:
             self.execute_SAM.connect(self.execute_segmentation)
             self.activate_fg.connect(self.draw_foreground_point)
-            
+
         self.wdg_sel = UI_Selector
         self.wdg_sel.pushButton_fg.clicked.connect(self.draw_foreground_point)
         self.wdg_sel.pushButton_bg.clicked.connect(self.draw_background_point)
@@ -156,7 +165,7 @@ class Geo_SAM(QObject):
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
 
         # default is fgpt, but do not change when reloading feature folder
-        self.reset_label_tool()
+        self.reset_prompt_type()
 
     def destruct(self):
         self.save_shp_file()
@@ -193,7 +202,7 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_rect.setEnabled(True)
             self.wdg_sel.pushButton_clear.setEnabled(True)
             self.wdg_sel.pushButton_save.setEnabled(True)
-            self.reset_label_tool()
+            self.reset_prompt_type()
 
             # UI_Selector.setEnabled(True)
 
@@ -204,6 +213,7 @@ class Geo_SAM(QObject):
             self.load_shp_file()
         self.sam_model.sam_predict(
             self.canvas_points, self.canvas_rect, self.polygon)
+        self.topping_polygon_sam_layer()
 
     def draw_foreground_point(self):
         self.canvas.setMapTool(self.tool_click_fg)
@@ -271,7 +281,7 @@ class Geo_SAM(QObject):
             self._init_feature_related()
             self.load_shp_file()
             # self.draw_foreground_point()
-            self.reset_label_tool()  # do not change tool
+            self.reset_prompt_type()  # do not change tool
         else:
             self.iface.messageBar().pushMessage("Feature folder not exist",
                                                 "choose a another folder", level=Qgis.Info)
@@ -281,7 +291,7 @@ class Geo_SAM(QObject):
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
         # self.activate_fg.emit()
-        self.reset_label_tool()
+        self.reset_prompt_type()
 
     def save_shp_file(self):
         if hasattr(self, "polygon"):
@@ -289,7 +299,7 @@ class Geo_SAM(QObject):
         self.clear_layers()
         # self.activate_fg.emit()
 
-    def reset_label_tool(self):
+    def reset_prompt_type(self):
         if hasattr(self, "prompt_type"):
             if self.prompt_type == 'bbox':
                 self.draw_rect()
