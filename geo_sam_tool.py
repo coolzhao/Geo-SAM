@@ -1,10 +1,10 @@
 import os
 import typing
-from qgis.core import QgsProject
+from qgis.core import QgsProject, Qgis, QgsMessageLog
 from qgis.gui import QgsMapToolPan
 from qgis.core import QgsRasterLayer
 from qgis.PyQt.QtWidgets import QDockWidget
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, QgsMessageLog, Qgis
+from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtWidgets import (
     QFileDialog,
     QAction,
