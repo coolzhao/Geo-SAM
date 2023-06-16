@@ -112,7 +112,7 @@ class SamTestFeatureDataset(RasterDataset):
                     coords = (row_df['minx'], row_df['maxx'],
                               row_df['miny'], row_df['maxy'],
                               row_df['mint'], row_df['maxt'])
-                    filepath = row_df['filepath']
+                    filepath = row_df['filepath'] # TODO change to relative name
                     self.index.insert(id, coords, filepath)
                     i += 1
                 # print(coords[0].dtype)
