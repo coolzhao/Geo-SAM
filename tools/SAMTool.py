@@ -1,6 +1,7 @@
 import typing
 import numpy as np
 from pathlib import Path
+import time
 
 import numpy as np
 import rasterio as rio
@@ -20,6 +21,7 @@ class SAM_Model:
         self.sam_checkpoint = cwd + "/checkpoint/sam_vit_h_4b8939_no_img_encoder.pth"
         self.model_type = model_type
         self._prepare_data_and_layer()
+        self.sample_path = None
 
     def _prepare_data_and_layer(self):
         """Prepares data and layer."""
@@ -42,6 +44,7 @@ class SAM_Model:
         points_roi = BoundingBox(
             min_x, max_x, min_y, max_y, self.test_features.index.bounds[4], self.test_features.index.bounds[5])
 
+        start_time = time.time()
         test_sampler = SamTestFeatureGeoSampler(
             self.test_features, feature_size=64, roi=points_roi, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
 
@@ -56,31 +59,40 @@ class SAM_Model:
             elif return_value == QMessageBox.Cancel:
                 print('You pressed Cancel')
             return False
-        test_dataloader = DataLoader(
-            self.test_features, batch_size=1, sampler=test_sampler, collate_fn=stack_samples)
+        else:
+            for query in test_sampler:
+                if query['path'] != self.sample_path: # different query than last time, update feature
+                    sample = self.test_features[query]
+                    self.sample_path = sample['path']
+                    self.sample_bbox = sample['bbox']
+                    self.img_features = sample['image']
+                break
+        
+        # test_dataloader = DataLoader(
+        #     self.test_features, batch_size=1, sampler=test_sampler, collate_fn=stack_samples)
 
-        for batch in test_dataloader:
-            # print(batch.keys())
-            # print(batch['image'].shape)
-            # print(batch['path'])
-            # print(batch['bbox'])
-            # print(len(batch['image']))
-            # break
-            pass
+        # for batch in test_dataloader:
+        #     # print(batch.keys())
+        #     # print(batch['image'].shape)
+        #     # print(batch['path'])
+        #     # print(batch['bbox'])
+        #     # print(len(batch['image']))
+        #     # break
+        #     pass
 
-        bbox = batch['bbox'][0]
-        # TODO: Change to sam.img_encoder.img_size
-        width = height = 1024
+        bbox = self.sample_bbox # batch['bbox'][0]
+        # Change to sam.img_encoder.img_size
+        img_width = img_height = self.predictor.model.image_encoder.img_size # 1024
         img_clip_transform = rio.transform.from_bounds(
-            bbox.minx, bbox.miny, bbox.maxx, bbox.maxy, width, height)
+            bbox.minx, bbox.miny, bbox.maxx, bbox.maxy, img_width, img_height)
 
         input_point, input_label = canvas_points.get_points_and_labels(
             img_clip_transform)
         box = canvas_rect.get_img_box(img_clip_transform)
         print("box", box)
 
-        img_features = batch['image']
-        self.predictor.set_image_feature(img_features, img_shape=(1024, 1024))
+        # img_features = batch['image']
+        self.predictor.set_image_feature(self.img_features, img_shape=(img_height, img_width))
 
         masks, scores, logits = self.predictor.predict(
             point_coords=input_point,
@@ -88,9 +100,12 @@ class SAM_Model:
             box=box,
             multimask_output=False,
         )
+        end_time = time.time()
+        # get the execution time of sam predictor, ms
+        elapsed_time = (end_time - start_time) * 1000
 
         QgsMessageLog.logMessage(
-            "SAM predict executed", 'Geo SAM', level=Qgis.Info)
+            f"SAM predict executed with {elapsed_time:.3f} ms", 'Geo SAM', level=Qgis.Info)
 
         mask = masks[0, ...]
         # mask = mask_morph
