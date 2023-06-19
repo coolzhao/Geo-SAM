@@ -1,4 +1,4 @@
-import typing
+from typing import List
 import os
 import numpy as np
 from pathlib import Path
@@ -77,7 +77,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
               self.startPoint.y() == self.endPoint.y()):
             return None
         else:
-            # TODO startPoint endPoint transform
+            # startPoint endPoint transform
             if self.qgis_project.crs() != self.img_crs_manager.img_crs:
                 self.startPoint = self.img_crs_manager.point_to_img_crs(
                     self.startPoint, self.qgis_project.crs())
@@ -138,7 +138,7 @@ class Canvas_Rectangle:
             return None
 
 
-class Canvas_Points(QgsVertexMarker):
+class Canvas_Points:  # (QgsVertexMarker)
     """
     A class to manage points on canvas.
     """
@@ -152,7 +152,7 @@ class Canvas_Points(QgsVertexMarker):
         img_crs_manager: ImageCRSManager
             The manager to transform points between image crs and other crs
         '''
-        super().__init__(canvas)
+        # super().__init__(canvas)
         self.canvas = canvas
         self.extent = None
         self.img_crs_manager = img_crs_manager
@@ -347,7 +347,7 @@ class SAM_PolygonFeature:
             points = []
             coordinates = geom['geometry']['coordinates'][0]
             for coord in coordinates:
-                # TODO transform pointXY from img_crs to polygon layer crs, if not match
+                # transform pointXY from img_crs to polygon layer crs, if not match
                 point = QgsPointXY(*coord)
                 if self.layer.crs() != self.img_crs_manager.img_crs:
                     point = self.img_crs_manager.img_point_to_crs(
