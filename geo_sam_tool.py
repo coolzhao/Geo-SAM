@@ -1,7 +1,7 @@
 import os
 from typing import List
 from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication
-from qgis.gui import QgsMapToolPan
+from qgis.gui import QgsMapToolPan, QgisInterface
 from qgis.core import QgsRasterLayer
 from qgis.PyQt.QtWidgets import QDockWidget
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
@@ -25,7 +25,7 @@ from .ui import UI_Selector
 class Geo_SAM(QObject):
     execute_SAM = pyqtSignal()
 
-    def __init__(self, iface, cwd: str):
+    def __init__(self, iface: QgisInterface, cwd: str):
         super().__init__()
         self.iface = iface
         self.cwd = cwd
@@ -74,7 +74,7 @@ class Geo_SAM(QObject):
         self.iface.removeToolBarIcon(self.action)
         self.iface.removePluginMenu('&Geo-SAM', self.action)
         self._clear_layers()
-        
+
         # TODO: could use stortcut after reload plugin
         if hasattr(self, "shortcut_undo"):
             self.shortcut_undo.disconnect()
@@ -82,7 +82,7 @@ class Geo_SAM(QObject):
             self.shortcut_save.disconnect()
         if hasattr(self, "shortcut_clear"):
             self.shortcut_clear.disconnect()
-            
+
         del self.action
 
     def topping_polygon_sam_layer(self):
@@ -113,11 +113,12 @@ class Geo_SAM(QObject):
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
 
         # reset canvas extent
-        canvas = self.iface.mapCanvas()
         extent_canvas = self.img_crs_manager.img_extent_to_crs(
-            self.sam_model.extent, QgsProject.instance().crs())
-        canvas.setExtent(extent_canvas)
-        canvas.refresh()
+            self.sam_model.extent,
+            QgsProject.instance().crs()
+        )
+        self.canvas.setExtent(extent_canvas)
+        self.canvas.refresh()
 
         # init tools
         self.tool_click_fg = ClickTool(
@@ -175,7 +176,10 @@ class Geo_SAM(QObject):
             self.wdg_sel.setFloating(True)
 
             # qgis.gui.QgsDockWidget, actually QDockWidget no closed signal
+            # If a signal is connected to several slots,
+            # the slots are activated in the same order in which the connections were made, when the signal is emitted.
             self.wdg_sel.closed.connect(self.destruct)
+            self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
             # self.wdg_sel.closeEvent = self.destruct
             # self.wdg_sel.visibilityChanged.connect(self.destruct)
 
@@ -194,21 +198,20 @@ class Geo_SAM(QObject):
             self.dockFirstOpen = False
         else:
             self.clear_layers()
-        
-        
 
         # add widget to QGIS
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
 
         # default is fgpt, but do not change when reloading feature folder
         self.reset_prompt_type()
-        
+
     def register_shortcuts(self):
         # Unregister existing shortcuts, if any
         self.iface.unregisterMainWindowActions()
-        
+
         # Register new shortcuts
-        action = self.iface.registerMainWindowAction("my_plugin:my_action", "My Action", self.myAction, QKeySequence("Ctrl+M"))
+        action = self.iface.registerMainWindowAction(
+            "my_plugin:my_action", "My Action", self.myAction, QKeySequence("Ctrl+M"))
         self.iface.addPluginToMenu("&My Plugin", action)
 
     def undo_last_prompt(self):
@@ -226,10 +229,12 @@ class Geo_SAM(QObject):
     def destruct(self):
         '''Destruct actions when closed widget'''
         # TODO: make it work
-        self.iface.mapCanvas().unsetMapTool(self.tool_click_bg)
-        self.iface.mapCanvas().unsetMapTool(self.tool_click_fg)
-        self.iface.mapCanvas().unsetMapTool(self.tool_click_rect)
-        self.canvas.setMapTool(self.toolPan)
+        # self.iface.actionPan().trigger()
+        # self.canvas.unsetMapTool(self.canvas.mapTool())
+        # self.iface.mapCanvas().unsetMapTool(self.tool_click_bg)
+        # self.iface.mapCanvas().unsetMapTool(self.tool_click_fg)
+        # self.iface.mapCanvas().unsetMapTool(self.tool_click_rect)
+        # self.canvas.setMapTool(self.toolPan)
         self.clear_layers()
 
     def enable_disable(self):
