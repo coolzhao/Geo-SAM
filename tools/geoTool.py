@@ -1,12 +1,13 @@
 import os
 import typing
 import numpy as np
-from qgis.core import (QgsProject, QgsCoordinateReferenceSystem, Qgis, QgsMessageLog, 
+from qgis.core import (QgsProject, QgsCoordinateReferenceSystem, Qgis, QgsMessageLog,
                        QgsCoordinateTransform, QgsPointXY,  QgsRectangle, QgsVectorLayer)
 
 
 class ImageCRSManager:
     '''Manage image crs and transform point and extent between image crs and other crs'''
+
     def __init__(self, img_crs) -> None:
         self.img_crs = QgsCoordinateReferenceSystem(
             img_crs)  # from str to QgsCRS
@@ -63,10 +64,10 @@ class ImageCRSManager:
             dst_crs, self.img_crs, QgsProject.instance())
         extent_transformed = transform.transformBoundingBox(extent)
         return extent_transformed
-    
+
     def img_extent_to_crs(self, extent: QgsRectangle, dst_crs: QgsCoordinateReferenceSystem):
         '''transform extent from this image crs to destination crs
-        
+
         Parameters:
         ----------
         extent: QgsRectangle
@@ -74,7 +75,8 @@ class ImageCRSManager:
         dst_crs: QgsCoordinateReferenceSystem
             destination crs for extent
         '''
-        transform = QgsCoordinateTransform(self.img_crs, dst_crs, QgsProject.instance())
+        transform = QgsCoordinateTransform(
+            self.img_crs, dst_crs, QgsProject.instance())
         extent_transformed = transform.transformBoundingBox(extent)
         return extent_transformed
 
