@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QAction,
     QFileDialog,
+    QShortcut,
 )
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 from PyQt5 import uic
@@ -163,6 +164,10 @@ class Geo_SAM(QObject):
         # add widget to QGIS
         self.wdg_sel.setFloating(True)
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
+
+        # setting shortcut
+        self.shortcut_save = QShortcut(Qt.Key_S, self.iface.mainWindow())
+        self.shortcut_save.activated.connect(self.save_shp_file)
 
         # default is fgpt, but do not change when reloading feature folder
         self.reset_prompt_type()

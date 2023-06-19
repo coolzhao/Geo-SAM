@@ -4,7 +4,9 @@ from pathlib import Path
 import time
 
 import numpy as np
-import rasterio as rio
+import rasterio
+from rasterio.transform import from_bounds as transform_from_bounds
+from rasterio.features import shapes as get_shapes
 from PyQt5.QtWidgets import QMessageBox
 from qgis.core import QgsRectangle, QgsMessageLog, Qgis
 from torch.utils.data import DataLoader
@@ -88,7 +90,7 @@ class SAM_Model:
         bbox = self.sample_bbox  # batch['bbox'][0]
         # Change to sam.img_encoder.img_size
         img_width = img_height = self.predictor.model.image_encoder.img_size  # 1024
-        img_clip_transform = rio.transform.from_bounds(
+        img_clip_transform = transform_from_bounds(
             bbox.minx, bbox.miny, bbox.maxx, bbox.maxy, img_width, img_height)
 
         input_point, input_label = canvas_points.get_points_and_labels(
@@ -123,13 +125,14 @@ class SAM_Model:
         # results = ({'properties': {'raster_val': v}, 'geometry': s}
         #            for i, (s, v) in enumerate(rio.features.shapes(mask.astype(np.uint8), mask=mask, transform=img_clip_transform)))
         # geoms = list(results)
-        shape_generator = rio.features.shapes(
+        shape_generator = get_shapes(
             mask.astype(np.uint8),
             mask=mask,
+            connectivity=8,  # change from default:4 to 8
             transform=img_clip_transform
         )
         geojson = [{'properties': {'raster_val': value}, 'geometry': polygon}
-                 for polygon, value in shape_generator]
+                   for polygon, value in shape_generator]
 
         # add to layer
         sam_polygon.rollback_changes()
