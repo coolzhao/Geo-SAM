@@ -1,9 +1,10 @@
-import typing
+from typing import List
 import os
+from PyQt5 import QtGui
 import numpy as np
 from pathlib import Path
 from rasterio.transform import rowcol, Affine
-from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry
+from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, Qgis, QgsMessageLog
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker
 from qgis.core import (
     QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFillSymbol,
@@ -18,9 +19,10 @@ from .geoTool import ImageCRSManager, LayerExtent
 class RectangleMapTool(QgsMapToolEmitPoint):
     '''A map tool to draw a rectangle on canvas'''
 
-    def __init__(self, canvas_rect, execute_SAM, img_crs_manager: ImageCRSManager):
+    def __init__(self, canvas_rect, prompts, execute_SAM, img_crs_manager: ImageCRSManager):
         self.qgis_project = QgsProject.instance()
         self.canvas_rect = canvas_rect
+        self.prompts = prompts
         self.rubberBand = canvas_rect.rubberBand
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
@@ -44,6 +46,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         box_geo = self.rectangle()
         if box_geo is not None:
             self.canvas_rect.box_geo = box_geo
+            self.prompts.append('bbox')
             self.execute_SAM.emit()
 
     def canvasMoveEvent(self, e):
@@ -138,7 +141,7 @@ class Canvas_Rectangle:
             return None
 
 
-class Canvas_Points(QgsVertexMarker):
+class Canvas_Points:
     """
     A class to manage points on canvas.
     """
@@ -152,7 +155,6 @@ class Canvas_Points(QgsVertexMarker):
         img_crs_manager: ImageCRSManager
             The manager to transform points between image crs and other crs
         '''
-        super().__init__(canvas)
         self.canvas = canvas
         self.extent = None
         self.img_crs_manager = img_crs_manager
@@ -197,6 +199,7 @@ class Canvas_Points(QgsVertexMarker):
         """remove the last marker"""
         m = self.markers.pop()
         self.canvas.scene().removeItem(m)
+        self.points_img_crs.pop()
         self.labels.pop()
 
         self._update_extent()
@@ -210,7 +213,7 @@ class Canvas_Points(QgsVertexMarker):
         self.markers = []
         self.points_img_crs = []
         self.labels = []
-        self.extent = None
+        self._update_extent()
 
     def _update_extent(self):
         """update extent of markers with image crs"""
@@ -250,11 +253,13 @@ class ClickTool(QgsMapToolEmitPoint):
         canvas,
         canvas_points: Canvas_Points,
         prompt_type: str,
+        prompts: List,
         execute_SAM: pyqtSignal,
     ):
 
         self.canvas = canvas
         self.canvas_points = canvas_points
+        self.prompts = prompts
         if prompt_type not in ["fgpt", "bgpt", "bbox"]:
             raise ValueError(
                 f"prompt_type must be one of ['fgpt', 'bgpt', 'bbox'], not {prompt_type}"
@@ -269,10 +274,11 @@ class ClickTool(QgsMapToolEmitPoint):
             self.canvas_points.addPoint(point, foreground=True)
         elif self.prompt_type == "bgpt":
             self.canvas_points.addPoint(point, foreground=False)
+        self.prompts.append(self.prompt_type)
         self.execute_SAM.emit()
 
+
     def activate(self):
-        # QgsProject.instance().addMapLayer(self.layer)
         QgsMapToolEmitPoint.activate(self)
 
     def deactivate(self):

@@ -36,8 +36,14 @@ class SAM_Model:
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
 
     def sam_predict(self, canvas_points, canvas_rect, sam_polygon):
-        min_x, max_x, min_y, max_y = LayerExtent.union_extent(
+        extent_union = LayerExtent.union_extent(
             canvas_points.extent, canvas_rect.extent)
+
+        if extent_union is None:
+            sam_polygon.rollback_changes()
+            return False
+
+        min_x, max_x, min_y, max_y = extent_union
 
         points_roi = BoundingBox(
             min_x, max_x, min_y, max_y, self.test_features.index.bounds[4], self.test_features.index.bounds[5])
