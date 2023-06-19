@@ -89,7 +89,7 @@ After activating the Geo SAM plugin, you may find the tool under the `Plugins` m
 or somewhere on the toolbar near the Python Plugin.
 
 <p align="center">
-  <img src="assets/Toolbar_geo_sam.png" width="350" title="Plugin menu">
+  <img src="assets/Toolbar_geo_sam.png" width="350" title="Plugin toolbar">
 </p>
 
 ## Use the GeoSAM Tool
@@ -107,7 +107,7 @@ A user interface will be shown as below.
 <!-- ![ui_geo_sam](assets/ui_geo_sam.png) -->
 
 <p align="center">
-  <img src="assets/ui_geo_sam.png" width="600" title="Try Geo SAM">
+  <img src="assets/ui_geo_sam.png" width="600" title="Geo SAM UI">
 </p>
 
 ### Add Points
