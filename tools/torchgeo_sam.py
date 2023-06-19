@@ -22,6 +22,7 @@ from torchgeo.samplers import Units, GeoSampler, PreChippedGeoSampler, GridGeoSa
 from torchgeo.samplers.constants import Units
 from torchgeo.samplers.utils import _to_tuple, get_random_bounding_box, tile_to_chips
 import matplotlib.pyplot as plt
+from qgis.core import QgsMessageLog, Qgis
 
 from rtree.index import Index, Property
 
@@ -112,7 +113,7 @@ class SamTestFeatureDataset(RasterDataset):
                     coords = (row_df['minx'], row_df['maxx'],
                               row_df['miny'], row_df['maxy'],
                               row_df['mint'], row_df['maxt'])
-                    filepath = row_df['filepath']
+                    filepath = row_df['filepath'] # TODO change to relative name
                     self.index.insert(id, coords, filepath)
                     i += 1
                 # print(coords[0].dtype)
@@ -438,7 +439,9 @@ class SamTestFeatureGeoSampler(GeoSampler):
                     self.q_path = hit.object
                 # self.index.insert(hit.id, tuple(bbox), hit.object)
 
-        print('intersected features: ', idx)
+        # print('intersected features: ', idx)
+        QgsMessageLog.logMessage(
+            f"Prompt intersected with {idx} feature patches", 'Geo SAM', level=Qgis.Info)
         # print('selected hit: ', self.q_path)
         if self.q_bbox is None:
             self.length = 0

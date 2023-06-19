@@ -80,7 +80,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
               self.startPoint.y() == self.endPoint.y()):
             return None
         else:
-            # TODO startPoint endPoint transform
+            # startPoint endPoint transform
             if self.qgis_project.crs() != self.img_crs_manager.img_crs:
                 self.startPoint = self.img_crs_manager.point_to_img_crs(
                     self.startPoint, self.qgis_project.crs())
@@ -353,7 +353,7 @@ class SAM_PolygonFeature:
             points = []
             coordinates = geom['geometry']['coordinates'][0]
             for coord in coordinates:
-                # TODO transform pointXY from img_crs to polygon layer crs, if not match
+                # transform pointXY from img_crs to polygon layer crs, if not match
                 point = QgsPointXY(*coord)
                 if self.layer.crs() != self.img_crs_manager.img_crs:
                     point = self.img_crs_manager.img_point_to_crs(
