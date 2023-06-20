@@ -268,10 +268,11 @@ class ClickTool(QgsMapToolEmitPoint):
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
         QgsMapToolEmitPoint.__init__(self, self.canvas)
-        # TODO Change cursor type not working
         self.file_dir = os.path.dirname(__file__)
-        # QIcon("filepath.svg").pixmap(QSize())
+        # scaling ref: https://github.com/qgis/QGIS/blob/11c77af3dd95fb1f5bb4ce3a4ef5dc97de951ec5/src/core/qgsapplication.cpp#L873
         scale = Qgis.UI_SCALE_FACTOR * QgsApplication.fontMetrics().height() / 32.0
+        # QIcon("filepath.svg").pixmap(QSize()) https://stackoverflow.com/a/36936216
+        # cursor source: https://github.com/qgis/QGIS/raw/11c77af3dd95fb1f5bb4ce3a4ef5dc97de951ec5/images/themes/default/cursors/mCapturePoint.svg
         CapturePointBitmap = QIcon(
             self.file_dir + "/mCapturePoint.svg").pixmap(QSize(scale*32, scale*32))
         # CapturePointPixmap = QPixmap(self.plugin_dir + "/PrecisionCursorIcon07.png")
