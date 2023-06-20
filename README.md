@@ -6,6 +6,8 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https:
 
 Geo SAM is a QGIS plugin tool that aims to help people segment, delineate or label landforms efficiently when using large-size geo-spatial raster images. [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with super power, but the model size is huge and using it to process images can take a long time even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model, the interactive segmentation process can be run in real-time on a laptop by only using CPU, making it a convenient and efficient tool to deal with satellite images.
 
+The tool currently only supports preprocessed images (whose features have been generated in advance using a separate program, as the included demo image). We are now building another tool for encoding image features inside QGIS, which will soon be available. So stay tuned.
+
 ## Installation
 
 ### Install QGIS
@@ -153,9 +155,12 @@ After selecting the feature folder, you may press the `Load` button to load the 
 - The **BBox** should cover the entire subject
 - Remember to press `Save` button after the segmentation of the chosen subject
 
-## Future Works
+## In Progress
 
 - Image encoder module
+
+## Future Works
+
 - Existing polygon refinement
 
 ## Acknowledgement
