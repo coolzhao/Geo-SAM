@@ -7,11 +7,11 @@ from rasterio.transform import rowcol, Affine
 from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, Qgis, QgsMessageLog
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker
 from qgis.core import (
-    QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFillSymbol,
+    QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFillSymbol, QgsApplication,
     QgsGeometry, QgsFeature, QgsVectorLayer)
 from qgis.PyQt.QtCore import QVariant
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QKeySequence, QIcon, QColor
+from PyQt5.QtCore import Qt, pyqtSignal, QSize
+from PyQt5.QtGui import QKeySequence, QIcon, QColor, QCursor, QBitmap, QPixmap
 
 from .geoTool import ImageCRSManager, LayerExtent
 
@@ -27,6 +27,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
         QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
+        self.setCursor(Qt.CrossCursor)
 
         self.reset()
 
@@ -267,6 +268,15 @@ class ClickTool(QgsMapToolEmitPoint):
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
         QgsMapToolEmitPoint.__init__(self, self.canvas)
+        # TODO Change cursor type not working
+        self.file_dir = os.path.dirname(__file__)
+        # QIcon("filepath.svg").pixmap(QSize())
+        scale = Qgis.UI_SCALE_FACTOR * QgsApplication.fontMetrics().height() / 32.0
+        CapturePointBitmap = QIcon(
+            self.file_dir + "/mCapturePoint.svg").pixmap(QSize(scale*32, scale*32))
+        # CapturePointPixmap = QPixmap(self.plugin_dir + "/PrecisionCursorIcon07.png")
+        CapturePointCurser = QCursor(CapturePointBitmap)
+        self.setCursor(CapturePointCurser)
 
     def canvasPressEvent(self, event):
         point = self.toMapCoordinates(event.pos())
@@ -276,7 +286,6 @@ class ClickTool(QgsMapToolEmitPoint):
             self.canvas_points.addPoint(point, foreground=False)
         self.prompts.append(self.prompt_type)
         self.execute_SAM.emit()
-
 
     def activate(self):
         QgsMapToolEmitPoint.activate(self)

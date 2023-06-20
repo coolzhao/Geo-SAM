@@ -180,6 +180,7 @@ class Geo_SAM(QObject):
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
             self.wdg_sel.closed.connect(self.destruct)
             self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
+            # self.iface.actionAddFeature
             # self.wdg_sel.closeEvent = self.destruct
             # self.wdg_sel.visibilityChanged.connect(self.destruct)
 
@@ -367,12 +368,14 @@ class Geo_SAM(QObject):
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
         self.reset_prompt_type()
+        self.prompts.clear()
 
     def save_shp_file(self):
         '''save sam result into shapefile layer'''
         if hasattr(self, "polygon"):
             self.polygon.commit_changes()
         self.clear_canvas_layers_safely()
+        self.prompts.clear()
 
     def reset_prompt_type(self):
         '''reset prompt type'''

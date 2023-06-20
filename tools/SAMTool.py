@@ -74,11 +74,15 @@ class SAM_Model:
         for query in test_sampler:
             # different query than last time, update feature
             if query['path'] == self.sample_path:
+                QgsMessageLog.logMessage(
+                    f"Same feature as last time", 'Geo SAM', level=Qgis.Info)
                 break
             sample = self.test_features[query]
             self.sample_path = sample['path']
             self.sample_bbox = sample['bbox']
             self.img_features = sample['image']
+            QgsMessageLog.logMessage(
+                f"Acquire new feature", 'Geo SAM', level=Qgis.Info)
             break
 
         # test_dataloader = DataLoader(
