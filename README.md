@@ -147,6 +147,18 @@ After selecting the feature folder, you may press the `Load` button to load the 
   <img src="assets/Load_image_feature.png" width="300" title="Load feature folder">
 </p>
 
+## Shortcuts
+
+- `Tab`: loop between 3 prompt types (cursor will also change to the corresponding types):
+  - Foreground Point
+  - Background Point
+  - Rectangle/BBox
+- `C` : clear all prompts in canvas [same as `Clear` button]
+- `Z` : undo the last prompt in canvas [same as `Undo` button]
+- `S` : save SAM output features into polygon [same as `Save` button]
+- `Ctrl+Z` or `command+Z` : undo the last saved features of SAM output
+
+
 ## Tips for Using GeoSAM Tool
 
 - Deal with only **One Subject** each time
