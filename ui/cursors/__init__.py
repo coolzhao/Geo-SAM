@@ -1,5 +1,5 @@
 import os
-from qgis.core import Qgis,QgsApplication
+from qgis.core import Qgis, QgsApplication
 from PyQt5.QtGui import QIcon, QCursor
 from PyQt5.QtCore import QSize
 
@@ -16,10 +16,12 @@ scale = Qgis.UI_SCALE_FACTOR * QgsApplication.fontMetrics().height() / 32.0
 # QIcon("filepath.svg").pixmap(QSize()) https://stackoverflow.com/a/36936216
 
 
-CursorPointBlueBitmap = QIcon(CursorPointBlue_path).pixmap(QSize(scale*32, scale*32))
+CursorPointBlueBitmap = QIcon(
+    CursorPointBlue_path).pixmap(QSize(scale*32, scale*32))
 CursorPointBlue = QCursor(CursorPointBlueBitmap)
 
-CursorPointRedBitmap = QIcon(CursorPointRed_path).pixmap(QSize(scale*32, scale*32))
+CursorPointRedBitmap = QIcon(CursorPointRed_path).pixmap(
+    QSize(scale*32, scale*32))
 CursorPointRed = QCursor(CursorPointRedBitmap)
 
 CursorRectBitmap = QIcon(CursorRect_path).pixmap(QSize(scale*32, scale*32))
