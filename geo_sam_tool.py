@@ -33,7 +33,6 @@ class Geo_SAM(QObject):
         self.canvas = iface.mapCanvas()
         self.demo_img_name = "beiluhe_google_img_201211_clip"
         feature_dir = cwd + "/features/" + self.demo_img_name
-        # feature_dir = r"D:\Data\sam_data\features\mosaic_scripts_wp_4.77_sub_114"
         self.feature_dir = feature_dir
         self.toolPan = QgsMapToolPan(self.canvas)
         self.dockFirstOpen = True
@@ -46,9 +45,84 @@ class Geo_SAM(QObject):
             self.iface.mainWindow()
         )
         self.action.triggered.connect(self.create_widget_selector)
-        # self.toolbar.addAction(self.action)
         self.iface.addPluginToMenu('&Geo-SAM', self.action)
         self.iface.addToolBarIcon(self.action)
+
+    def create_widget_selector(self):
+        '''Create widget selector'''
+        if self.dockFirstOpen:
+            self._init_feature_related()
+            self.load_demo_img()
+
+            if self.receivers(self.execute_SAM) == 0:
+                self.execute_SAM.connect(self.execute_segmentation)
+
+            self.wdg_sel = UI_Selector
+            # prompts
+            self.wdg_sel.pushButton_fg.clicked.connect(
+                self.draw_foreground_point)
+            self.wdg_sel.pushButton_bg.clicked.connect(
+                self.draw_background_point)
+            self.wdg_sel.pushButton_rect.clicked.connect(self.draw_rect)
+            # tools
+            self.wdg_sel.pushButton_clear.clicked.connect(self.clear_layers)
+            self.wdg_sel.pushButton_clear.setShortcut("C")
+            self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
+            self.wdg_sel.pushButton_save.setShortcut("S")
+            self.wdg_sel.pushButton_find_file.clicked.connect(self.find_file)
+            self.wdg_sel.pushButton_load_file.clicked.connect(
+                self.load_shp_file)
+
+            self.wdg_sel.pushButton_find_feature.clicked.connect(
+                self.find_feature)
+            self.wdg_sel.pushButton_load_feature.clicked.connect(
+                self.load_feature)
+
+            self.wdg_sel.radioButton_enable.setChecked(True)
+            self.wdg_sel.radioButton_enable.toggled.connect(
+                self.enable_disable)
+            self.wdg_sel.pushButton_fg.setCheckable(True)
+            self.wdg_sel.pushButton_bg.setCheckable(True)
+            self.wdg_sel.pushButton_rect.setCheckable(True)
+
+            self.wdg_sel.setFloating(True)
+
+            # If a signal is connected to several slots,
+            # the slots are activated in the same order in which the connections were made, when the signal is emitted.
+            self.wdg_sel.closed.connect(self.destruct)
+            self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
+
+            self.shortcut_undo = QShortcut(
+                QKeySequence('Z'), self.wdg_sel)
+            self.shortcut_undo.activated.connect(self.undo_last_prompt)
+            self.shortcut_tab = QShortcut(
+                QKeySequence(Qt.Key_Tab), self.wdg_sel)
+            self.shortcut_tab.activated.connect(self.loop_prompt_type)
+
+            self.dockFirstOpen = False
+        else:
+            self.clear_layers()
+
+        # add widget to QGIS
+        self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
+
+        # default is fgpt, but do not change when reloading feature folder
+        self.reset_prompt_type()
+
+    def destruct(self):
+        '''Destruct actions when closed widget'''
+        self.clear_layers()
+
+    def unload(self):
+        self.iface.removeToolBarIcon(self.action)
+        self.iface.removePluginMenu('&Geo-SAM', self.action)
+        self._clear_layers()
+
+        if hasattr(self, "shortcut_undo"):
+            self.shortcut_undo.disconnect()
+        if hasattr(self, "shortcut_tab"):
+            self.shortcut_undo.disconnect()
+        del self.action
 
     def load_demo_img(self):
         layer_list = QgsProject.instance().mapLayersByName(self.demo_img_name)
@@ -58,7 +132,6 @@ class Geo_SAM(QObject):
         else:
             img_path = os.path.join(
                 self.cwd, "rasters", self.demo_img_name+'.tif')
-            # img_path = r"D:\Data\sam_data\rasters\mosaic_scripts_wp_4.77_sub_114.tif"
             if os.path.exists(img_path):
                 rlayer = QgsRasterLayer(img_path, self.demo_img_name)
                 if rlayer.isValid():
@@ -68,21 +141,6 @@ class Geo_SAM(QObject):
                 # self.iface.addRasterLayer(img_path, self.demo_img_name)
             else:
                 print(img_path, 'does not exist')
-
-    def unload(self):
-        self.iface.removeToolBarIcon(self.action)
-        self.iface.removePluginMenu('&Geo-SAM', self.action)
-        self._clear_layers()
-
-        # TODO: could use stortcut after reload plugin
-        if hasattr(self, "shortcut_undo"):
-            self.shortcut_undo.disconnect()
-        if hasattr(self, "shortcut_save"):
-            self.shortcut_save.disconnect()
-        if hasattr(self, "shortcut_clear"):
-            self.shortcut_clear.disconnect()
-
-        del self.action
 
     def topping_polygon_sam_layer(self):
         if hasattr(self, "polygon"):
@@ -103,9 +161,6 @@ class Geo_SAM(QObject):
 
     def _init_feature_related(self):
         '''Init or reload feature related objects'''
-
-        # clear layers when loading new image
-        # self.clear_layers()
 
         # init feature related objects
         self.sam_model = SAM_Model(self.feature_dir, self.cwd)
@@ -140,79 +195,14 @@ class Geo_SAM(QObject):
             self.canvas_rect, self.prompts, self.execute_SAM, self.img_crs_manager
         )
 
-    def create_widget_selector(self):
-        '''Create widget selector'''
-        if self.dockFirstOpen:
-            self._init_feature_related()
-            self.load_demo_img()
-            receiversCount = self.receivers(self.execute_SAM)
-            if receiversCount == 0:
-                self.execute_SAM.connect(self.execute_segmentation)
-
-            self.wdg_sel = UI_Selector
-            self.wdg_sel.pushButton_fg.clicked.connect(
-                self.draw_foreground_point)
-            self.wdg_sel.pushButton_bg.clicked.connect(
-                self.draw_background_point)
-            self.wdg_sel.pushButton_rect.clicked.connect(self.draw_rect)
-            self.wdg_sel.pushButton_clear.clicked.connect(self.clear_layers)
-            self.wdg_sel.pushButton_find_file.clicked.connect(self.find_file)
-            self.wdg_sel.pushButton_load_file.clicked.connect(
-                self.load_shp_file)
-            self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
-            self.wdg_sel.pushButton_find_feature.clicked.connect(
-                self.find_feature)
-            self.wdg_sel.pushButton_load_feature.clicked.connect(
-                self.load_feature)
-
-            self.wdg_sel.radioButton_enable.setChecked(True)
-            self.wdg_sel.radioButton_enable.toggled.connect(
-                self.enable_disable)
-            self.wdg_sel.pushButton_fg.setCheckable(True)
-            self.wdg_sel.pushButton_bg.setCheckable(True)
-            self.wdg_sel.pushButton_rect.setCheckable(True)
-
-            self.wdg_sel.setFloating(True)
-
-            # qgis.gui.QgsDockWidget, actually QDockWidget no closed signal
-            # If a signal is connected to several slots,
-            # the slots are activated in the same order in which the connections were made, when the signal is emitted.
-            self.wdg_sel.closed.connect(self.destruct)
-            self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
-            # self.iface.actionAddFeature
-            # self.wdg_sel.closeEvent = self.destruct
-            # self.wdg_sel.visibilityChanged.connect(self.destruct)
-
-            self.shortcut_save = QShortcut(
-                QKeySequence("S"), self.iface.mainWindow())
-            self.shortcut_save.activated.connect(self.save_shp_file)
-
-            self.shortcut_undo = QShortcut(
-                QKeySequence('Z'), self.iface.mainWindow())
-            self.shortcut_undo.activated.connect(self.undo_last_prompt)
-
-            self.shortcut_clear = QShortcut(
-                QKeySequence('C'), self.iface.mainWindow())
-            self.shortcut_clear.activated.connect(self.clear_layers)
-
-            self.dockFirstOpen = False
-        else:
-            self.clear_layers()
-
-        # add widget to QGIS
-        self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
-
-        # default is fgpt, but do not change when reloading feature folder
-        self.reset_prompt_type()
-
-    def register_shortcuts(self):
-        # Unregister existing shortcuts, if any
-        self.iface.unregisterMainWindowActions()
-
-        # Register new shortcuts
-        action = self.iface.registerMainWindowAction(
-            "my_plugin:my_action", "My Action", self.myAction, QKeySequence("Ctrl+M"))
-        self.iface.addPluginToMenu("&My Plugin", action)
+    def loop_prompt_type(self):
+        '''Loop prompt type'''
+        if self.wdg_sel.pushButton_fg.isChecked():
+            self.draw_background_point()
+        elif self.wdg_sel.pushButton_bg.isChecked():
+            self.draw_rect()
+        elif self.wdg_sel.pushButton_rect.isChecked():
+            self.draw_foreground_point()
 
     def undo_last_prompt(self):
         if len(self.prompts) > 0:
@@ -223,17 +213,6 @@ class Geo_SAM(QObject):
                 if len(self.canvas_points.markers) > 0:
                     self.canvas_points.popPoint()
             self.execute_SAM.emit()
-
-    def destruct(self):
-        '''Destruct actions when closed widget'''
-        # TODO: make it work
-        # self.iface.actionPan().trigger()
-        # self.canvas.unsetMapTool(self.canvas.mapTool())
-        # self.iface.mapCanvas().unsetMapTool(self.tool_click_bg)
-        # self.iface.mapCanvas().unsetMapTool(self.tool_click_fg)
-        # self.iface.mapCanvas().unsetMapTool(self.tool_click_rect)
-        # self.canvas.setMapTool(self.toolPan)
-        self.clear_layers()
 
     def enable_disable(self):
         '''Enable or disable the widget selector'''
