@@ -20,10 +20,10 @@ from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect
 class RectangleMapTool(QgsMapToolEmitPoint):
     '''A map tool to draw a rectangle on canvas'''
 
-    def __init__(self, canvas_rect, prompts, execute_SAM, img_crs_manager: ImageCRSManager):
+    def __init__(self, canvas_rect, prompt_history, execute_SAM, img_crs_manager: ImageCRSManager):
         self.qgis_project = QgsProject.instance()
         self.canvas_rect = canvas_rect
-        self.prompts = prompts
+        self.prompt_history = prompt_history
         self.rubberBand = canvas_rect.rubberBand
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
@@ -48,7 +48,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         box_geo = self.rectangle()
         if box_geo is not None:
             self.canvas_rect.box_geo = box_geo
-            self.prompts.append('bbox')
+            self.prompt_history.append('bbox')
             self.execute_SAM.emit()
 
     def canvasMoveEvent(self, e):
@@ -261,13 +261,13 @@ class ClickTool(QgsMapToolEmitPoint):
         canvas,
         canvas_points: Canvas_Points,
         prompt_type: str,
-        prompts: List,
+        prompt_history: List,
         execute_SAM: pyqtSignal,
     ):
 
         self.canvas = canvas
         self.canvas_points = canvas_points
-        self.prompts = prompts
+        self.prompt_history = prompt_history
         if prompt_type not in ["fgpt", "bgpt", "bbox"]:
             raise ValueError(
                 f"prompt_type must be one of ['fgpt', 'bgpt', 'bbox'], not {prompt_type}"
@@ -287,7 +287,7 @@ class ClickTool(QgsMapToolEmitPoint):
             self.canvas_points.addPoint(point, foreground=True)
         elif self.prompt_type == "bgpt":
             self.canvas_points.addPoint(point, foreground=False)
-        self.prompts.append(self.prompt_type)
+        self.prompt_history.append(self.prompt_type)
         self.execute_SAM.emit()
 
     def activate(self):

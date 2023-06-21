@@ -36,7 +36,8 @@ class Geo_SAM(QObject):
         self.feature_dir = feature_dir
         self.toolPan = QgsMapToolPan(self.canvas)
         self.dockFirstOpen = True
-        self.prompts: List = []
+        self.prompt_history: List[str] = []
+        self.sam_feature_history: List[List[int]] = []
 
     def initGui(self):
         self.action = QAction(
@@ -64,28 +65,26 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_bg.clicked.connect(
                 self.draw_background_point)
             self.wdg_sel.pushButton_rect.clicked.connect(self.draw_rect)
+
             # tools
             self.wdg_sel.pushButton_clear.clicked.connect(self.clear_layers)
-            self.wdg_sel.pushButton_clear.setShortcut("C")
+            self.wdg_sel.pushButton_undo.clicked.connect(self.undo_last_prompt)
             self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
-            self.wdg_sel.pushButton_save.setShortcut("S")
+
             self.wdg_sel.pushButton_find_file.clicked.connect(self.find_file)
             self.wdg_sel.pushButton_load_file.clicked.connect(
                 self.load_shp_file)
-
             self.wdg_sel.pushButton_find_feature.clicked.connect(
                 self.find_feature)
             self.wdg_sel.pushButton_load_feature.clicked.connect(
                 self.load_feature)
-
-            self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
                 self.enable_disable)
+
+            # set button checkable
             self.wdg_sel.pushButton_fg.setCheckable(True)
             self.wdg_sel.pushButton_bg.setCheckable(True)
             self.wdg_sel.pushButton_rect.setCheckable(True)
-
-            self.wdg_sel.setFloating(True)
 
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
@@ -93,13 +92,18 @@ class Geo_SAM(QObject):
             self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
 
             # shortcuts
-            self.shortcut_undo = QShortcut(
-                QKeySequence('Z'), self.wdg_sel)
-            self.shortcut_undo.activated.connect(self.undo_last_prompt)
+            self.wdg_sel.pushButton_clear.setShortcut("C")
+            self.wdg_sel.pushButton_undo.setShortcut("Z")
+            self.wdg_sel.pushButton_save.setShortcut("S")
+
             self.shortcut_tab = QShortcut(
                 QKeySequence(Qt.Key_Tab), self.wdg_sel)
             self.shortcut_tab.activated.connect(self.loop_prompt_type)
+            self.shortcut_undo_sam_pg = QShortcut(
+                QKeySequence(QKeySequence.Undo), self.wdg_sel)
+            self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
 
+            self.wdg_sel.setFloating(True)
             self.dockFirstOpen = False
         else:
             self.clear_layers()
@@ -115,14 +119,15 @@ class Geo_SAM(QObject):
         self.clear_layers()
 
     def unload(self):
+        '''Unload actions when plugin is closed'''
         self.iface.removeToolBarIcon(self.action)
         self.iface.removePluginMenu('&Geo-SAM', self.action)
         self._clear_layers()
 
-        if hasattr(self, "shortcut_undo"):
-            self.shortcut_undo.disconnect()
         if hasattr(self, "shortcut_tab"):
             self.shortcut_tab.disconnect()
+        if hasattr(self, "shortcut_undo_sam_pg"):
+            self.shortcut_undo_sam_pg.disconnect()
         del self.action
 
     def load_demo_img(self):
@@ -144,18 +149,18 @@ class Geo_SAM(QObject):
                 print(img_path, 'does not exist')
 
     def topping_polygon_sam_layer(self):
-        if hasattr(self, "polygon"):
-            root = QgsProject.instance().layerTreeRoot()
-            tree_layer = root.findLayer(self.polygon.layer.id())
+        '''Topping polygon layer of SAM result to top of TOC'''
+        root = QgsProject.instance().layerTreeRoot()
+        tree_layer = root.findLayer(self.polygon.layer.id())
 
-            if root.children()[0] == tree_layer:
-                return None
+        if root.children()[0] == tree_layer:
+            return None
 
-            # move to top
-            tl_clone = tree_layer.clone()
-            root.insertChildNode(0, tl_clone)
-            parent_tree_layer = tree_layer.parent()
-            parent_tree_layer.removeChildNode(tree_layer)
+        # move to top
+        tl_clone = tree_layer.clone()
+        root.insertChildNode(0, tl_clone)
+        parent_tree_layer = tree_layer.parent()
+        parent_tree_layer.removeChildNode(tree_layer)
 
     def clear_canvas_layers_safely(self):
         '''Clear canvas layers safely'''
@@ -186,18 +191,18 @@ class Geo_SAM(QObject):
             self.canvas,
             self.canvas_points,
             'fgpt',
-            self.prompts,
+            self.prompt_history,
             self.execute_SAM,
         )
         self.tool_click_bg = ClickTool(
             self.canvas,
             self.canvas_points,
             'bgpt',
-            self.prompts,
+            self.prompt_history,
             self.execute_SAM,
         )
         self.tool_click_rect = RectangleMapTool(
-            self.canvas_rect, self.prompts, self.execute_SAM, self.img_crs_manager
+            self.canvas_rect, self.prompt_history, self.execute_SAM, self.img_crs_manager
         )
 
     def loop_prompt_type(self):
@@ -210,8 +215,8 @@ class Geo_SAM(QObject):
             self.draw_foreground_point()
 
     def undo_last_prompt(self):
-        if len(self.prompts) > 0:
-            prompt_last = self.prompts.pop()
+        if len(self.prompt_history) > 0:
+            prompt_last = self.prompt_history.pop()
             if prompt_last == 'bbox':
                 self.canvas_rect.clear()
             else:
@@ -227,16 +232,12 @@ class Geo_SAM(QObject):
             self.canvas.setMapTool(self.toolPan)
             # findChildren(self, type, name: str = '', options: Union[Qt.FindChildOptions, Qt.FindChildOption] = Qt.FindChildrenRecursively): argument 2 has unexpected type 'FindChildOption'
             # for wdg in UI_Selector.findChildren(QPushButton, 'pushButton_fg'): # PyQt5.QtWidgets.QDockWidget
-            # QApplication.restoreOverrideCursor()
-            # print(wdg.objectName())
             self.wdg_sel.pushButton_fg.setEnabled(False)
             self.wdg_sel.pushButton_bg.setEnabled(False)
             self.wdg_sel.pushButton_rect.setEnabled(False)
             self.wdg_sel.pushButton_clear.setEnabled(False)
+            self.wdg_sel.pushButton_undo.setEnabled(False)
             self.wdg_sel.pushButton_save.setEnabled(False)
-            # self.tool_click_fg.deactivate()
-            # self.tool_click_bg.deactivate()
-            # self.tool_click_rect.deactivate()
         else:
             # for wdg in UI_Selector.findChildren(QWidget, 'pushButton', Qt.FindChildrenRecursively):
             #     print(wdg.objectName())
@@ -245,6 +246,7 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_bg.setEnabled(True)
             self.wdg_sel.pushButton_rect.setEnabled(True)
             self.wdg_sel.pushButton_clear.setEnabled(True)
+            self.wdg_sel.pushButton_undo.setEnabled(True)
             self.wdg_sel.pushButton_save.setEnabled(True)
             self.reset_prompt_type()
 
@@ -252,9 +254,30 @@ class Geo_SAM(QObject):
 
         # self.wdg_sel.radioButton_enable.setEnabled(True)
 
-    def execute_segmentation(self):
+    def ensure_sam_feature_exist(self):
         if not hasattr(self, "polygon"):
             self.load_shp_file()
+        layer_list = QgsProject.instance().mapLayersByName("polygon_sam")
+        if len(layer_list) == 0:
+            self.load_shp_file()
+
+    def execute_segmentation(self):
+        self.ensure_sam_feature_exist()
+
+        # add last id to history
+        features = list(self.polygon.layer.getFeatures())
+        if len(list(features)) == 0:
+            last_id = 1
+        else:
+            last_id = features[-1].id() + 1
+
+        if (len(self.sam_feature_history) >= 1 and
+                len(self.sam_feature_history[-1]) == 1):
+            self.sam_feature_history[-1][0] = last_id
+        else:
+            self.sam_feature_history.append([last_id])
+
+        # execute segmentation
         self.sam_model.sam_predict(
             self.canvas_points, self.canvas_rect, self.polygon)
         self.topping_polygon_sam_layer()
@@ -262,50 +285,40 @@ class Geo_SAM(QObject):
     def draw_foreground_point(self):
         '''draw foreground point in canvas'''
         self.canvas.setMapTool(self.tool_click_fg)
-        button = self.wdg_sel.pushButton_fg  # self.sender()
-        if button.isChecked():
-            print(button.objectName(), "is checked")
-        else:
+        button = self.wdg_sel.pushButton_fg
+        if not button.isChecked():
             button.toggle()
-        # self._set_button_selected('foreground')
+
         if self.wdg_sel.pushButton_bg.isChecked():
             self.wdg_sel.pushButton_bg.toggle()
         if self.wdg_sel.pushButton_rect.isChecked():
             self.wdg_sel.pushButton_rect.toggle()
-        self.tool_click_bg.deactivate()
         self.prompt_type = 'fgpt'
 
     def draw_background_point(self):
         '''draw background point in canvas'''
         self.canvas.setMapTool(self.tool_click_bg)
-        button = self.wdg_sel.pushButton_bg  # self.sender()
-        if button.isChecked():
-            print(button.objectName(), "is checked")
-        else:
+        button = self.wdg_sel.pushButton_bg
+        if not button.isChecked():
             button.toggle()
-        # self._set_button_selected('background')
+
         if self.wdg_sel.pushButton_fg.isChecked():
             self.wdg_sel.pushButton_fg.toggle()
         if self.wdg_sel.pushButton_rect.isChecked():
             self.wdg_sel.pushButton_rect.toggle()
-        self.tool_click_fg.deactivate()
         self.prompt_type = 'bgpt'
 
     def draw_rect(self):
         '''draw rectangle in canvas'''
         self.canvas.setMapTool(self.tool_click_rect)
         button = self.wdg_sel.pushButton_rect  # self.sender()
-        if button.isChecked():
-            print(button.objectName(), "is checked")
-        else:
+        if not button.isChecked():
             button.toggle()
-        # self._set_button_selected('rectangle')
+
         if self.wdg_sel.pushButton_fg.isChecked():
             self.wdg_sel.pushButton_fg.toggle()
         if self.wdg_sel.pushButton_bg.isChecked():
             self.wdg_sel.pushButton_bg.toggle()
-        self.tool_click_fg.deactivate()
-        self.tool_click_bg.deactivate()
         self.prompt_type = 'bbox'
 
     def find_file(self):
@@ -317,6 +330,7 @@ class Geo_SAM(QObject):
         '''load shapefile'''
         text = self.wdg_sel.path_out.text()
         self.polygon = SAM_PolygonFeature(self.img_crs_manager, text)
+        self.sam_feature_history = []
 
     def find_feature(self):
         '''find feature directory'''
@@ -349,14 +363,22 @@ class Geo_SAM(QObject):
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
         self.reset_prompt_type()
-        self.prompts.clear()
+        self.prompt_history.clear()
 
     def save_shp_file(self):
         '''save sam result into shapefile layer'''
+        self.clear_canvas_layers_safely()
+        self.prompt_history.clear()
         if hasattr(self, "polygon"):
             self.polygon.commit_changes()
-        self.clear_canvas_layers_safely()
-        self.prompts.clear()
+
+            # add last id of new features to history
+            features = list(self.polygon.layer.getFeatures())
+            if len(list(features)) == 0:
+                return None
+            last_id = features[-1].id()
+            if self.sam_feature_history[-1][0] <= last_id:
+                self.sam_feature_history[-1].append(last_id)
 
     def reset_prompt_type(self):
         '''reset prompt type'''
@@ -367,3 +389,18 @@ class Geo_SAM(QObject):
                 self.draw_foreground_point()
         else:
             self.draw_foreground_point()
+
+    def undo_sam_polygon(self):
+        '''undo last sam polygon'''
+        if len(self.sam_feature_history) == 0:
+            return None
+        last_ids = self.sam_feature_history.pop(-1)
+        rm_ids = list(range(last_ids[0], last_ids[1]+1))
+        self.polygon.layer.dataProvider().deleteFeatures(rm_ids)
+
+        # If caching is enabled, a simple canvas refresh might not be sufficient
+        # to trigger a redraw and must clear the cached image for the layer
+        if self.canvas.isCachingEnabled():
+            self.polygon.layer.triggerRepaint()
+        else:
+            self.canvas.refresh()
