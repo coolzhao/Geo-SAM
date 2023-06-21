@@ -184,7 +184,7 @@ class Canvas_Points:
         else:
             m.setColor(QColor(255, 0, 0))
             m.setFillColor(QColor(255, 0, 0))
-        m.setIconSize(10)
+        m.setIconSize(12)
         m.setIconType(QgsVertexMarker.ICON_CIRCLE)
 
         # add to markers and labels
