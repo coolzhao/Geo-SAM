@@ -14,7 +14,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QKeySequence, QIcon, QColor, QCursor, QBitmap, QPixmap
 
 from .geoTool import ImageCRSManager, LayerExtent
-
+from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect
 
 class RectangleMapTool(QgsMapToolEmitPoint):
     '''A map tool to draw a rectangle on canvas'''
@@ -27,7 +27,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
         QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
-        self.setCursor(Qt.CrossCursor)
+        self.setCursor(CursorRect)
 
         self.reset()
 
@@ -268,16 +268,11 @@ class ClickTool(QgsMapToolEmitPoint):
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
         QgsMapToolEmitPoint.__init__(self, self.canvas)
-        self.file_dir = os.path.dirname(__file__)
-        # scaling ref: https://github.com/qgis/QGIS/blob/11c77af3dd95fb1f5bb4ce3a4ef5dc97de951ec5/src/core/qgsapplication.cpp#L873
-        scale = Qgis.UI_SCALE_FACTOR * QgsApplication.fontMetrics().height() / 32.0
-        # QIcon("filepath.svg").pixmap(QSize()) https://stackoverflow.com/a/36936216
-        # cursor source: https://github.com/qgis/QGIS/raw/11c77af3dd95fb1f5bb4ce3a4ef5dc97de951ec5/images/themes/default/cursors/mCapturePoint.svg
-        CapturePointBitmap = QIcon(
-            self.file_dir + "/mCapturePoint.svg").pixmap(QSize(scale*32, scale*32))
-        # CapturePointPixmap = QPixmap(self.plugin_dir + "/PrecisionCursorIcon07.png")
-        CapturePointCurser = QCursor(CapturePointBitmap)
-        self.setCursor(CapturePointCurser)
+
+        if prompt_type == "fgpt":
+            self.setCursor(CursorPointBlue)
+        elif prompt_type == "bgpt":
+            self.setCursor(CursorPointRed)
 
     def canvasPressEvent(self, event):
         point = self.toMapCoordinates(event.pos())

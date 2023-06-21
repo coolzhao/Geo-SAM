@@ -20,6 +20,7 @@ from .tools.geoTool import ImageCRSManager, LayerExtent
 from .tools.SAMTool import SAM_Model
 from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
 from .ui import UI_Selector
+from .ui.icons import QIcon_GeoSAMTool
 
 
 class Geo_SAM(QObject):
@@ -39,10 +40,8 @@ class Geo_SAM(QObject):
         self.prompts: List = []
 
     def initGui(self):
-        icon_path = os.path.join(self.cwd, "icons/geo_sam_tool.svg")
-
         self.action = QAction(
-            QIcon(icon_path),
+            QIcon_GeoSAMTool,
             "Geo-SAM Tool",
             self.iface.mainWindow()
         )
