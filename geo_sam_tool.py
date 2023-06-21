@@ -92,6 +92,7 @@ class Geo_SAM(QObject):
             self.wdg_sel.closed.connect(self.destruct)
             self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
 
+            # shortcuts
             self.shortcut_undo = QShortcut(
                 QKeySequence('Z'), self.wdg_sel)
             self.shortcut_undo.activated.connect(self.undo_last_prompt)
@@ -121,7 +122,7 @@ class Geo_SAM(QObject):
         if hasattr(self, "shortcut_undo"):
             self.shortcut_undo.disconnect()
         if hasattr(self, "shortcut_tab"):
-            self.shortcut_undo.disconnect()
+            self.shortcut_tab.disconnect()
         del self.action
 
     def load_demo_img(self):
@@ -146,10 +147,14 @@ class Geo_SAM(QObject):
         if hasattr(self, "polygon"):
             root = QgsProject.instance().layerTreeRoot()
             tree_layer = root.findLayer(self.polygon.layer.id())
-            parent_tree_layer = tree_layer.parent()
+
+            if root.children()[0] == tree_layer:
+                return None
+
             # move to top
             tl_clone = tree_layer.clone()
             root.insertChildNode(0, tl_clone)
+            parent_tree_layer = tree_layer.parent()
             parent_tree_layer.removeChildNode(tree_layer)
 
     def clear_canvas_layers_safely(self):
