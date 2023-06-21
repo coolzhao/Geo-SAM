@@ -129,6 +129,10 @@ After adding points and rectangle for segmenting a subject, you can save the seg
 
 You can use the `Clear` button to clear the added points and rectangles.
 
+### Undo last Prompt
+
+You can use the `Undo` button to undo the last points or rectangle Prompt.
+
 ### Disable the Tool
 
 You can uncheck the `Enable` button to temporally disable the tool and navigate on the map.
