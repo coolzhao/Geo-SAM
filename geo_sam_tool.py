@@ -88,9 +88,11 @@ class Geo_SAM(QObject):
         if hasattr(self, "polygon"):
             root = QgsProject.instance().layerTreeRoot()
             tree_layer = root.findLayer(self.polygon.layer.id())
+            parent_tree_layer = tree_layer.parent()
+            # move to top
             tl_clone = tree_layer.clone()
             root.insertChildNode(0, tl_clone)
-            root.removeChildNode(tree_layer)
+            parent_tree_layer.removeChildNode(tree_layer)
 
     def clear_canvas_layers_safely(self):
         '''Clear canvas layers safely'''
@@ -140,8 +142,6 @@ class Geo_SAM(QObject):
 
     def create_widget_selector(self):
         '''Create widget selector'''
-        QgsMessageLog.logMessage(
-            f'create widget selector: dockFirstOpen : {self.dockFirstOpen} ', 'Geo SAM', Qgis.Info)
         if self.dockFirstOpen:
             self._init_feature_related()
             self.load_demo_img()
@@ -217,8 +217,6 @@ class Geo_SAM(QObject):
     def undo_last_prompt(self):
         if len(self.prompts) > 0:
             prompt_last = self.prompts.pop()
-            QgsMessageLog.logMessage(
-                f'undo last prompt {prompt_last}', 'Geo SAM', Qgis.Info)
             if prompt_last == 'bbox':
                 self.canvas_rect.clear()
             else:
@@ -362,7 +360,7 @@ class Geo_SAM(QObject):
             self.polygon.rollback_changes()
 
     def clear_layers(self):
-        '''Clear all temporary layers (canvas and new sam result) and reset prompt type'''
+        '''Clear all temporary layers (canvas and new sam result) and reset prompt'''
         self.clear_canvas_layers_safely()
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
