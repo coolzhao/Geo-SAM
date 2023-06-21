@@ -101,7 +101,7 @@ Click the toolbar icon to open the widget of the tool. You will be shown a demo 
 <!-- ![try geo sam](assets/try_geo_sam.png) -->
 
 <p align="center">
-  <img src="assets/try_geo_sam.gif" width="400" title="Try Geo SAM">
+  <img src="assets/try_geo_sam.gif" width="500" title="Try Geo SAM">
 </p>
 
 A user interface will be shown as below.
