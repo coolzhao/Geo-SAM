@@ -107,7 +107,6 @@ class SAM_Model:
             img_clip_transform)
 
         input_box = canvas_rect.get_img_box(img_clip_transform)
-        # print("box", input_box)
 
         # img_features = batch['image']
         self.predictor.set_image_feature(

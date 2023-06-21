@@ -16,6 +16,7 @@ from PyQt5.QtGui import QKeySequence, QIcon, QColor, QCursor, QBitmap, QPixmap
 from .geoTool import ImageCRSManager, LayerExtent
 from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect
 
+
 class RectangleMapTool(QgsMapToolEmitPoint):
     '''A map tool to draw a rectangle on canvas'''
 
@@ -74,7 +75,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.rubberBand.show()
 
     def rectangle(self):
-        '''Returns a rectangle from two points for SAM'''
+        '''Returns a rectangle from two points with img crs'''
         if self.startPoint is None or self.endPoint is None:
             return None
         elif (self.startPoint.x() == self.endPoint.x() or
@@ -137,7 +138,13 @@ class Canvas_Rectangle:
         if self.box_geo is not None:
             rowcol1 = rowcol(tf, self.box_geo[0], self.box_geo[1])
             rowcol2 = rowcol(tf, self.box_geo[2], self.box_geo[3])
-            return np.array([rowcol1[1], rowcol1[0], rowcol2[1], rowcol2[0]])
+            box = [
+                min(rowcol1[1], rowcol2[1]),
+                min(rowcol1[0], rowcol2[0]),
+                max(rowcol1[1], rowcol2[1]),
+                max(rowcol1[0], rowcol2[0])
+            ]
+            return np.array(box)
         else:
             return None
 
