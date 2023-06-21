@@ -5,9 +5,9 @@ try:
 except:
     from qgis.PyQt.QtWidgets import QDockWidget, QWidget
 
-uiFileDir = os.path.abspath(os.path.dirname(__file__))
-selector_path = os.path.join(uiFileDir, "Selector.ui")
-encoder_path = os.path.join(uiFileDir, "Encoder.ui")
+cwd = os.path.abspath(os.path.dirname(__file__))
+selector_path = os.path.join(cwd, "Selector.ui")
+encoder_path = os.path.join(cwd, "Encoder.ui")
 
 UI_Selector = uic.loadUi(selector_path)
 UI_Encoder = uic.loadUi(encoder_path)
