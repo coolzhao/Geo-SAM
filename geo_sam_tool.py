@@ -20,7 +20,8 @@ from .tools.geoTool import ImageCRSManager, LayerExtent
 from .tools.SAMTool import SAM_Model
 from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
 from .ui import UI_Selector
-from .ui.icons import QIcon_GeoSAMTool
+from .ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool
+from .geo_sam_provider import GeoSamProvider
 
 
 class Geo_SAM(QObject):
@@ -39,7 +40,12 @@ class Geo_SAM(QObject):
         self.prompt_history: List[str] = []
         self.sam_feature_history: List[List[int]] = []
 
+    def initProcessing(self):
+        self.provider = GeoSamProvider()
+        QgsApplication.processingRegistry().addProvider(self.provider)
+
     def initGui(self):
+        self.initProcessing()
         self.action = QAction(
             QIcon_GeoSAMTool,
             "Geo-SAM Tool",
@@ -129,6 +135,7 @@ class Geo_SAM(QObject):
         if hasattr(self, "shortcut_undo_sam_pg"):
             self.shortcut_undo_sam_pg.disconnect()
         del self.action
+        QgsApplication.processingRegistry().removeProvider(self.provider)
 
     def load_demo_img(self):
         layer_list = QgsProject.instance().mapLayersByName(self.demo_img_name)

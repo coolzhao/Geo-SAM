@@ -9,3 +9,4 @@ author=Joey, Fancy
 email=joey_fancy@cryolab.com
 tags=raster, vector, segmentation, segment-anything, labeling
 icon=icons/geo_sam_tool.png
+hasProcessingProvider=yes
