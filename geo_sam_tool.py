@@ -263,7 +263,7 @@ class Geo_SAM(QObject):
 
     def ensure_sam_feature_exist(self):
         layer_list = QgsProject.instance().mapLayersByName("polygon_sam")
-        if len(layer_list) == 0:
+        if len(layer_list) == 0 or not hasattr(self, "polygon"):
             self.load_shp_file()
 
     def execute_segmentation(self):
@@ -400,6 +400,9 @@ class Geo_SAM(QObject):
         if len(self.sam_feature_history) == 0:
             return None
         last_ids = self.sam_feature_history.pop(-1)
+        if len(last_ids) == 1:
+            self.clear_layers()
+            return None
         rm_ids = list(range(last_ids[0], last_ids[1]+1))
         self.polygon.layer.dataProvider().deleteFeatures(rm_ids)
 
