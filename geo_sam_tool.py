@@ -255,8 +255,6 @@ class Geo_SAM(QObject):
         # self.wdg_sel.radioButton_enable.setEnabled(True)
 
     def ensure_sam_feature_exist(self):
-        if not hasattr(self, "polygon"):
-            self.load_shp_file()
         layer_list = QgsProject.instance().mapLayersByName("polygon_sam")
         if len(layer_list) == 0:
             self.load_shp_file()
