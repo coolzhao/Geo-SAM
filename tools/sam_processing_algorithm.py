@@ -1,5 +1,6 @@
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.core import (QgsProcessing,
+                       QgsCoordinateTransform,
                        QgsFeatureSink,
                        QgsProcessingException,
                        QgsProcessingAlgorithm,
@@ -39,6 +40,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     BANDS = 'BANDS'
     STRIDE = 'STRIDE'
     OUTPUT = 'OUTPUT'
+    EXTENT = 'EXTENT'
 
     def initAlgorithm(self, config=None):
         """
@@ -52,6 +54,36 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterRasterLayer(
                 self.INPUT,
                 self.tr('Input Layer')
+            )
+        )
+        # add ParameterRasterCalculatorExpression to normalize raster values to 0-255
+
+        self.addParameter(
+            QgsProcessingParameterBand(
+                name=self.BANDS,
+                description=self.tr('Bands'),
+                defaultValue=[1, 2, 3],
+                parentLayerParameterName=self.INPUT,
+                allowMultiple=True
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterExtent(
+                self.EXTENT,
+                self.tr(
+                    'Processing extent'),
+                optional=True
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterNumber(
+                self.STRIDE,
+                self.tr('Stride'),
+                defaultValue=512,
+                minValue=256,
+                maxValue=1024
             )
         )
 
@@ -70,27 +102,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 defaultValue='vit_h',
             )
         )
-
-        self.addParameter(
-            QgsProcessingParameterBand(
-                name=self.BANDS,
-                description=self.tr('Bands'),
-                defaultValue=[1, 2, 3],
-                parentLayerParameterName=self.INPUT,
-                allowMultiple=True
-            )
-        )
-
-        self.addParameter(
-            QgsProcessingParameterNumber(
-                self.STRIDE,
-                self.tr('Stride'),
-                defaultValue=512,
-                minValue=256,
-                maxValue=1024
-            )
-        )
-
         # We add a feature sink in which to store our processed features (this
         # usually takes the form of a newly created vector layer when the
         # algorithm is run in QGIS).
@@ -129,6 +140,21 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         stride = self.parameterAsInt(
             parameters, self.STRIDE, context)
 
+        bbox = self.parameterAsExtent(parameters, self.EXTENT, context)
+        if bbox.isNull() and not rlayer:
+            raise QgsProcessingException(
+                self.tr("No reference layer selected nor extent box provided"))
+
+        if not bbox.isNull():
+            bboxCrs = self.parameterAsExtentCrs(
+                parameters, self.EXTENT, context)
+            if bboxCrs != rlayer.crs():
+                transform = QgsCoordinateTransform(
+                    bboxCrs, rlayer.crs(), context.transformContext())
+                bbox = transform.transformBoundingBox(bbox)
+
+        if bbox.isNull() and rlayer:
+            bbox = rlayer.extent()  # QgsProcessingUtils.combineLayerExtents(layers, crs, context)
         # If source was not found, throw an exception to indicate that the algorithm
         # encountered a fatal error. The exception text can be any string, but in this
         # case we use the pre-built invalidSourceError method to return a standard
