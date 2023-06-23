@@ -287,7 +287,6 @@ class SamTestFeatureDataset(RasterDataset):
 
 class SamTestRasterDataset(RasterDataset):
     filename_glob = "*.tif"
-    # filename_regex = r"^S2.{5}_(?P<date>\d{8})_N\d{4}_R\d{3}_6Bands_S\d{1}"
     filename_regex = ".*"
     date_format = ""
     is_image = True
@@ -341,10 +340,10 @@ class SamTestRasterDataset(RasterDataset):
         band_indexes = self.band_indexes
 
         src = vrt_fh
-        # out_width = round((bbox.maxx - bbox.minx) / self.res)
-        # out_height = round((bbox.maxy - bbox.miny) / self.res)
-        out_width = math.ceil((bbox.maxx - bbox.minx) / self.res)
-        out_height = math.ceil((bbox.maxy - bbox.miny) / self.res)
+        out_width = round((bbox.maxx - bbox.minx) / self.res)
+        out_height = round((bbox.maxy - bbox.miny) / self.res)
+        # out_width = math.ceil((bbox.maxx - bbox.minx) / self.res)
+        # out_height = math.ceil((bbox.maxy - bbox.miny) / self.res)
         count = len(band_indexes) if band_indexes else src.count
         out_shape = (count, out_height, out_width)
         dest = src.read(
