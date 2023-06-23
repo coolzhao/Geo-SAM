@@ -8,6 +8,8 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterBand,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterFile,
+                       QgsProcessingParameterString,
+                       QgsProcessingParameterExtent,
                        QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterFeatureSink)
 from qgis import processing
@@ -32,6 +34,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     # calling from the QGIS console.
 
     INPUT = 'INPUT'
+    CKPT = 'CKPT'
+    MODEL_TYPE = 'MODEL_TYPE'
     BANDS = 'BANDS'
     STRIDE = 'STRIDE'
     OUTPUT = 'OUTPUT'
@@ -48,6 +52,22 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterRasterLayer(
                 self.INPUT,
                 self.tr('Input Layer')
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterFile(
+                name=self.CKPT,
+                description=self.tr('Checkpoint Path'),
+                extension='pth',
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterString(
+                name=self.MODEL_TYPE,
+                description=self.tr('Model Type'),
+                defaultValue='vit_h',
             )
         )
 
@@ -98,9 +118,16 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # Retrieve the feature source and sink. The 'dest_id' variable is used
         # to uniquely identify the feature sink, and must be included in the
         # dictionary returned by the processAlgorithm function.
-        rlayer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
-        bands = self.parameterAsInts(parameters, self.BANDS, context)
-        stride = self.parameterAsInt(parameters, self.STRIDE, context)
+        rlayer = self.parameterAsRasterLayer(
+            parameters, self.INPUT, context)
+        bands = self.parameterAsInts(
+            parameters, self.BANDS, context)
+        ckpt_path = self.parameterAsFile(
+            parameters, self.CKPT, context)
+        model_type = self.parameterAsString(
+            parameters, self.MODEL_TYPE, context)
+        stride = self.parameterAsInt(
+            parameters, self.STRIDE, context)
 
         # If source was not found, throw an exception to indicate that the algorithm
         # encountered a fatal error. The exception text can be any string, but in this
@@ -113,7 +140,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # output_dir = self.parameterAsFileOutput(
         #     parameters, self.OUTPUT, context)
 
-        output_dir = self.parameterAsFileOutput(
+        output_dir = self.parameterAsString(
             parameters, self.OUTPUT, context)
 
         # Send some information to the user
