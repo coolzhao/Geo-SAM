@@ -47,6 +47,7 @@ class SAM_Model:
         self.predictor = SamPredictorNoImgEncoder(sam)
 
         feature_bounds = self.test_features.index.bounds
+        self.feature_size = self.test_features.index.get_size()
         self.extent = QgsRectangle(
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
 

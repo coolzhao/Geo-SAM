@@ -1,5 +1,6 @@
 import os
 from typing import List
+from pathlib import Path
 from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication
 from qgis.gui import QgsMapToolPan, QgisInterface
 from qgis.core import QgsRasterLayer
@@ -84,6 +85,7 @@ class Geo_SAM(QObject):
                 self.find_feature)
             self.wdg_sel.pushButton_load_feature.clicked.connect(
                 self.load_feature)
+            self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
                 self.enable_disable)
 
@@ -110,15 +112,17 @@ class Geo_SAM(QObject):
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
 
             self.wdg_sel.setFloating(True)
+
+            # default is fgpt, but do not change when reloading feature folder
+            self.reset_prompt_type()
             self.dockFirstOpen = False
         else:
             self.clear_layers()
+            if self.wdg_sel.radioButton_enable.isChecked():
+                self.reset_prompt_type()
 
         # add widget to QGIS
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
-
-        # default is fgpt, but do not change when reloading feature folder
-        self.reset_prompt_type()
 
     def destruct(self):
         '''Destruct actions when closed widget'''
@@ -126,6 +130,10 @@ class Geo_SAM(QObject):
 
     def unload(self):
         '''Unload actions when plugin is closed'''
+        if hasattr(self, "wdg_sel"):
+            self.wdg_sel.setParent(None)
+            self.iface.removeDockWidget(self.wdg_sel)
+        # self.wdg_sel.setVisible(False)
         self.iface.removeToolBarIcon(self.action)
         self.iface.removePluginMenu('&Geo-SAM', self.action)
         self._clear_layers()
@@ -181,6 +189,10 @@ class Geo_SAM(QObject):
 
         # init feature related objects
         self.sam_model = SAM_Model(self.feature_dir, self.cwd)
+        self.iface.messageBar().pushMessage("Great",
+                                            (f"SAM Features with {self.sam_model.feature_size} patches in '{Path(self.feature_dir).name}' have been loaded, "
+                                             "you can start labeling now"), level=Qgis.Info, duration=10)
+
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
@@ -367,7 +379,7 @@ class Geo_SAM(QObject):
         self.clear_canvas_layers_safely()
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
-        self.reset_prompt_type()
+        # self.reset_prompt_type()
         self.prompt_history.clear()
 
     def save_shp_file(self):
