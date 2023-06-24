@@ -110,7 +110,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             )
         )
 
-        self.model_type_options = ['vit_h', 'vit_l', 'vit_s']
+        self.model_type_options = ['vit_h', 'vit_l', 'vit_b']
         self.addParameter(
             QgsProcessingParameterEnum(
                 name=self.MODEL_TYPE,
@@ -164,21 +164,21 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         stride = self.parameterAsInt(
             parameters, self.STRIDE, context)
 
-        bbox = self.parameterAsExtent(parameters, self.EXTENT, context)
+        extent = self.parameterAsExtent(parameters, self.EXTENT, context)
         # if bbox.isNull() and not rlayer:
         #     raise QgsProcessingException(
         #         self.tr("No reference layer selected nor extent box provided"))
 
-        if not bbox.isNull():
-            bboxCrs = self.parameterAsExtentCrs(
+        if not extent.isNull():
+            extentCrs = self.parameterAsExtentCrs(
                 parameters, self.EXTENT, context)
-            if bboxCrs != rlayer.crs():
+            if extentCrs != rlayer.crs():
                 transform = QgsCoordinateTransform(
-                    bboxCrs, rlayer.crs(), context.transformContext())
-                bbox = transform.transformBoundingBox(bbox)
+                    extentCrs, rlayer.crs(), context.transformContext())
+                extent = transform.transformBoundingBox(extent)
 
-        if bbox.isNull() and rlayer:
-            bbox = rlayer.extent()  # QgsProcessingUtils.combineLayerExtents(layers, crs, context)
+        if extent.isNull() and rlayer:
+            extent = rlayer.extent()  # QgsProcessingUtils.combineLayerExtents(layers, crs, context)
 
         # output_dir = self.parameterAsFileOutput(
         #     parameters, self.OUTPUT, context)
@@ -197,7 +197,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # feedback.pushInfo('Layer display band name is {}'.format(
         #     rlayer.dataProvider().displayBandName(1)))
         feedback.pushInfo(
-            f'Layer extent: minx:{bbox.xMinimum():.2f}, maxx:{bbox.xMaximum():.2f}, miny:{bbox.yMinimum():.2f}, maxy:{bbox.yMaximum():.2f}')
+            f'Layer extent: minx:{extent.xMinimum():.2f}, maxx:{extent.xMaximum():.2f}, miny:{extent.yMinimum():.2f}, maxy:{extent.yMaximum():.2f}')
 
         # If sink was not created, throw an exception to indicate that the algorithm
         # encountered a fatal error. The exception text can be any string, but in this
@@ -264,13 +264,16 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             f'RasterDS info, input bands: {rlayer_ds.bands}, \n all bands: {rlayer_ds.all_bands}, \
             \n raster_ds crs: {rlayer_ds.crs}, \
             \n raster_ds index: {rlayer_ds.index}')
-        roi = BoundingBox(minx=bbox.xMinimum(), maxx=bbox.xMaximum(), miny=bbox.yMinimum(), maxy=bbox.yMaximum(),
-                          mint=rlayer_ds.index.bounds[4], maxt=rlayer_ds.index.bounds[5])
+        extent_bbox = BoundingBox(minx=extent.xMinimum(), maxx=extent.xMaximum(), miny=extent.yMinimum(), maxy=extent.yMaximum(),
+                                  mint=rlayer_ds.index.bounds[4], maxt=rlayer_ds.index.bounds[5])
         ds_sampler = TestGridGeoSampler(
-            rlayer_ds, size=1024, stride=stride, roi=roi, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
+            rlayer_ds, size=1024, stride=stride, roi=extent_bbox, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
 
         if len(ds_sampler) == 0:
+            feedback.pushInfo(
+                f'No available patch sample inside the chosen extent')
             return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler)}
+
         feedback.pushInfo(f'Sample number: {len(ds_sampler)}')
 
         ds_dataloader = DataLoader(
@@ -295,7 +298,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                               for size in list(features.shape)))
             feedback.pushInfo(
                 f"SAM encoding executed with {elapsed_time:.3f} ms")
-            self.save_sam_feature(output_dir, batch, features, model_type)
+            self.save_sam_feature(
+                output_dir, batch, features, extent_bbox, model_type)
 
             # Update the progress bar
             feedback.setProgress(int((current+1) * total))
@@ -320,7 +324,14 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         features = sam_model.image_encoder(batch_input)
         return features.cpu().numpy()
 
-    def save_sam_feature(self, export_dir_str: str, data_batch: Tensor, feature: np.ndarray, model_type: str = "vit_h"):
+    def save_sam_feature(
+        self,
+        export_dir_str: str,
+        data_batch: Tensor,
+        feature: np.ndarray,
+        extent: BoundingBox,
+        model_type: str = "vit_h"
+    ):
         export_dir = Path(export_dir_str)
         # iterate over batch_size dimension
         for idx in range(feature.shape[-4]):
@@ -333,25 +344,29 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             filepath = Path(data_batch['path'][idx])
             bbox = [bbox.minx, bbox.miny, bbox.maxx, bbox.maxy]
             bbox_str = '_'.join(map("{:.6f}".format, bbox))
+            extent = [extent.minx, extent.miny, extent.maxx, extent.maxy]
+            extent_str = '_'.join(map("{:.6f}".format, extent))
             # bbox_hash = hashlib.md5()
             #  Unicode-objects must be encoded before hashing with hashlib and
             #  because strings in Python 3 are Unicode by default (unlike Python 2),
             #  you'll need to encode the string using the .encode method.
             # bbox_hash.update(bbox_str.encode("utf-8"))
             bbox_hash = hashlib.sha256(bbox_str.encode("utf-8")).hexdigest()
+            extent_hash = hashlib.sha256(
+                extent_str.encode("utf-8")).hexdigest()
 
-            export_dir_sub = export_dir / filepath.stem
+            export_dir_sub = (export_dir / filepath.stem /
+                              f"sam_feat_{model_type}_{extent_hash}")
             # display(export_dir_sub)
             export_dir_sub.mkdir(parents=True, exist_ok=True)
-            feature_tiff = export_dir_sub / "sam_feat_{model}_{bbox}.tif".format(
-                model=model_type, bbox=bbox_hash)
+            feature_tiff = (export_dir_sub /
+                            f"sam_feat_{model_type}_{bbox_hash}.tif")
             # print(feature_tiff)
             with rasterio.open(
                     feature_tiff,
                     mode="w",
                     driver="GTiff",
-                    height=height,
-                    width=width,
+                    height=height, width=width,
                     count=band_num,
                     dtype='float32',
                     crs=data_batch['crs'][idx],

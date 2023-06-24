@@ -96,18 +96,25 @@ class SamTestFeatureDataset(RasterDataset):
         self.root = root
         self.bands = bands or self.all_bands
         self.cache = cache
+        self.model_type = None
+        model_type_list = ["vit_h", "vit_l", "vit_b"]
 
         # Populate the dataset index
         i = 0
         # pathname = os.path.join(root, "**", self.filename_glob)
         pathname = os.path.join(root, self.filename_glob)
         raster_list = glob.glob(pathname, recursive=True)
+        raster_name = os.path.basename(raster_list[0])
+        for m_type in model_type_list:
+            if m_type in raster_name:
+                self.model_type = m_type
+                break
         dir_name = os.path.basename(root)
         csv_filepath = os.path.join(root, dir_name + '.csv')
         index_set = False
         if os.path.exists(csv_filepath):
             self.index_df = pd.read_csv(csv_filepath)
-            filepath_csv = self.index_df.loc[0, 'filepath']
+            # filepath_csv = self.index_df.loc[0, 'filepath']
             # and os.path.dirname(filepath_csv) == os.path.dirname(raster_list[0]):
             if len(self.index_df) == len(raster_list):
                 for _, row_df in self.index_df.iterrows():
@@ -180,29 +187,30 @@ class SamTestFeatureDataset(RasterDataset):
                         # change to relative path
                         filepath_list.append(os.path.basename(filepath))
                         i += 1
-            self.index_df['id'] = id_list
-            self.index_df['filepath'] = filepath_list
-            self.index_df['minx'] = pd.to_numeric(
-                [coord[0] for coord in coords_list], downcast='float')
-            self.index_df['maxx'] = pd.to_numeric(
-                [coord[1] for coord in coords_list], downcast='float')
-            self.index_df['miny'] = pd.to_numeric(
-                [coord[2] for coord in coords_list], downcast='float')
-            self.index_df['maxy'] = pd.to_numeric(
-                [coord[3] for coord in coords_list], downcast='float')
-            self.index_df['mint'] = pd.to_numeric(
-                [coord[4] for coord in coords_list], downcast='float')
-            self.index_df['maxt'] = pd.to_numeric(
-                [coord[5] for coord in coords_list], downcast='float')
-            # print(type(crs), res)
-            self.index_df.loc[:, 'crs'] = str(crs)
-            self.index_df.loc[:, 'res'] = res
-            # print(self.index_df.dtypes)
-            index_set = True
-            self.index_df.to_csv(csv_filepath)
-            # print('index file: ', os.path.basename(csv_filepath), ' saved')
-            QgsMessageLog.logMessage(
-                f"Index file: {os.path.basename(csv_filepath)} saved", 'Geo SAM', level=Qgis.Info)
+            if i>0:
+                self.index_df['id'] = id_list
+                self.index_df['filepath'] = filepath_list
+                self.index_df['minx'] = pd.to_numeric(
+                    [coord[0] for coord in coords_list], downcast='float')
+                self.index_df['maxx'] = pd.to_numeric(
+                    [coord[1] for coord in coords_list], downcast='float')
+                self.index_df['miny'] = pd.to_numeric(
+                    [coord[2] for coord in coords_list], downcast='float')
+                self.index_df['maxy'] = pd.to_numeric(
+                    [coord[3] for coord in coords_list], downcast='float')
+                self.index_df['mint'] = pd.to_numeric(
+                    [coord[4] for coord in coords_list], downcast='float')
+                self.index_df['maxt'] = pd.to_numeric(
+                    [coord[5] for coord in coords_list], downcast='float')
+                # print(type(crs), res)
+                self.index_df.loc[:, 'crs'] = str(crs)
+                self.index_df.loc[:, 'res'] = res
+                # print(self.index_df.dtypes)
+                index_set = True
+                self.index_df.to_csv(csv_filepath)
+                # print('index file: ', os.path.basename(csv_filepath), ' saved')
+                QgsMessageLog.logMessage(
+                    f"Index file: {os.path.basename(csv_filepath)} saved", 'Geo SAM', level=Qgis.Info)
 
         if i == 0:
             msg = f"No {self.__class__.__name__} data was found in `root='{self.root}'`"

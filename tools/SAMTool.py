@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import QMessageBox
 from qgis.core import QgsRectangle, QgsMessageLog, Qgis
 from torch.utils.data import DataLoader
 from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
-from .sam_ext import sam_model_registry_no_encoder, SamPredictorNoImgEncoder
+from .sam_ext import build_sam_no_encoder, SamPredictorNoImgEncoder
 from .geoTool import LayerExtent, ImageCRSManager
 from .canvasTool import SAM_PolygonFeature, Canvas_Rectangle, Canvas_Points
 from torchgeo.datasets import BoundingBox, stack_samples
@@ -21,19 +21,29 @@ from torchgeo.samplers import Units
 class SAM_Model:
     def __init__(self, feature_dir, cwd, model_type="vit_h"):
         self.feature_dir = feature_dir
-        self.sam_checkpoint = cwd + "/checkpoint/sam_vit_h_4b8939_no_img_encoder.pth"
-        self.model_type = model_type
+        self.sam_checkpoint = {
+            "vit_h": cwd + "/checkpoint/sam_vit_h_4b8939_no_img_encoder.pth",  # vit huge model
+            "vit_l": cwd + "/checkpoint/sam_vit_l_0b3195_no_img_encoder.pth",  # vit large model
+            "vit_b": cwd + "/checkpoint/sam_vit_b_01ec64_no_img_encoder.pth",  # vit base model
+        }
+        self.model_type = None
+        self.img_crs = None
+        self.extent = None
+        self.sample_path = None  # necessary
         self._prepare_data_and_layer()
-        self.sample_path = None
 
     def _prepare_data_and_layer(self):
         """Prepares data and layer."""
         self.test_features = SamTestFeatureDataset(
-            root=self.feature_dir, bands=None, cache=False)  # display(test_imgs.index) #
+            root=self.feature_dir, bands=None, cache=False)
         self.img_crs = str(self.test_features.crs)
         # Load sam decoder
-        sam = sam_model_registry_no_encoder[self.model_type](
-            checkpoint=self.sam_checkpoint)
+        self.model_type = self.test_features.model_type
+        if self.model_type is None:
+            raise Exception("No sam model type info. found in feature files")
+
+        sam = build_sam_no_encoder(
+            checkpoint=self.sam_checkpoint[self.model_type])
         self.predictor = SamPredictorNoImgEncoder(sam)
 
         feature_bounds = self.test_features.index.bounds
