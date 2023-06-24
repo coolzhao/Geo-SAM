@@ -14,6 +14,7 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterFile,
                        QgsProcessingParameterString,
+                       QgsProcessingParameterEnum,
                        QgsProcessingParameterExtent,
                        QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterFeatureSink)
@@ -109,11 +110,13 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             )
         )
 
+        self.model_type_options = ['vit_h', 'vit_l', 'vit_s']
         self.addParameter(
-            QgsProcessingParameterString(
+            QgsProcessingParameterEnum(
                 name=self.MODEL_TYPE,
                 description=self.tr('Model Type'),
-                defaultValue='vit_h',
+                options=self.model_type_options,
+                defaultValue=0,  # 'vit_h'
             )
         )
         # We add a feature sink in which to store our processed features (this
@@ -156,7 +159,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             parameters, self.BANDS, context)
         ckpt_path = self.parameterAsFile(
             parameters, self.CKPT, context)
-        model_type = self.parameterAsString(
+        model_type_idx = self.parameterAsEnum(
             parameters, self.MODEL_TYPE, context)
         stride = self.parameterAsInt(
             parameters, self.STRIDE, context)
@@ -237,6 +240,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 'OUTPUT': 'memory:'
             }, context=context, feedback=feedback)['OUTPUT']
 
+        model_type = self.model_type_options[model_type_idx]
         sam_model = self.initialize_sam(
             model_type=model_type, sam_ckpt_path=ckpt_path)
 
@@ -294,7 +298,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             self.save_sam_feature(output_dir, batch, features, model_type)
 
             # Update the progress bar
-            feedback.setProgress(int(current * total))
+            feedback.setProgress(int((current+1) * total))
 
         # Return the results of the algorithm. In this case our only result is
         # the feature sink which contains the processed features, but some
