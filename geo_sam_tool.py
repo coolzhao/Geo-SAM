@@ -2,7 +2,7 @@ import os
 from typing import List
 from pathlib import Path
 from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication
-from qgis.gui import QgsMapToolPan, QgisInterface
+from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
 from qgis.core import QgsRasterLayer
 from qgis.PyQt.QtWidgets import QDockWidget
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
@@ -78,16 +78,20 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_undo.clicked.connect(self.undo_last_prompt)
             self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
 
-            self.wdg_sel.pushButton_find_file.clicked.connect(self.find_file)
             self.wdg_sel.pushButton_load_file.clicked.connect(
                 self.load_shp_file)
-            self.wdg_sel.pushButton_find_feature.clicked.connect(
-                self.find_feature)
             self.wdg_sel.pushButton_load_feature.clicked.connect(
                 self.load_feature)
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
                 self.enable_disable)
+
+            # set filter for file dialog
+            self.wdg_sel.QgsFile_shapefile.setFilter("*.shp")
+            self.wdg_sel.QgsFile_shapefile.setStorageMode(
+                QgsFileWidget.SaveFile)
+            self.wdg_sel.QgsFile_feature.setStorageMode(
+                QgsFileWidget.GetDirectory)
 
             # set button checkable
             self.wdg_sel.pushButton_fg.setCheckable(True)
@@ -273,13 +277,16 @@ class Geo_SAM(QObject):
 
         # self.wdg_sel.radioButton_enable.setEnabled(True)
 
-    def ensure_sam_feature_exist(self):
-        layer_list = QgsProject.instance().mapLayersByName("polygon_sam")
-        if len(layer_list) == 0 or not hasattr(self, "polygon"):
+    def ensure_polygon_sam_exist(self):
+        if hasattr(self, "polygon"):
+            layer_list = QgsProject.instance().mapLayersByName(self.polygon.layer_name)
+            if len(layer_list) == 0:
+                self.load_shp_file()
+        else:
             self.load_shp_file()
 
     def execute_segmentation(self):
-        self.ensure_sam_feature_exist()
+        self.ensure_polygon_sam_exist()
 
         # add last id to history
         features = list(self.polygon.layer.getFeatures())
@@ -338,31 +345,24 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_bg.toggle()
         self.prompt_type = 'bbox'
 
-    def find_file(self):
-        '''find shapefile path'''
-        path, _ = QFileDialog.getSaveFileName(None, "Save shapefile", "")
-        self.wdg_sel.path_out.setText(path)
-
     def load_shp_file(self):
         '''load shapefile'''
-        text = self.wdg_sel.path_out.text()
-        self.polygon = SAM_PolygonFeature(self.img_crs_manager, text)
-        self.sam_feature_history = []
+        file_path = self.wdg_sel.QgsFile_shapefile.filePath()
 
-    def find_feature(self):
-        '''find feature directory'''
-        feature_dir_str = QFileDialog.getExistingDirectory(
-            None, "get feature directory", "")
-        self.wdg_sel.path_feature.setText(feature_dir_str)
+        if (hasattr(self, "polygon") and
+                self.polygon.layer.source() == file_path):
+            self.sam_feature_history = []
+        else:
+            self.polygon = SAM_PolygonFeature(
+                self.img_crs_manager, file_path)
+            self.sam_feature_history = []
 
     def load_feature(self):
         '''load feature'''
-        self.feature_dir = self.wdg_sel.path_feature.text()
+        self.feature_dir = self.wdg_sel.QgsFile_feature.filePath()
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
             self.clear_layers()
             self._init_feature_related()
-            self.load_shp_file()
-            # self.draw_foreground_point()
             self.reset_prompt_type()  # do not change tool
         else:
             self.iface.messageBar().pushMessage("Feature folder not exist",

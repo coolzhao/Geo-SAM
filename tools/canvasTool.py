@@ -4,15 +4,15 @@ from PyQt5 import QtGui
 import numpy as np
 from pathlib import Path
 from rasterio.transform import rowcol, Affine
-from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, Qgis, QgsMessageLog
+from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, Qgis, QgsMessageLog
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker
 from qgis.core import (
-    QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFillSymbol, QgsApplication,
+    QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFields, QgsFillSymbol, QgsApplication,
     QgsGeometry, QgsFeature, QgsVectorLayer)
 from qgis.PyQt.QtCore import QVariant
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QKeySequence, QIcon, QColor, QCursor, QBitmap, QPixmap
-
+from qgis.utils import iface
 from .geoTool import ImageCRSManager, LayerExtent
 from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect
 
@@ -320,30 +320,72 @@ class SAM_PolygonFeature:
         else:
             self._init_layer()
 
+    @property
+    def layer_name(self):
+        if hasattr(self, "layer"):
+            return self.layer.name()
+        else:
+            return "polygon_sam"
+
     def _load_shapefile(self, shapefile):
         '''Load the shapefile to the layer.'''
         if isinstance(shapefile, Path):
             shapefile = str(shapefile)
-        self.layer = QgsVectorLayer(shapefile, "polygon_sam", "ogr")
+        if Path(shapefile).suffix.lower() != ".shp":
+            shapefile = shapefile + ".shp"
+
+        # if file not exists, create a new one into disk
+        if not os.path.exists(shapefile):
+            fields = QgsFields()
+            fields.append(QgsField("id", QVariant.Int))
+            fields.append(QgsField("Area", QVariant.Double))
+
+            save_options = QgsVectorFileWriter.SaveVectorOptions()
+            save_options.driverName = "ESRI Shapefile"
+            save_options.fileEncoding = "UTF-8"
+            transform_context = QgsProject.instance().transformContext()
+
+            writer = QgsVectorFileWriter.create(
+                shapefile,
+                fields,
+                QgsWkbTypes.Polygon,
+                self.img_crs_manager.img_crs,
+                transform_context,
+                save_options
+            )
+
+            # delete the writer to flush features to disk
+            del writer
+
+        self.layer = QgsVectorLayer(shapefile, Path(shapefile).stem, "ogr")
         self.show_layer()
         self.ensure_edit_mode()
 
     def _init_layer(self,):
         '''Initialize the layer. If the layer exists, load it. If not, create a new one on memory'''
-        layer_list = QgsProject.instance().mapLayersByName("polygon_sam")
+        layer_list = QgsProject.instance().mapLayersByName(self.layer_name)
         if layer_list:
             self.layer = layer_list[0]
             self.layer.commitChanges()
         else:
+            iface.messageBar().pushMessage(
+                "Warring",
+                "Output Shapefile not exists. Create a new one on memory (polygon_sam). "
+                "Remember to save it to disk.",
+                level=Qgis.Warning,
+                duration=30)
             self.layer = QgsVectorLayer('Polygon', 'polygon_sam', 'memory')
             # self.layer.setCrs(self.qgis_project.crs())
             self.layer.setCrs(self.img_crs_manager.img_crs)
+            self.show_layer()
+
+        # TODO: if field exists, whether need to add it again?
         # Set the provider to accept the data source
         prov = self.layer.dataProvider()
         prov.addAttributes([QgsField("id", QVariant.Int),
                            QgsField("Area", QVariant.Double)])
         self.layer.updateFields()
-        self.show_layer()
+
         self.ensure_edit_mode()
 
     def show_layer(self):
