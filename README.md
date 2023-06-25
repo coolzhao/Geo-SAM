@@ -4,7 +4,7 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https:
 
 ## Introduction
 
-Geo SAM is a QGIS plugin tool that aims to help people segment, delineate or label landforms efficiently when using large-size geo-spatial raster images. [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with super power, but the model size is huge and using it to process images can take a long time even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model, the interactive segmentation process can be run in real-time on a laptop by only using CPU, making it a convenient and efficient tool to deal with satellite images.
+Geo SAM is a QGIS plugin tool that aims to help people segment, delineate or label landforms efficiently when using large-size geospatial raster images. [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with the superpower, but the model size is huge, and using it to process images can take a long time, even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model. The interactive segmentation process can be run in real-time on a laptop by only using a CPU, making it a convenient and efficient tool for dealing with satellite images.
 
 The tool currently only supports preprocessed images (whose features have been generated in advance using a separate program, as the included demo image). We are now building another tool for encoding image features inside QGIS, which will soon be available. So stay tuned.
 
@@ -12,7 +12,7 @@ The tool currently only supports preprocessed images (whose features have been g
 
 ### Install QGIS
 
-You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html), since the plugin has only been tested on the versions newer than QGIS 3.30 (at least ver. 3.28 is recommended).
+You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html) since the plugin has only been tested on the versions newer than QGIS 3.30 (at least ver. 3.28 is recommended).
 
 ### Install Library Dependencies
 
@@ -25,7 +25,7 @@ You are suggested to install the latest version of [QGIS](https://www.qgis.org/e
   <!-- <img src="./assets/OsGeo4WShell.png" width="100" alt="OsGeo4WShell"> -->
 <!-- </p> -->
 
-Open the `OSGeo4W Shell` application from Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
+Open the `OSGeo4W Shell` application from the Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
 
 ```bash
 pip3 install torch==1.13.1 torchvision==0.14.1
@@ -48,7 +48,7 @@ cd /<qgispath>/share/qgis/python
 Then install the libraries.
 
 ```bash
-# add ./ to avoid using your default python in the system
+# add ./ to avoid using your default Python in the system
 ./pip3 install torch==1.13.1 torchvision==0.14.1
 ./pip3 install torchgeo
 ./pip3 install segment-anything
@@ -57,11 +57,11 @@ Then install the libraries.
 
 ### Install the GeoSAM Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/tags/v1.0.2.zip), unzip it and put the contents in the QGIS plugin folder (please remove the version suffix of the folder to avoid potential path issues, be aware of undesired nested folders after unzipping), then restart QGIS.
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/latest), unzip it, and put the `Geo-SAM` folder (please remove the version suffix of the folder to avoid potential path issues, be aware of undesired nested folders after unzipping) into the QGIS plugin folder, then restart QGIS if it's open already.
 
 #### How to Locate the QGIS Plugin folder
 
-From the `Settings` Menu, select `User Profiles`, then select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder you may find a `python` folder, the `plugins` folder should be right inside the python folder. Open the `plugins` folder, then put the entire `Geo-SAM` folder in it, then restart QGIS.
+From the `Settings` Menu, select `User Profiles`, then select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder. Open the `plugins` folder, then put the entire `Geo-SAM` folder in it, then restart QGIS.
 
 Below are some general paths of different systems for your reference.
 
@@ -76,7 +76,7 @@ Below are some general paths of different systems for your reference.
 
 #### Activate Geo SAM Plugin
 
-After restarting QGIS, you may go to the `Plugins` menu, select `Manage and Install Plugins`, under `Installed`, you may find the `Geo SAM` plugin, check it to activate the plugin.
+After restarting QGIS, you may go to the `Plugins` menu, select `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
 
 ![active geo sam](assets/Active_geo_sam.png)
 
@@ -88,7 +88,7 @@ After activating the Geo SAM plugin, you may find the tool under the `Plugins` m
   <img src="assets/Plugin_menu_geo_sam.png" width="350" title="Plugin menu">
 </p>
 
-or somewhere on the toolbar near the Python Plugin.
+Or somewhere on the toolbar near the Python Plugin.
 
 <p align="center">
   <img src="assets/Toolbar_geo_sam.png" width="350" title="Plugin toolbar">
@@ -104,7 +104,7 @@ Click the toolbar icon to open the widget of the tool. You will be shown a demo 
   <img src="assets/try_geo_sam.gif" width="500" title="Try Geo SAM">
 </p>
 
-A user interface will be shown as below.
+A user interface will be shown below.
 
 <!-- ![ui_geo_sam](assets/ui_geo_sam.png) -->
 
@@ -114,22 +114,22 @@ A user interface will be shown as below.
 
 ### Add Points
 
-Click the buttons to select between `Foreground` and `Background` points. Use `Foreground` points to add areas you desire, and use `Background` points to remove areas you don't want.
+Click the buttons to select between the `Foreground` and `Background` points. Use `Foreground` points to add areas you desire, and use `Background` points to remove areas you don't want.
 
 ### Add Bounding Box (BBox)
 
-Click the `Rectangle` button to active the BBox tool to draw a rectangle on the map for segmenting a subject.
+Click the `Rectangle` button to activate the BBox tool to draw a rectangle on the map for segmenting a subject.
 The BBox tool can be used together with adding points or independently.
 
 ### Save Current Results
 
-After adding points and rectangle for segmenting a subject, you can save the segmentation results by click the `Save` button.
+After adding points and a rectangle for segmenting a subject, you can save the segmentation results by clicking the `Save` button.
 
 ### Clear Points and BBox
 
 You can use the `Clear` button to clear the added points and rectangles.
 
-### Undo last Prompt
+### Undo the last Prompt
 
 You can use the `Undo` button to undo the last points or rectangle Prompt.
 
@@ -139,13 +139,13 @@ You can uncheck the `Enable` button to temporally disable the tool and navigate 
 
 ### Load Selected Image Features
 
-The plugin is initialized with features for demo purpose, you can use the `Feature Folder` selection tool to select the folder that include the image features you need.
+The plugin is initialized with features for demo purposes, and you can use the `Feature Folder` selection tool to select the folder that includes the image features you need.
 
 <p align="center">
   <img src="assets/Select_feature_folder.png" width="300" title="Select feature folder">
 </p>
 
-After selecting the feature folder, you may press the `Load` button to load the features, it may take several seconds when you load the folder for the first time. Remember to add the corresponding raster image to the QGIS project.
+After selecting the feature folder, you may press the `Load` button to load the features, and it may take several seconds when you load the folder for the first time. Remember to add the corresponding raster image to the QGIS project.
 
 <p align="center">
   <img src="assets/Load_image_feature.png" width="300" title="Load feature folder">
@@ -153,14 +153,14 @@ After selecting the feature folder, you may press the `Load` button to load the 
 
 ## Shortcuts
 
-- `Tab`: loop between 3 prompt types (cursor will also change to the corresponding types):
+- `Tab`: loop between 3 prompt types (the cursor will also change to the corresponding types):
   - Foreground Point
   - Background Point
   - Rectangle/BBox
-- `C` : clear all prompts in canvas [same as `Clear` button]
-- `Z` : undo the last prompt in canvas [same as `Undo` button]
-- `S` : save SAM output features into polygon [same as `Save` button]
-- `Ctrl+Z` or `command+Z` : undo the last saved features of SAM output
+- `C`: clear all prompts in canvas [same as `Clear` button]
+- `Z`: undo the last prompt in canvas [same as `Undo` button]
+- `S`: save SAM output features into polygon [same as `Save` button]
+- `Ctrl+Z` or `command+Z`: undo the last saved features of SAM output
 
 
 ## Tips for Using GeoSAM Tool
@@ -169,7 +169,7 @@ After selecting the feature folder, you may press the `Load` button to load the 
 - Use **Background Points** to exclude unwanted parts
 - Use **Bounding Box (BBox)** to limit the segment polygon boundary
 - The **BBox** should cover the entire subject
-- Remember to press `Save` button after the segmentation of the chosen subject
+- Remember to press the `Save` button after the segmentation of the chosen subject
 
 ## In Progress
 
@@ -181,4 +181,4 @@ After selecting the feature folder, you may press the `Load` button to load the 
 
 ## Acknowledgement
 
-This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [TorchGeo](https://github.com/microsoft/torchgeo). Thanks for their wonderful works.
+This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [TorchGeo](https://github.com/microsoft/torchgeo). Thanks for their wonderful work.
