@@ -19,7 +19,7 @@ from PyQt5 import uic
 
 from .tools.geoTool import ImageCRSManager, LayerExtent
 from .tools.SAMTool import SAM_Model
-from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
+from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
 from .ui import UI_Selector
 from .ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool
 from .geo_sam_provider import GeoSamProvider
@@ -84,7 +84,9 @@ class Geo_SAM(QObject):
                 self.load_feature)
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
-                self.enable_disable)
+                self.enable_disable_edit_mode)
+            self.wdg_sel.radioButton_show_extent.toggled.connect(
+                self.show_hide_sam_feature_extent)
 
             # set filter for file dialog
             self.wdg_sel.QgsFile_shapefile.setFilter("*.shp")
@@ -114,6 +116,12 @@ class Geo_SAM(QObject):
             self.shortcut_undo_sam_pg = QShortcut(
                 QKeySequence(QKeySequence.Undo), self.wdg_sel)
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
+            self.shortcut_show_hide_extent = QShortcut(
+                QKeySequence(" "), self.wdg_sel)
+            # self.shortcut_show_hide_extent.activated.connect(
+            #    self.show_sam_feature_extent)
+            # self.shortcut_show_hide_extent.activatedAmbiguously.connect(
+            #    self.hide_sam_feature_extent)
 
             self.wdg_sel.setFloating(True)
 
@@ -187,6 +195,8 @@ class Geo_SAM(QObject):
             self.canvas_points.clear()
         if hasattr(self, "canvas_rect"):
             self.canvas_rect.clear()
+        if hasattr(self, "canvas_extent"):
+            self.canvas_extent.clear()
 
     def _init_feature_related(self):
         '''Init or reload feature related objects'''
@@ -247,7 +257,7 @@ class Geo_SAM(QObject):
                     self.canvas_points.popPoint()
             self.execute_SAM.emit()
 
-    def enable_disable(self):
+    def enable_disable_edit_mode(self):
         '''Enable or disable the widget selector'''
         radioButton = self.sender()
         if not radioButton.isChecked():
@@ -273,9 +283,14 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_save.setEnabled(True)
             self.reset_prompt_type()
 
-            # UI_Selector.setEnabled(True)
-
-        # self.wdg_sel.radioButton_enable.setEnabled(True)
+    def show_hide_sam_feature_extent(self):
+        '''Show or hide extent of SAM encoded feature'''
+        if self.wdg_sel.radioButton_show_extent.isChecked():
+            self.canvas_extent = Canvas_Extent(
+                self.canvas, self.img_crs_manager)
+            self.canvas_extent.add_extent(self.sam_model.extent)
+        else:
+            self.canvas_extent.clear()
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):

@@ -4,7 +4,7 @@ from PyQt5 import QtGui
 import numpy as np
 from pathlib import Path
 from rasterio.transform import rowcol, Affine
-from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, Qgis, QgsMessageLog
+from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle, Qgis, QgsMessageLog
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker
 from qgis.core import (
     QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFields, QgsFillSymbol, QgsApplication,
@@ -98,20 +98,45 @@ class RectangleMapTool(QgsMapToolEmitPoint):
 class Canvas_Rectangle:
     '''A class to manage Rectangle on canvas.'''
 
-    def __init__(self, canvas, img_crs_manager: ImageCRSManager):
+    def __init__(self, canvas, img_crs_manager: ImageCRSManager, use_type='bbox'):
         self.canvas = canvas
         self.qgis_project = QgsProject.instance()
         self.box_geo = None
         self.img_crs_manager = img_crs_manager
         self.rubberBand = QgsRubberBand(
             self.canvas, QgsWkbTypes.PolygonGeometry)
-        self._init_rect_layer()
 
-    def _init_rect_layer(self):
-        '''Initialize the rectangle layer'''
-        self.rubberBand.setColor(Qt.blue)
-        self.rubberBand.setFillColor(QColor(0, 0, 255, 10))
-        self.rubberBand.setWidth(1)
+        if use_type == 'bbox':
+            self._init_bbox_layer()
+        elif use_type == 'extent':
+            self._init_extent_layer()
+
+    def _init_bbox_layer(self):
+        '''Initialize the rectangle layer for bbox prompt'''
+        fill_color = QColor(0, 0, 255, 10)
+        line_color = Qt.blue
+        line_width = 1
+        self.set_layer_style(fill_color, line_color, line_width)
+
+    def _init_extent_layer(self):
+        '''Initialize the rectangle layer for extent of features'''
+        fill_color = QColor(0, 0, 0, 0)
+        line_color = QColor(255, 0, 0)
+        # line_color2 = QColor(255, 255, 255)
+        line_color2 = None  # not set secondary color currently
+        line_width = 2
+        self.set_layer_style(fill_color, line_color, line_width, line_color2)
+
+    def set_layer_style(self, fill_color, line_color, line_width, line_color_2=None):
+        '''Set the style of the rectangle layer'''
+        if fill_color is not None:
+            self.rubberBand.setFillColor(fill_color)
+        if line_color is not None:
+            self.rubberBand.setStrokeColor(line_color)
+        if line_color_2 is not None:
+            self.rubberBand.setSecondaryStrokeColor(line_color_2)
+        if line_width is not None:
+            self.rubberBand.setWidth(line_width)
 
     def clear(self):
         '''Clear the rectangle on canvas'''
@@ -147,6 +172,43 @@ class Canvas_Rectangle:
             return np.array(box)
         else:
             return None
+
+
+class Canvas_Extent:
+    '''A class to manage feature Extent on canvas.'''
+
+    def __init__(self, canvas, img_crs_manager: ImageCRSManager) -> None:
+        self.canvas = canvas
+        self.img_crs_manager = img_crs_manager
+
+        self.canvas_rect_list: List[Canvas_Rectangle] = []
+
+    def clear(self):
+        '''Clear all extents on canvas'''
+        for canvas_rect in self.canvas_rect_list:
+            canvas_rect.clear()
+        self.canvas_rect_list = []
+
+    def add_extent(self, extent: QgsRectangle):
+        '''Add a extent on canvas'''
+        xMin, yMin, xMax, yMax = extent.xMinimum(
+        ), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()
+        canvas_rect = Canvas_Rectangle(
+            self.canvas, self.img_crs_manager, use_type='extent')
+
+        point1 = QgsPointXY(xMin, yMax)  # left top
+        point2 = QgsPointXY(xMin, yMin)  # left bottom
+        point3 = QgsPointXY(xMax, yMin)  # right bottom
+        point4 = QgsPointXY(xMax, yMax)  # right top
+
+        canvas_rect.rubberBand.addPoint(point1, False)
+        canvas_rect.rubberBand.addPoint(point2, False)
+        canvas_rect.rubberBand.addPoint(point3, False)
+        # true to update canvas
+        canvas_rect.rubberBand.addPoint(point4, True)
+        canvas_rect.rubberBand.show()
+
+        self.canvas_rect_list.append(canvas_rect)
 
 
 class Canvas_Points:
@@ -370,8 +432,9 @@ class SAM_PolygonFeature:
         else:
             iface.messageBar().pushMessage(
                 "Warring",
-                "Output Shapefile not exists. Create a new one on memory (polygon_sam). "
-                "Remember to save it to disk.",
+                "Output Shapefile is not specified."
+                " Create a new one on memory (polygon_sam)."
+                " Remember to save it to disk.",
                 level=Qgis.Warning,
                 duration=30)
             self.layer = QgsVectorLayer('Polygon', 'polygon_sam', 'memory')
