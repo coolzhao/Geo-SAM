@@ -2,7 +2,7 @@ import os
 from typing import List
 from pathlib import Path
 from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication
-from qgis.gui import QgsMapToolPan, QgisInterface
+from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
 from qgis.core import QgsRasterLayer
 from qgis.PyQt.QtWidgets import QDockWidget
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
@@ -19,7 +19,7 @@ from PyQt5 import uic
 
 from .tools.geoTool import ImageCRSManager, LayerExtent
 from .tools.SAMTool import SAM_Model
-from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
+from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
 from .ui import UI_Selector
 from .ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool
 from .geo_sam_provider import GeoSamProvider
@@ -78,16 +78,22 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_undo.clicked.connect(self.undo_last_prompt)
             self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
 
-            self.wdg_sel.pushButton_find_file.clicked.connect(self.find_file)
             self.wdg_sel.pushButton_load_file.clicked.connect(
                 self.load_shp_file)
-            self.wdg_sel.pushButton_find_feature.clicked.connect(
-                self.find_feature)
             self.wdg_sel.pushButton_load_feature.clicked.connect(
                 self.load_feature)
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
-                self.enable_disable)
+                self.enable_disable_edit_mode)
+            self.wdg_sel.radioButton_show_extent.toggled.connect(
+                self.show_hide_sam_feature_extent)
+
+            # set filter for file dialog
+            self.wdg_sel.QgsFile_shapefile.setFilter("*.shp")
+            self.wdg_sel.QgsFile_shapefile.setStorageMode(
+                QgsFileWidget.SaveFile)
+            self.wdg_sel.QgsFile_feature.setStorageMode(
+                QgsFileWidget.GetDirectory)
 
             # set button checkable
             self.wdg_sel.pushButton_fg.setCheckable(True)
@@ -110,6 +116,12 @@ class Geo_SAM(QObject):
             self.shortcut_undo_sam_pg = QShortcut(
                 QKeySequence(QKeySequence.Undo), self.wdg_sel)
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
+            self.shortcut_show_hide_extent = QShortcut(
+                QKeySequence(" "), self.wdg_sel)
+            # self.shortcut_show_hide_extent.activated.connect(
+            #    self.show_sam_feature_extent)
+            # self.shortcut_show_hide_extent.activatedAmbiguously.connect(
+            #    self.hide_sam_feature_extent)
 
             self.wdg_sel.setFloating(True)
 
@@ -183,6 +195,8 @@ class Geo_SAM(QObject):
             self.canvas_points.clear()
         if hasattr(self, "canvas_rect"):
             self.canvas_rect.clear()
+        if hasattr(self, "canvas_extent"):
+            self.canvas_extent.clear()
 
     def _init_feature_related(self):
         '''Init or reload feature related objects'''
@@ -243,7 +257,7 @@ class Geo_SAM(QObject):
                     self.canvas_points.popPoint()
             self.execute_SAM.emit()
 
-    def enable_disable(self):
+    def enable_disable_edit_mode(self):
         '''Enable or disable the widget selector'''
         radioButton = self.sender()
         if not radioButton.isChecked():
@@ -269,17 +283,25 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_save.setEnabled(True)
             self.reset_prompt_type()
 
-            # UI_Selector.setEnabled(True)
+    def show_hide_sam_feature_extent(self):
+        '''Show or hide extent of SAM encoded feature'''
+        if self.wdg_sel.radioButton_show_extent.isChecked():
+            self.canvas_extent = Canvas_Extent(
+                self.canvas, self.img_crs_manager)
+            self.canvas_extent.add_extent(self.sam_model.extent)
+        else:
+            self.canvas_extent.clear()
 
-        # self.wdg_sel.radioButton_enable.setEnabled(True)
-
-    def ensure_sam_feature_exist(self):
-        layer_list = QgsProject.instance().mapLayersByName("polygon_sam")
-        if len(layer_list) == 0 or not hasattr(self, "polygon"):
+    def ensure_polygon_sam_exist(self):
+        if hasattr(self, "polygon"):
+            layer_list = QgsProject.instance().mapLayersByName(self.polygon.layer_name)
+            if len(layer_list) == 0:
+                self.load_shp_file()
+        else:
             self.load_shp_file()
 
     def execute_segmentation(self):
-        self.ensure_sam_feature_exist()
+        self.ensure_polygon_sam_exist()
 
         # add last id to history
         features = list(self.polygon.layer.getFeatures())
@@ -338,30 +360,25 @@ class Geo_SAM(QObject):
             self.wdg_sel.pushButton_bg.toggle()
         self.prompt_type = 'bbox'
 
-    def find_file(self):
-        '''find shapefile path'''
-        path, _ = QFileDialog.getSaveFileName(None, "Save shapefile", "")
-        self.wdg_sel.path_out.setText(path)
-
     def load_shp_file(self):
         '''load shapefile'''
-        text = self.wdg_sel.path_out.text()
-        self.polygon = SAM_PolygonFeature(self.img_crs_manager, text)
-        self.sam_feature_history = []
+        file_path = self.wdg_sel.QgsFile_shapefile.filePath()
 
-    def find_feature(self):
-        '''find feature directory'''
-        feature_dir_str = QFileDialog.getExistingDirectory(
-            None, "get feature directory", "")
-        self.wdg_sel.path_feature.setText(feature_dir_str)
+        if (hasattr(self, "polygon") and
+                self.polygon.layer.source() == file_path):
+            self.sam_feature_history = []
+        else:
+            self.polygon = SAM_PolygonFeature(
+                self.img_crs_manager, file_path)
+            self.sam_feature_history = []
 
     def load_feature(self):
         '''load feature'''
-        self.feature_dir = self.wdg_sel.path_feature.text()
+        self.feature_dir = self.wdg_sel.QgsFile_feature.filePath()
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
             self.clear_layers()
             self._init_feature_related()
-            self.load_shp_file()
+            # self.load_shp_file()
             # self.draw_foreground_point()
             if self.wdg_sel.radioButton_enable.isChecked():
                 self.reset_prompt_type()  # do not change tool
