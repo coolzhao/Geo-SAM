@@ -20,8 +20,9 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterFeatureSink)
 from qgis import processing
 from segment_anything import sam_model_registry, SamPredictor
+from segment_anything.modeling import Sam
 import torch
-from .torchgeo_sam import TestGridGeoSampler, SamTestRasterDataset
+from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
 from torchgeo.samplers import Units
 from torchgeo.datasets import BoundingBox, stack_samples
 from torch.utils.data import DataLoader
@@ -190,9 +191,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # feedback.pushInfo('CRS is {}'.format(rlayer.crs().authid()))
         # feedback.pushInfo('Band number is {}'.format(rlayer.bandCount()))
         # feedback.pushInfo('Band name is {}'.format(rlayer.bandName(1)))
-        feedback.pushInfo('Layer path is {}'.format(
+        feedback.pushInfo('Layer path: {}'.format(
             rlayer.dataProvider().dataSourceUri()))
-        feedback.pushInfo('Layer name is {}'.format(rlayer.name()))
+        feedback.pushInfo('Layer name: {}'.format(rlayer.name()))
         feedback.pushInfo(f'Bands selected: {selected_bands}')
         # feedback.pushInfo('Layer display band name is {}'.format(
         #     rlayer.dataProvider().displayBandName(1)))
@@ -241,6 +242,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             }, context=context, feedback=feedback)['OUTPUT']
 
         model_type = self.model_type_options[model_type_idx]
+        if model_type not in os.path.basename(ckpt_path):
+            raise QgsProcessingException(
+                self.tr("Model type does not match the checkpoint"))
+
         sam_model = self.initialize_sam(
             model_type=model_type, sam_ckpt_path=ckpt_path)
 
@@ -266,7 +271,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             \n raster_ds index: {rlayer_ds.index}')
         extent_bbox = BoundingBox(minx=extent.xMinimum(), maxx=extent.xMaximum(), miny=extent.yMinimum(), maxy=extent.yMaximum(),
                                   mint=rlayer_ds.index.bounds[4], maxt=rlayer_ds.index.bounds[5])
-        ds_sampler = TestGridGeoSampler(
+        ds_sampler = SamTestGridGeoSampler(
             rlayer_ds, size=1024, stride=stride, roi=extent_bbox, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
 
         if len(ds_sampler) == 0:
@@ -312,15 +317,15 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # or output names.
         return {self.OUTPUT: output_dir, 'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler)}
 
-    def initialize_sam(self, model_type: str, sam_ckpt_path: str):
+    def initialize_sam(self, model_type: str, sam_ckpt_path: str) -> Sam:
         sam_model = sam_model_registry[model_type](checkpoint=sam_ckpt_path)
         # self.sam_model.to(device=device)
         return sam_model
 
     @torch.no_grad()
-    def get_sam_feature(self, sam_model, batch_input):
-        batch_input = (batch_input - sam_model.pixel_mean) / \
-            sam_model.pixel_std
+    def get_sam_feature(self, sam_model: Sam, batch_input: Tensor) -> np.ndarray:
+        # batch_input = (batch_input - sam_model.pixel_mean) / sam_model.pixel_std
+        batch_input = sam_model.preprocess(batch_input)
         features = sam_model.image_encoder(batch_input)
         return features.cpu().numpy()
 
@@ -375,6 +380,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 # index start from 1, feature[idx, :, :, :] = feature[idx, ...], later is faster
                 feature_dataset.write(feature[idx, ...], range(1, band_num+1))
                 # pr_mask_dataset.set_band_description(1, 'heatmap')
+                tags = {
+                    "img_shape" : data_batch["img_shape"][idx],
+                    "input_shape" : data_batch["input_shape"][idx],
+                }
+                feature_dataset.update_tags(**tags)
         return True
 
     def tr(self, string):

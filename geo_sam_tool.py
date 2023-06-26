@@ -363,7 +363,8 @@ class Geo_SAM(QObject):
             self._init_feature_related()
             self.load_shp_file()
             # self.draw_foreground_point()
-            self.reset_prompt_type()  # do not change tool
+            if self.wdg_sel.radioButton_enable.isChecked():
+                self.reset_prompt_type()  # do not change tool
         else:
             self.iface.messageBar().pushMessage("Feature folder not exist",
                                                 "choose a another folder", level=Qgis.Info)

@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, cast, U
 import rasterio
 from rasterio.vrt import WarpedVRT
 from rasterio.windows import from_bounds as window_from_bounds
+from rasterio.enums import Resampling
 from rasterio.crs import CRS
 import numpy as np
 import pandas as pd
@@ -27,7 +28,69 @@ from qgis.core import QgsMessageLog, Qgis
 from rtree.index import Index, Property
 
 
-class TestGridGeoSampler(GridGeoSampler):
+class SamTestGridGeoSampler(GeoSampler):
+    """Samples elements in a grid-like fashion.
+    accept image smaller than desired patch_size
+    """
+
+    def __init__(
+        self,
+        dataset: GeoDataset,
+        size: Union[Tuple[float, float], float],
+        stride: Union[Tuple[float, float], float],
+        roi: Optional[BoundingBox] = None,
+        units: Units = Units.PIXELS,
+    ) -> None:
+        """Initialize a new Sampler instance.
+
+        The ``size`` and ``stride`` arguments can either be:
+
+        * a single ``float`` - in which case the same value is used for the height and
+          width dimension
+        * a ``tuple`` of two floats - in which case, the first *float* is used for the
+          height dimension, and the second *float* for the width dimension
+
+        .. versionchanged:: 0.3
+           Added ``units`` parameter, changed default to pixel units
+
+        Args:
+            dataset: dataset to index from
+            size: dimensions of each :term:`patch`
+            stride: distance to skip between each patch
+            roi: region of interest to sample from (minx, maxx, miny, maxy, mint, maxt)
+                (defaults to the bounds of ``dataset.index``)
+            units: defines if ``size`` and ``stride`` are in pixel or CRS units
+        """
+        super().__init__(dataset, roi)
+        self.size = _to_tuple(size)
+        self.stride = _to_tuple(stride)
+
+        if units == Units.PIXELS:
+            self.size = (self.size[0] * self.res, self.size[1] * self.res)
+            self.stride = (self.stride[0] * self.res,
+                           self.stride[1] * self.res)
+
+        self.hits = []
+        self.hits_small = []
+        for hit in self.index.intersection(tuple(self.roi), objects=True):
+            bounds = BoundingBox(*hit.bounds)
+            if (
+                bounds.maxx - bounds.minx >= self.size[1]
+                and bounds.maxy - bounds.miny >= self.size[0]
+            ):
+                self.hits.append(hit)
+            else:
+                self.hits_small.append(hit)
+
+        self.length = 0
+        for hit in self.hits:
+            bounds = BoundingBox(*hit.bounds)
+            rows, cols = tile_to_chips(bounds, self.size, self.stride)
+            self.length += rows * cols
+
+        for hit in self.hits_small:
+            bounds = BoundingBox(*hit.bounds)
+            self.length += 1
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         """Return the index of a dataset.
@@ -37,32 +100,59 @@ class TestGridGeoSampler(GridGeoSampler):
             & raster file path
         """
         # For each tile...
-        for hit in self.hits:
-            bounds = BoundingBox(*hit.bounds)
-            rows, cols = tile_to_chips(bounds, self.size, self.stride)
-            mint = bounds.mint
-            maxt = bounds.maxt
+        for hit in self.hits + self.hits_small:
+            if hit in self.hits:
+                bounds = BoundingBox(*hit.bounds)
+                rows, cols = tile_to_chips(bounds, self.size, self.stride)
+                mint = bounds.mint
+                maxt = bounds.maxt
 
-            # For each row...
-            for i in range(rows):
-                miny = bounds.miny + i * self.stride[0]
-                maxy = miny + self.size[0]
-                if maxy > bounds.maxy:
-                    maxy = bounds.maxy
-                    miny = bounds.maxy - self.size[0]
+                # For each row...
+                for i in range(rows):
+                    miny = bounds.miny + i * self.stride[0]
+                    maxy = miny + self.size[0]
+                    if maxy > bounds.maxy:
+                        maxy = bounds.maxy
+                        miny = bounds.maxy - self.size[0]
 
-                # For each column...
-                for j in range(cols):
-                    minx = bounds.minx + j * self.stride[1]
-                    maxx = minx + self.size[1]
-                    if maxx > bounds.maxx:
-                        maxx = bounds.maxx
-                        minx = bounds.maxx - self.size[1]
-                    query = {"bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
-                             "path": cast(str, hit.object)}
+                    # For each column...
+                    for j in range(cols):
+                        minx = bounds.minx + j * self.stride[1]
+                        maxx = minx + self.size[1]
+                        if maxx > bounds.maxx:
+                            maxx = bounds.maxx
+                            minx = bounds.maxx - self.size[1]
+                        query = {
+                            "bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
+                            "path": cast(str, hit.object),
+                            "size": self.size[0]
+                        }
 
-                    # BoundingBox(minx, maxx, miny, maxy, mint, maxt)
-                    yield query
+                        # BoundingBox(minx, maxx, miny, maxy, mint, maxt)
+                        yield query
+            else:
+                bounds = BoundingBox(*hit.bounds)
+                minx = bounds.minx
+                miny = bounds.miny
+                maxx = bounds.maxx
+                maxy = bounds.maxy
+                mint = bounds.mint
+                maxt = bounds.maxt
+                query = {
+                    "bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
+                    "path": cast(str, hit.object),
+                    "size": self.size[0]
+                }
+
+                yield query
+
+    def __len__(self) -> int:
+        """Return the number of samples over the ROI.
+
+        Returns:
+            number of patches that will be sampled
+        """
+        return self.length
 
 
 class SamTestFeatureDataset(RasterDataset):
@@ -187,7 +277,7 @@ class SamTestFeatureDataset(RasterDataset):
                         # change to relative path
                         filepath_list.append(os.path.basename(filepath))
                         i += 1
-            if i>0:
+            if i > 0:
                 self.index_df['id'] = id_list
                 self.index_df['filepath'] = filepath_list
                 self.index_df['minx'] = pd.to_numeric(
@@ -271,6 +361,10 @@ class SamTestFeatureDataset(RasterDataset):
         dest = src.read()  # read all bands
         # print(src.profile)
         # print(src.compression)
+        tags = src.tags()
+        if 'img_shape' in tags.keys():
+            img_shape = tags['img_shape']
+            input_shape = tags['input_shape']
 
         # fix numpy dtypes which are not supported by pytorch tensors
         if dest.dtype == np.uint16:
@@ -282,6 +376,10 @@ class SamTestFeatureDataset(RasterDataset):
 
         # bbox may be useful to form the final mask results (geo-info)
         sample = {"crs": self.crs, "bbox": bbox, "path": filepath}
+        if 'img_shape' in tags.keys():
+            sample['img_shape'] = eval(img_shape) # convert string to python data structure
+            sample['input_shape'] = eval(input_shape)
+
         if self.is_image:
             sample["image"] = tensor.float()
         else:
@@ -330,6 +428,7 @@ class SamTestRasterDataset(RasterDataset):
         """
         bbox = query['bbox']
         filepath = query['path']
+        patch_size = query['size']
 
         hits = self.index.intersection(tuple(bbox), objects=True)
         filepaths = cast(List[str], [hit.object for hit in hits])
@@ -354,10 +453,22 @@ class SamTestRasterDataset(RasterDataset):
         # out_height = math.ceil((bbox.maxy - bbox.miny) / self.res)
         count = len(band_indexes) if band_indexes else src.count
         out_shape = (count, out_height, out_width)
+        # if out_height == patch_size or out_width == patch_size:
+        #     dest = src.read(
+        #         indexes=band_indexes,
+        #         out_shape=out_shape,
+        #         window=window_from_bounds(*bounds, src.transform),
+        #     )
+        # else:
+        # resize
+        target_height, target_width = self.get_preprocess_shape(
+            out_height, out_width, patch_size)
+        target_shape = (count, target_height, target_width)
         dest = src.read(
             indexes=band_indexes,
-            out_shape=out_shape,
+            out_shape=target_shape,
             window=window_from_bounds(*bounds, src.transform),
+            resampling=Resampling.bilinear,
         )
 
         # fix numpy dtypes which are not supported by pytorch tensors
@@ -368,7 +479,8 @@ class SamTestRasterDataset(RasterDataset):
 
         tensor = torch.tensor(dest)  # .float()
 
-        sample = {"crs": self.crs, "bbox": bbox, "path": filepath}
+        sample = {"crs": self.crs, "bbox": bbox,
+                  "path": filepath, "img_shape": out_shape, "input_shape": target_shape}
         if self.is_image:
             sample["image"] = tensor.float()
         else:
@@ -378,6 +490,17 @@ class SamTestRasterDataset(RasterDataset):
             sample = self.transforms(sample)
 
         return sample
+
+    @staticmethod
+    def get_preprocess_shape(oldh: int, oldw: int, long_side_length: int) -> Tuple[int, int]:
+        """
+        Compute the output size given input size and target long side length.
+        """
+        scale = long_side_length * 1.0 / max(oldh, oldw)
+        newh, neww = oldh * scale, oldw * scale
+        neww = int(neww + 0.5)  # floor
+        newh = int(newh + 0.5)
+        return (newh, neww)
 
     def plot(self, sample, bright=1):
         check_rgb = all(item in self.bands for item in self.rgb_bands)

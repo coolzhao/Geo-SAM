@@ -64,10 +64,13 @@ class SamPredictorNoImgEncoder(SamPredictor):
         self.transform = ResizeLongestSide(sam_model.image_encoder.img_size)
         self.reset_image()
 
-    def set_image_feature(self, img_features: np.ndarray, img_shape: Tuple[int, int]):
+    def set_image_feature(self, img_features: np.ndarray, img_size: Tuple[int, int], input_size: Tuple[int, int]=None):
         self.features = torch.as_tensor(
             img_features, device=self.device)  # .to(device=device)
-        self.original_size = img_shape
-        self.input_size = self.transform.get_preprocess_shape(
-            img_shape[0], img_shape[1], self.model.image_encoder.img_size)
+        self.original_size = img_size
+        self.input_size = img_size
+        if self.input_size:
+            self.input_size = input_size
+        # self.input_size = self.transform.get_preprocess_shape(
+        #     img_size[0], img_size[1], self.model.image_encoder.img_size)
         self.is_image_set = True

@@ -88,10 +88,10 @@ class SAM_Model:
                 QgsMessageLog.logMessage(
                     f"Same feature as last time", 'Geo SAM', level=Qgis.Info)
                 break
-            sample = self.test_features[query]
-            self.sample_path = sample['path']
-            self.sample_bbox = sample['bbox']
-            self.img_features = sample['image']
+            self.sample = self.test_features[query]
+            self.sample_path = self.sample['path']
+            # self.sample_bbox = self.sample['bbox']
+            # self.img_features = self.sample['image']
             QgsMessageLog.logMessage(
                 f"Acquire new feature", 'Geo SAM', level=Qgis.Info)
             break
@@ -108,9 +108,16 @@ class SAM_Model:
         #     # break
         #     pass
 
-        bbox = self.sample_bbox  # batch['bbox'][0]
+        bbox = self.sample['bbox']  # batch['bbox'][0]
         # Change to sam.img_encoder.img_size
         img_width = img_height = self.predictor.model.image_encoder.img_size  # 1024
+        input_width = input_height = self.predictor.model.image_encoder.img_size  # 1024
+        if 'img_shape' in self.sample.keys():
+            img_height = self.sample['img_shape'][-2]
+            img_width = self.sample['img_shape'][-1]
+            input_height = self.sample['input_shape'][-2]
+            input_width = self.sample['input_shape'][-1]
+
         img_clip_transform = transform_from_bounds(
             bbox.minx, bbox.miny, bbox.maxx, bbox.maxy, img_width, img_height)
 
@@ -119,9 +126,12 @@ class SAM_Model:
 
         input_box = canvas_rect.get_img_box(img_clip_transform)
 
-        # img_features = batch['image']
+        img_features = self.sample['image']
         self.predictor.set_image_feature(
-            self.img_features, img_shape=(img_height, img_width))
+            img_features=img_features,
+            img_size=(img_height, img_width),
+            input_size=(input_height, input_width)
+        )
 
         # TODO: Points or rectangles can be negative or exceed 1024, should be regulated
         # also may consider remove those points after checking
