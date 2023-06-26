@@ -377,16 +377,20 @@ class SAM_PolygonFeature:
     def __init__(self, img_crs_manager: ImageCRSManager, shapefile=None):
         self.qgis_project = QgsProject.instance()
         self.img_crs_manager = img_crs_manager
-        if shapefile:
-            self._load_shapefile(shapefile)
+        self.shapefile = shapefile
+        self.init_layer()
+
+    def init_layer(self):
+        if self.shapefile:
+            self._load_shapefile(self.shapefile)
         else:
             self._init_layer()
 
     @property
     def layer_name(self):
-        if hasattr(self, "layer"):
+        try:
             return self.layer.name()
-        else:
+        except:
             return "polygon_sam"
 
     def _load_shapefile(self, shapefile):
@@ -498,17 +502,24 @@ class SAM_PolygonFeature:
         '''Roll back the changes'''
         try:
             self.layer.rollBack()
-        except RuntimeError as inst:
-            print(inst.args[0])
-            if inst.args[0] == 'wrapped C/C++ object of type QgsVectorLayer has been deleted':
-                self._init_layer()
-                print('Polygon layer has been deleted, new polygon layer created')
-        except Exception as err:
-            print(f"Unexpected {err=}, {type(err)=}")
-            # self._init_layer()
-            # print('Polygon layer has been deleted, new polygon layer created')
-            raise
+        except:
+            return None
+        # except RuntimeError as inst:
+        #     print(inst.args[0])
+        #     if inst.args[0] == 'wrapped C/C++ object of type QgsVectorLayer has been deleted':
+        #         self._init_layer()
+        #         print('Polygon layer has been deleted, new polygon layer created')
+        # except Exception as err:
+        #     print(f"Unexpected {err=}, {type(err)=}")
+        #     # self._init_layer()
+        #     # print('Polygon layer has been deleted, new polygon layer created')
+        #     raise
 
     def commit_changes(self):
         '''Commit the changes'''
         self.layer.commitChanges()
+
+    def ensure_exist(self):
+        layer_list = QgsProject.instance().mapLayersByName(self.layer_name)
+        if not layer_list:
+            self.init_layer()
