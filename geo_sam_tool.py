@@ -129,16 +129,18 @@ class Geo_SAM(QObject):
             self.reset_prompt_type()
             self.dockFirstOpen = False
         else:
-            self.clear_layers()
-            if self.wdg_sel.radioButton_enable.isChecked():
-                self.reset_prompt_type()
+            self.clear_layers(clear_extent=True)
+            self.enable_disable_edit_mode()
+            self.show_hide_sam_feature_extent()
+            # if self.wdg_sel.radioButton_enable.isChecked():
+            #     self.reset_prompt_type()
 
         # add widget to QGIS
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
 
     def destruct(self):
         '''Destruct actions when closed widget'''
-        self.clear_layers()
+        self.clear_layers(clear_extent=True)
 
     def unload(self):
         '''Unload actions when plugin is closed'''
@@ -148,7 +150,7 @@ class Geo_SAM(QObject):
         # self.wdg_sel.setVisible(False)
         self.iface.removeToolBarIcon(self.action)
         self.iface.removePluginMenu('&Geo-SAM', self.action)
-        self._clear_layers()
+        self.clear_layers(clear_extent=True)
 
         if hasattr(self, "shortcut_tab"):
             self.shortcut_tab.disconnect()
@@ -380,7 +382,7 @@ class Geo_SAM(QObject):
         '''load feature'''
         self.feature_dir = self.wdg_sel.QgsFile_feature.filePath()
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
-            self.clear_layers()
+            self.clear_layers(clear_extent=True)
             self._init_feature_related()
             # self.load_shp_file()
             # self.draw_foreground_point()
@@ -399,9 +401,9 @@ class Geo_SAM(QObject):
             self.polygon.rollback_changes()
         self.prompt_history.clear()
 
-    def clear_layers(self):
+    def clear_layers(self, clear_extent: bool = False):
         '''Clear all temporary layers (canvas and new sam result) and reset prompt'''
-        self.clear_canvas_layers_safely(clear_extent=False)
+        self.clear_canvas_layers_safely(clear_extent=clear_extent)
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
         # self.reset_prompt_type()
@@ -438,7 +440,7 @@ class Geo_SAM(QObject):
             return None
         last_ids = self.sam_feature_history.pop(-1)
         if len(last_ids) == 1:
-            self.clear_layers()
+            self.clear_layers(clear_extent=False)
             return None
         rm_ids = list(range(last_ids[0], last_ids[1]+1))
         self.polygon.layer.dataProvider().deleteFeatures(rm_ids)

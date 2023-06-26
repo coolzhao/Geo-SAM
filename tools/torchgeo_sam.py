@@ -377,7 +377,8 @@ class SamTestFeatureDataset(RasterDataset):
         # bbox may be useful to form the final mask results (geo-info)
         sample = {"crs": self.crs, "bbox": bbox, "path": filepath}
         if 'img_shape' in tags.keys():
-            sample['img_shape'] = eval(img_shape) # convert string to python data structure
+            # convert string to python data structure
+            sample['img_shape'] = eval(img_shape)
             sample['input_shape'] = eval(input_shape)
 
         if self.is_image:
@@ -564,7 +565,8 @@ class SamTestFeatureGeoSampler(GeoSampler):
         """
 
         self.res = dataset.res
-        self.dist_roi = ((feature_size*dataset.res/2)**2)*2
+        # self.dist_roi = ((feature_size*dataset.res/2)**2)*2
+        self.dist_roi = None
         self.q_bbox = None
         self.q_path = None
         if roi is None:
@@ -590,7 +592,11 @@ class SamTestFeatureGeoSampler(GeoSampler):
                 dist_roi_tmp = (center_x_bbox - center_x_roi)**2 + \
                     (center_y_bbox - center_y_roi)**2
                 # print(dist_roi_tmp)
-                if dist_roi_tmp < self.dist_roi:
+                if idx == 1:
+                    self.dist_roi = dist_roi_tmp
+                    self.q_bbox = bbox
+                    self.q_path = hit.object
+                elif dist_roi_tmp < self.dist_roi:
                     self.dist_roi = dist_roi_tmp
                     self.q_bbox = bbox
                     self.q_path = hit.object

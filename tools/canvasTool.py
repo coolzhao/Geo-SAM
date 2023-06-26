@@ -431,11 +431,11 @@ class SAM_PolygonFeature:
             self.layer.commitChanges()
         else:
             iface.messageBar().pushMessage(
-                "Warring",
-                "Output Shapefile is not specified."
-                " Create a new one on memory (polygon_sam)."
-                " Remember to save it to disk.",
-                level=Qgis.Warning,
+                "Note:",
+                "Output Shapefile is not specified. "
+                "A temporal layer 'Polygon_sam' is created, "
+                "remember to save it before quit.",
+                level=Qgis.Info,
                 duration=30)
             self.layer = QgsVectorLayer('Polygon', 'polygon_sam', 'memory')
             # self.layer.setCrs(self.qgis_project.crs())
