@@ -300,11 +300,10 @@ class Geo_SAM(QObject):
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):
-            layer_list = QgsProject.instance().mapLayersByName(self.polygon.layer_name)
-            if len(layer_list) == 0:
-                self.load_shp_file()
-        else:
-            self.load_shp_file()
+            layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
+            if layer:
+                return None
+        self.load_shp_file()
 
     def execute_segmentation(self):
         self.ensure_polygon_sam_exist()
@@ -369,14 +368,14 @@ class Geo_SAM(QObject):
     def load_shp_file(self):
         '''load shapefile'''
         file_path = self.wdg_sel.QgsFile_shapefile.filePath()
+        self.sam_feature_history = []
+        if hasattr(self, "polygon"):
+            layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
+            if layer and layer.source() == file_path:
+                return None
 
-        if (hasattr(self, "polygon") and
-                self.polygon.layer.source() == file_path):
-            self.sam_feature_history = []
-        else:
-            self.polygon = SAM_PolygonFeature(
-                self.img_crs_manager, file_path)
-            self.sam_feature_history = []
+        self.polygon = SAM_PolygonFeature(
+            self.img_crs_manager, file_path)
 
     def load_feature(self):
         '''load feature'''

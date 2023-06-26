@@ -392,6 +392,13 @@ class SAM_PolygonFeature:
             return self.layer.name()
         except:
             return "polygon_sam"
+    
+    @property
+    def layer_id(self):
+        try:
+            return self.layer.id()
+        except:
+            return None      
 
     def _load_shapefile(self, shapefile):
         '''Load the shapefile to the layer.'''
