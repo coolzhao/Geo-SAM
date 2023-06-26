@@ -116,8 +116,8 @@ class Geo_SAM(QObject):
             self.shortcut_undo_sam_pg = QShortcut(
                 QKeySequence(QKeySequence.Undo), self.wdg_sel)
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
-            self.shortcut_show_hide_extent = QShortcut(
-                QKeySequence(" "), self.wdg_sel)
+            # self.shortcut_show_hide_extent = QShortcut(
+            #     QKeySequence(" "), self.wdg_sel)
             # self.shortcut_show_hide_extent.activated.connect(
             #    self.show_sam_feature_extent)
             # self.shortcut_show_hide_extent.activatedAmbiguously.connect(
@@ -189,13 +189,13 @@ class Geo_SAM(QObject):
         parent_tree_layer = tree_layer.parent()
         parent_tree_layer.removeChildNode(tree_layer)
 
-    def clear_canvas_layers_safely(self):
+    def clear_canvas_layers_safely(self, clear_extent: bool = True):
         '''Clear canvas layers safely'''
         if hasattr(self, "canvas_points"):
             self.canvas_points.clear()
         if hasattr(self, "canvas_rect"):
             self.canvas_rect.clear()
-        if hasattr(self, "canvas_extent"):
+        if hasattr(self, "canvas_extent") and clear_extent:
             self.canvas_extent.clear()
 
     def _init_feature_related(self):
@@ -210,13 +210,14 @@ class Geo_SAM(QObject):
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
+        self.canvas_extent = Canvas_Extent(self.canvas, self.img_crs_manager)
 
         # reset canvas extent
-        extent_canvas = self.img_crs_manager.img_extent_to_crs(
+        self.sam_extent_canvas_crs = self.img_crs_manager.img_extent_to_crs(
             self.sam_model.extent,
             QgsProject.instance().crs()
         )
-        self.canvas.setExtent(extent_canvas)
+        self.canvas.setExtent(self.sam_extent_canvas_crs)
         self.canvas.refresh()
 
         # init tools
@@ -259,7 +260,8 @@ class Geo_SAM(QObject):
 
     def enable_disable_edit_mode(self):
         '''Enable or disable the widget selector'''
-        radioButton = self.sender()
+        # radioButton = self.sender()
+        radioButton = self.wdg_sel.radioButton_enable
         if not radioButton.isChecked():
             # UI_Selector.setEnabled(False)
             self.canvas.setMapTool(self.toolPan)
@@ -286,9 +288,11 @@ class Geo_SAM(QObject):
     def show_hide_sam_feature_extent(self):
         '''Show or hide extent of SAM encoded feature'''
         if self.wdg_sel.radioButton_show_extent.isChecked():
-            self.canvas_extent = Canvas_Extent(
-                self.canvas, self.img_crs_manager)
-            self.canvas_extent.add_extent(self.sam_model.extent)
+            if hasattr(self, "sam_extent_canvas_crs"):
+                self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
+            else:
+                self.iface.messageBar().pushMessage("Oops",
+                                                    ("No sam feature loaded"), level=Qgis.Info, duration=10)
         else:
             self.canvas_extent.clear()
 
@@ -380,8 +384,10 @@ class Geo_SAM(QObject):
             self._init_feature_related()
             # self.load_shp_file()
             # self.draw_foreground_point()
-            if self.wdg_sel.radioButton_enable.isChecked():
-                self.reset_prompt_type()  # do not change tool
+            # if self.wdg_sel.radioButton_enable.isChecked():
+            #     self.reset_prompt_type()  # do not change tool
+            self.enable_disable_edit_mode()
+            self.show_hide_sam_feature_extent()
         else:
             self.iface.messageBar().pushMessage("Feature folder not exist",
                                                 "choose a another folder", level=Qgis.Info)
@@ -391,10 +397,11 @@ class Geo_SAM(QObject):
         self.clear_canvas_layers_safely()
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
+        self.prompt_history.clear()
 
     def clear_layers(self):
         '''Clear all temporary layers (canvas and new sam result) and reset prompt'''
-        self.clear_canvas_layers_safely()
+        self.clear_canvas_layers_safely(clear_extent=False)
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
         # self.reset_prompt_type()
