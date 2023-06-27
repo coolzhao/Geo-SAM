@@ -32,6 +32,7 @@ from torchgeo.datasets import BoundingBox, stack_samples
 from torch.utils.data import DataLoader
 import rasterio
 import numpy as np
+import pandas as pd
 from torch import Tensor
 import hashlib
 from ..ui.icons import QIcon_GeoSAMEncoder
@@ -215,47 +216,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(
             f'Layer extent: minx:{extent.xMinimum():.2f}, maxx:{extent.xMaximum():.2f}, miny:{extent.yMinimum():.2f}, maxy:{extent.yMaximum():.2f}')
 
-        # If sink was not created, throw an exception to indicate that the algorithm
-        # encountered a fatal error. The exception text can be any string, but in this
-        # case we use the pre-built invalidSinkError method to return a standard
-        # helper text for when a sink cannot be evaluated
-        # if sink is None:
-        #     raise QgsProcessingException(
-        #         self.invalidSinkError(parameters, self.OUTPUT))
-
-        # Compute the number of steps to display within the progress bar and
-        # get features from source
-        # total = 100.0 / source.featureCount() if source.featureCount() else 0
-        # features = source.getFeatures()
-
-        # for current, feature in enumerate(features):
-        #     # Stop the algorithm if cancel button has been clicked
-        #     if feedback.isCanceled():
-        #         break
-
-        #     # Add a feature in the sink
-        #     sink.addFeature(feature, QgsFeatureSink.FastInsert)
-
-        #     # Update the progress bar
-        #     feedback.setProgress(int(current * total))
-
-        # To run another Processing algorithm as part of this algorithm, you can use
-        # processing.run(...). Make sure you pass the current context and feedback
-        # to processing.run to ensure that all temporary layer outputs are available
-        # to the executed algorithm, and that the executed algorithm can send feedback
-        # reports to the user (and correctly handle cancellation and progress reports!)
-        if False:
-            buffered_layer = processing.run("native:buffer", {
-                'INPUT': dest_id,
-                'DISTANCE': 1.5,
-                'SEGMENTS': 5,
-                'END_CAP_STYLE': 0,
-                'JOIN_STYLE': 0,
-                'MITER_LIMIT': 2,
-                'DISSOLVE': False,
-                'OUTPUT': 'memory:'
-            }, context=context, feedback=feedback)['OUTPUT']
-
         model_type = self.model_type_options[model_type_idx]
         if model_type not in os.path.basename(ckpt_path):
             raise QgsProcessingException(
@@ -299,6 +259,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         ds_dataloader = DataLoader(
             rlayer_ds, batch_size=1, sampler=ds_sampler, collate_fn=stack_samples)
 
+        self.iPatch = 0
         total = 100 / len(ds_dataloader) if len(ds_dataloader) else 0
         for current, batch in enumerate(ds_dataloader):
             start_time = time.time()
@@ -351,7 +312,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # statistics, etc. These should all be included in the returned
         # dictionary, with keys matching the feature corresponding parameter
         # or output names.
-        return {self.OUTPUT: output_dir, 'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler)}
+        return {self.OUTPUT: feature_dir, 'Patch sample num': len(ds_sampler)}
 
     def initialize_sam(self, model_type: str, sam_ckpt_path: str) -> Sam:
         sam_model = sam_model_registry[model_type](checkpoint=sam_ckpt_path)
@@ -383,26 +344,23 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             rio_transform = rasterio.transform.from_bounds(
                 bbox.minx, bbox.miny, bbox.maxx, bbox.maxy, width, height)  # west, south, east, north, width, height
             filepath = Path(data_batch['path'][idx])
-            bbox = [bbox.minx, bbox.miny, bbox.maxx, bbox.maxy]
-            bbox_str = '_'.join(map("{:.6f}".format, bbox))
-            extent = [extent.minx, extent.miny, extent.maxx, extent.maxy]
-            extent_str = '_'.join(map("{:.6f}".format, extent))
-            # bbox_hash = hashlib.md5()
+            bbox_list = [bbox.minx, bbox.miny, bbox.maxx, bbox.maxy]
+            bbox_str = '_'.join(map("{:.6f}".format, bbox_list))
+            extent_list = [extent.minx, extent.miny, extent.maxx, extent.maxy]
+            extent_str = '_'.join(map("{:.6f}".format, extent_list))
             #  Unicode-objects must be encoded before hashing with hashlib and
             #  because strings in Python 3 are Unicode by default (unlike Python 2),
             #  you'll need to encode the string using the .encode method.
-            # bbox_hash.update(bbox_str.encode("utf-8"))
             bbox_hash = hashlib.sha256(bbox_str.encode("utf-8")).hexdigest()
             extent_hash = hashlib.sha256(
                 extent_str.encode("utf-8")).hexdigest()
 
             export_dir_sub = (export_dir / filepath.stem /
-                              f"sam_feat_{model_type}_{extent_hash}")
-            # display(export_dir_sub)
+                              f"sam_feat_{model_type}_{extent_hash[0:16]}")
             export_dir_sub.mkdir(parents=True, exist_ok=True)
             feature_tiff = (export_dir_sub /
                             f"sam_feat_{model_type}_{bbox_hash}.tif")
-            # print(feature_tiff)
+            feature_csv = (export_dir_sub / f"{export_dir_sub.name}.csv")
             with rasterio.open(
                     feature_tiff,
                     mode="w",
@@ -415,12 +373,33 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             ) as feature_dataset:
                 # index start from 1, feature[idx, :, :, :] = feature[idx, ...], later is faster
                 feature_dataset.write(feature[idx, ...], range(1, band_num+1))
-                # pr_mask_dataset.set_band_description(1, 'heatmap')
+                # pr_mask_dataset.set_band_description(1, '')
                 tags = {
                     "img_shape": data_batch["img_shape"][idx],
                     "input_shape": data_batch["input_shape"][idx],
                 }
                 feature_dataset.update_tags(**tags)
+                feature_res = feature_dataset.res[0]
+                feature_crs = feature_dataset.crs
+
+            index_df = pd.DataFrame(columns=['minx', 'maxx', 'miny', 'maxy', 'mint', 'maxt',
+                                             'filepath',
+                                             'crs', 'res'],
+                                    index=[self.iPatch])
+            index_df['filepath'] = [feature_tiff.name]
+            index_df['minx'] = [bbox.minx]
+            index_df['maxx'] = [bbox.maxx]
+            index_df['miny'] = [bbox.miny]
+            index_df['maxy'] = [bbox.maxy]
+            index_df['mint'] = [bbox.mint]
+            index_df['maxt'] = [bbox.maxt]
+            index_df['crs'] = [str(feature_crs)]
+            index_df['res'] = [feature_res]
+            # append data frame to CSV file, index=False
+            index_df.to_csv(feature_csv, mode='a',
+                            header=not feature_csv.exists(), index=True)
+            self.iPatch += 1
+
         return str(export_dir_sub)
 
     def tr(self, string):

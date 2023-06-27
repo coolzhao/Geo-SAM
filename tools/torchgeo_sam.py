@@ -212,14 +212,14 @@ class SamTestFeatureDataset(RasterDataset):
                         crs = row_df['crs']
                     if res is None:
                         res = row_df['res']
-                    id = row_df['id']
+                    # id = row_df['id']
                     coords = (row_df['minx'], row_df['maxx'],
                               row_df['miny'], row_df['maxy'],
                               row_df['mint'], row_df['maxt'])
                     # change to relative path
                     filepath = os.path.join(
                         root, os.path.basename(row_df['filepath']))
-                    self.index.insert(id, coords, filepath)
+                    self.index.insert(i, coords, filepath)
                     i += 1
                 # print(coords[0].dtype)
                 index_set = True
@@ -280,19 +280,12 @@ class SamTestFeatureDataset(RasterDataset):
             if i > 0:
                 self.index_df['id'] = id_list
                 self.index_df['filepath'] = filepath_list
-                self.index_df['minx'] = pd.to_numeric(
-                    [coord[0] for coord in coords_list], downcast='float')
-                self.index_df['maxx'] = pd.to_numeric(
-                    [coord[1] for coord in coords_list], downcast='float')
-                self.index_df['miny'] = pd.to_numeric(
-                    [coord[2] for coord in coords_list], downcast='float')
-                self.index_df['maxy'] = pd.to_numeric(
-                    [coord[3] for coord in coords_list], downcast='float')
-                self.index_df['mint'] = pd.to_numeric(
-                    [coord[4] for coord in coords_list], downcast='float')
-                self.index_df['maxt'] = pd.to_numeric(
-                    [coord[5] for coord in coords_list], downcast='float')
-                # print(type(crs), res)
+                self.index_df['minx'] = [coord[0] for coord in coords_list]
+                self.index_df['maxx'] = [coord[1] for coord in coords_list]
+                self.index_df['miny'] = [coord[2] for coord in coords_list]
+                self.index_df['maxy'] = [coord[3] for coord in coords_list]
+                self.index_df['mint'] = [coord[4] for coord in coords_list]
+                self.index_df['maxt'] = [coord[5] for coord in coords_list]
                 self.index_df.loc[:, 'crs'] = str(crs)
                 self.index_df.loc[:, 'res'] = res
                 # print(self.index_df.dtypes)
