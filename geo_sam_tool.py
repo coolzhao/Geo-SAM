@@ -1,4 +1,5 @@
 import os
+import time
 from typing import List
 from pathlib import Path
 from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication
@@ -11,17 +12,18 @@ from PyQt5.QtWidgets import (
     QAction,
     QFileDialog,
     QApplication,
-    QShortcut
-
+    QShortcut,
+    QToolBar,
 )
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 from PyQt5 import uic
+import processing
 
 from .tools.geoTool import ImageCRSManager, LayerExtent
 from .tools.SAMTool import SAM_Model
 from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
 from .ui import UI_Selector
-from .ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool
+from .ui.icons import QIcon_GeoSAMTool, QIcon_GeoSAMEncoder
 from .geo_sam_provider import GeoSamProvider
 
 
@@ -47,17 +49,55 @@ class Geo_SAM(QObject):
 
     def initGui(self):
         self.initProcessing()
-        self.action = QAction(
+
+        self.toolbar: QToolBar = self.iface.addToolBar('Geo-SAM Toolbar')
+        self.toolbar.setObjectName('mGeoSamToolbar')
+        self.toolbar.setToolTip('Geo-SAM Toolbar')
+
+        self.actionSamTool = QAction(
             QIcon_GeoSAMTool,
             "Geo-SAM Tool",
             self.iface.mainWindow()
         )
-        self.action.triggered.connect(self.create_widget_selector)
-        self.iface.addPluginToMenu('&Geo-SAM', self.action)
-        self.iface.addToolBarIcon(self.action)
+
+        self.actionSamEncoder = QAction(
+            QIcon_GeoSAMEncoder,
+            "Geo-SAM Encoder",
+            self.iface.mainWindow()
+        )
+        self.actionSamTool.setObjectName("mActionGeoSamTool")
+        self.actionSamTool.setToolTip(
+            "Geo-SAM Tool: Use it to label landforms")
+        self.actionSamTool.triggered.connect(self.create_widget_selector)
+
+        self.actionSamEncoder.setObjectName("mActionGeoSamEncoder")
+        self.actionSamEncoder.setToolTip(
+            "Geo-SAM Encoder: Use it to encode/preprocess image before labeling")
+        self.actionSamEncoder.triggered.connect(self.encodeImage)
+        # QgsMessageLog.logMessage(
+        #     f"Geo-SAM action name {self.action.objectName()}", 'Geo SAM', level=Qgis.Info)
+        self.iface.addPluginToMenu('Geo-SAM', self.actionSamTool)
+        self.iface.addPluginToMenu('Geo-SAM', self.actionSamEncoder)
+        # self.iface.addToolBarIcon(self.action)
+        self.toolbar.addAction(self.actionSamTool)
+        self.toolbar.addAction(self.actionSamEncoder)
+        self.toolbar.setVisible(True)
+        # Not working
+        # start_time = time.time()
+        # while True:
+        #     geoSamToolbar: QToolBar = self.iface.mainWindow().findChild(QToolBar,
+        #                                                                 'mGeoSamToolbar')
+        #     current_time = time.time()
+        #     elapsed_time = (current_time - start_time) * 1000
+        #     if geoSamToolbar:
+        #         geoSamToolbar.setVisible(False)
+        #         break
+        #     if elapsed_time > 3000:
+        #         break
 
     def create_widget_selector(self):
         '''Create widget selector'''
+        self.toolbar.setVisible(True)
         if self.dockFirstOpen:
             self._init_feature_related()
             self.load_demo_img()
@@ -85,6 +125,7 @@ class Geo_SAM(QObject):
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
                 self.enable_disable_edit_mode)
+            self.wdg_sel.radioButton_show_extent.setChecked(True)
             self.wdg_sel.radioButton_show_extent.toggled.connect(
                 self.show_hide_sam_feature_extent)
 
@@ -126,17 +167,27 @@ class Geo_SAM(QObject):
             self.wdg_sel.setFloating(True)
 
             # default is fgpt, but do not change when reloading feature folder
-            self.reset_prompt_type()
+            # self.reset_prompt_type()
             self.dockFirstOpen = False
         else:
             self.clear_layers(clear_extent=True)
-            self.enable_disable_edit_mode()
-            self.show_hide_sam_feature_extent()
-            # if self.wdg_sel.radioButton_enable.isChecked():
-            #     self.reset_prompt_type()
+
+        self.enable_disable_edit_mode()
+        self.show_hide_sam_feature_extent()
+        # if self.wdg_sel.radioButton_enable.isChecked():
+        #     self.reset_prompt_type()
 
         # add widget to QGIS
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
+        QgsMessageLog.logMessage(
+            f"Geo-SAM widget name: {self.wdg_sel.objectName()}", 'Geo SAM', level=Qgis.Info)
+        sam_tool_widget = self.iface.mainWindow().findChild(QDockWidget, 'GeoSAM')
+        QgsMessageLog.logMessage(
+            f"Geo-SAM widget name found: {sam_tool_widget.objectName()}", 'Geo SAM', level=Qgis.Info)
+        QgsMessageLog.logMessage(
+            f"Sender name {self.sender()}", 'Geo SAM', level=Qgis.Info)
+        # sam_tool_widget.pushButton_load_feature.click()
+        # self.wdg_sel.setToggleVisibilityAction()
 
     def destruct(self):
         '''Destruct actions when closed widget'''
@@ -148,15 +199,19 @@ class Geo_SAM(QObject):
             self.wdg_sel.setParent(None)
             self.iface.removeDockWidget(self.wdg_sel)
         # self.wdg_sel.setVisible(False)
-        self.iface.removeToolBarIcon(self.action)
-        self.iface.removePluginMenu('&Geo-SAM', self.action)
+        self.iface.removeToolBarIcon(self.actionSamTool)
+        self.iface.removeToolBarIcon(self.actionSamEncoder)
+        self.iface.removePluginMenu('&Geo-SAM', self.actionSamTool)
+        self.iface.removePluginMenu('&Geo-SAM', self.actionSamEncoder)
         self.clear_layers(clear_extent=True)
 
         if hasattr(self, "shortcut_tab"):
             self.shortcut_tab.disconnect()
         if hasattr(self, "shortcut_undo_sam_pg"):
             self.shortcut_undo_sam_pg.disconnect()
-        del self.action
+        del self.actionSamTool
+        del self.actionSamEncoder
+        del self.toolbar
         QgsApplication.processingRegistry().removeProvider(self.provider)
 
     def load_demo_img(self):
@@ -182,6 +237,10 @@ class Geo_SAM(QObject):
         root = QgsProject.instance().layerTreeRoot()
         tree_layer = root.findLayer(self.polygon.layer.id())
 
+        if tree_layer is None:
+            return None
+        if not tree_layer.isVisible():
+            tree_layer.setItemVisibilityChecked(True)
         if root.children()[0] == tree_layer:
             return None
 
@@ -450,3 +509,7 @@ class Geo_SAM(QObject):
             self.polygon.layer.triggerRepaint()
         else:
             self.canvas.refresh()
+
+    def encodeImage(self):
+        '''Convert layer containing a point x & y coordinate to a new point layer'''
+        processing.execAlgorithmDialog('geo_sam:geo_sam_encoder', {})

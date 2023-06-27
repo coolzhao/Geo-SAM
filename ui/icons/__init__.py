@@ -6,4 +6,4 @@ geo_sam_tool_path = os.path.join(cwd, 'geo_sam_tool.svg')
 encoder_tool_path = os.path.join(cwd, 'encoder_tool.svg')
 
 QIcon_GeoSAMTool = QIcon(geo_sam_tool_path)
-QIcon_EncoderTool = QIcon(encoder_tool_path)
+QIcon_GeoSAMEncoder = QIcon(encoder_tool_path)

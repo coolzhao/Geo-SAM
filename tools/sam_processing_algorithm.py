@@ -3,6 +3,9 @@ import time
 from typing import Dict, Any
 from pathlib import Path
 from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtWidgets import QAction, QDockWidget
+from qgis.gui import QgsDockWidget, QgsFileWidget
+from qgis.utils import iface
 from qgis.core import (QgsProcessing,
                        QgsCoordinateTransform,
                        QgsFeatureSink,
@@ -12,6 +15,7 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterFolderDestination,
                        QgsProcessingParameterBand,
                        QgsProcessingParameterNumber,
+                       QgsProcessingParameterBoolean,
                        QgsProcessingParameterFile,
                        QgsProcessingParameterString,
                        QgsProcessingParameterEnum,
@@ -30,6 +34,7 @@ import rasterio
 import numpy as np
 from torch import Tensor
 import hashlib
+from ..ui.icons import QIcon_GeoSAMEncoder
 
 
 class SamProcessingAlgorithm(QgsProcessingAlgorithm):
@@ -55,8 +60,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     MODEL_TYPE = 'MODEL_TYPE'
     BANDS = 'BANDS'
     STRIDE = 'STRIDE'
-    OUTPUT = 'OUTPUT'
     EXTENT = 'EXTENT'
+    LOAD = 'LOAD'
+    OUTPUT = 'OUTPUT'
 
     def initAlgorithm(self, config=None):
         """
@@ -134,10 +140,18 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFolderDestination(
                 self.OUTPUT,
                 self.tr("Output Folder"),
-                # createByDefault=True,
-                # behavior=QgsProcessingParameterFile.Folder
             )
         )
+
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.LOAD,
+                self.tr("Load output features after processing"),
+                defaultValue=True
+            )
+        )
+
+        # self.addOutput()
 
     def processAlgorithm(self, parameters, context, feedback):
         """
@@ -166,6 +180,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             parameters, self.STRIDE, context)
 
         extent = self.parameterAsExtent(parameters, self.EXTENT, context)
+        load_feature = self.parameterAsBoolean(parameters, self.LOAD, context)
         # if bbox.isNull() and not rlayer:
         #     raise QgsProcessingException(
         #         self.tr("No reference layer selected nor extent box provided"))
@@ -303,12 +318,33 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                               for size in list(features.shape)))
             feedback.pushInfo(
                 f"SAM encoding executed with {elapsed_time:.3f} ms")
-            self.save_sam_feature(
+            feature_dir = self.save_sam_feature(
                 output_dir, batch, features, extent_bbox, model_type)
 
             # Update the progress bar
             feedback.setProgress(int((current+1) * total))
 
+        if load_feature:
+            sam_tool_action: QAction = iface.mainWindow().findChild(QAction,
+                                                                    "mActionGeoSamTool")
+            sam_tool_action.trigger()
+            start_time = time.time()
+            while True:
+                sam_tool_widget: QgsDockWidget = iface.mainWindow().findChild(QDockWidget, 'GeoSAM')
+                current_time = time.time()
+                elapsed_time = (current_time - start_time) * 1000
+                if sam_tool_widget:
+                    load_feature_widget: QgsFileWidget = sam_tool_widget.QgsFile_feature
+                    load_feature_widget.setFilePath(feature_dir)
+                    sam_tool_widget.pushButton_load_feature.click()  # try sender
+                    feedback.pushInfo(
+                        'GeoSAM widget found and load feature button clicked in {elapsed_time:.3f} ms')
+                    break
+                # try 3 seconds
+                if elapsed_time > 3000:
+                    feedback.pushInfo(
+                        'GeoSAM widget not found {elapsed_time:.3f} ms')
+                    break
         # Return the results of the algorithm. In this case our only result is
         # the feature sink which contains the processed features, but some
         # algorithms may return multiple feature sinks, calculated numeric
@@ -336,7 +372,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feature: np.ndarray,
         extent: BoundingBox,
         model_type: str = "vit_h"
-    ):
+    ) -> str:
         export_dir = Path(export_dir_str)
         # iterate over batch_size dimension
         for idx in range(feature.shape[-4]):
@@ -381,11 +417,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 feature_dataset.write(feature[idx, ...], range(1, band_num+1))
                 # pr_mask_dataset.set_band_description(1, 'heatmap')
                 tags = {
-                    "img_shape" : data_batch["img_shape"][idx],
-                    "input_shape" : data_batch["input_shape"][idx],
+                    "img_shape": data_batch["img_shape"][idx],
+                    "input_shape": data_batch["input_shape"][idx],
                 }
                 feature_dataset.update_tags(**tags)
-        return True
+        return str(export_dir_sub)
 
     def tr(self, string):
         """
@@ -404,7 +440,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'gem_sam_encoder'
+        return 'geo_sam_encoder'
 
     def displayName(self):
         """
@@ -436,7 +472,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         should provide a basic description about what the algorithm does and the
         parameters and outputs associated with it..
         """
-        return self.tr("Example algorithm short description")
+        return self.tr("Generate image features using SAM image encoder.")
+
+    def icon(self):
+        return QIcon_GeoSAMEncoder
 
 
 class SamEncoder:
