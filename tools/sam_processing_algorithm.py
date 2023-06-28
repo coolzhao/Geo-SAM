@@ -1,12 +1,17 @@
 import os
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List
 from pathlib import Path
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtWidgets import QAction, QDockWidget
 from qgis.gui import QgsDockWidget, QgsFileWidget
 from qgis.utils import iface
-from qgis.core import (QgsProcessing,
+from qgis.core import (QgsProcessing, Qgis,
+                       QgsRectangle,
+                       QgsCoordinateReferenceSystem,
+                       QgsUnitTypes,
+                       QgsRasterBandStats,
+                       QgsUnitTypes,
                        QgsCoordinateTransform,
                        QgsFeatureSink,
                        QgsProcessingException,
@@ -20,6 +25,10 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterString,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterExtent,
+                       QgsProcessingParameterCrs,
+                       QgsProcessingParameterScale,
+                       QgsProcessingParameterExpression,
+                       QgsProcessingParameterRange,
                        QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterFeatureSink)
 from qgis import processing
@@ -35,6 +44,9 @@ import numpy as np
 import pandas as pd
 from torch import Tensor
 import hashlib
+from pyproj import CRS
+from pyproj.aoi import AreaOfInterest
+from pyproj.database import query_utm_crs_info
 from ..ui.icons import QIcon_GeoSAMEncoder
 
 
@@ -64,6 +76,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     EXTENT = 'EXTENT'
     LOAD = 'LOAD'
     OUTPUT = 'OUTPUT'
+    RANGE = 'RANGE'
+    RESOLUTION = 'RESOLUTION'
+    CRS = 'CRS'
 
     def initAlgorithm(self, config=None):
         """
@@ -84,10 +99,42 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterBand(
                 name=self.BANDS,
-                description=self.tr('Bands'),
+                description=self.tr(
+                    'Select three visual bands in R G B order.'),
                 defaultValue=[1, 2, 3],
                 parentLayerParameterName=self.INPUT,
                 allowMultiple=True
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterCrs(
+                name=self.CRS,
+                description=self.tr('CRS'),
+                optional=True,
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterNumber(
+                name=self.RESOLUTION,
+                description=self.tr('Resolution (cell size in meters)'),
+                type=QgsProcessingParameterNumber.Double,
+                optional=True,
+                minValue=0,
+                maxValue=100000
+            )
+        )
+
+        # expression for scaling the raster values to [0,255]
+        self.addParameter(
+            QgsProcessingParameterRange(
+                name=self.RANGE,
+                description=self.tr(
+                    'The input data range to be rescaled to [0, 255]'),
+                type=QgsProcessingParameterNumber.Double,
+                defaultValue=None,
+                optional=True
             )
         )
 
@@ -104,6 +151,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterNumber(
                 self.STRIDE,
                 self.tr('Stride'),
+                type=QgsProcessingParameterNumber.Integer,
                 defaultValue=512,
                 minValue=256,
                 maxValue=1024
@@ -127,15 +175,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 defaultValue=0,  # 'vit_h'
             )
         )
-        # We add a feature sink in which to store our processed features (this
-        # usually takes the form of a newly created vector layer when the
-        # algorithm is run in QGIS).
-        # self.addParameter(
-        #     QgsProcessingParameterFolderDestination(
-        #         self.OUTPUT,
-        #         self.tr('Output Folder')
-        #     )
-        # )
 
         self.addParameter(
             QgsProcessingParameterFolderDestination(
@@ -159,62 +198,117 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         Here is where the processing itself takes place.
         """
 
-        # Retrieve the feature source and sink. The 'dest_id' variable is used
-        # to uniquely identify the feature sink, and must be included in the
-        # dictionary returned by the processAlgorithm function.
         rlayer = self.parameterAsRasterLayer(
             parameters, self.INPUT, context)
-        # If source was not found, throw an exception to indicate that the algorithm
-        # encountered a fatal error. The exception text can be any string, but in this
-        # case we use the pre-built invalidSourceError method to return a standard
-        # helper text for when a source cannot be evaluated
         if rlayer is None:
             raise QgsProcessingException(
                 self.invalidRasterError(parameters, self.INPUT))
-        selected_bands = self.parameterAsInts(
+
+        self.selected_bands = self.parameterAsInts(
             parameters, self.BANDS, context)
+        if len(self.selected_bands) != 3:
+            raise QgsProcessingException(
+                self.tr("SAM only supports three-band RGB image!")
+            )
+
         ckpt_path = self.parameterAsFile(
             parameters, self.CKPT, context)
         model_type_idx = self.parameterAsEnum(
             parameters, self.MODEL_TYPE, context)
         stride = self.parameterAsInt(
             parameters, self.STRIDE, context)
+        res = self.parameterAsDouble(
+            parameters, self.RESOLUTION, context)
+        crs = self.parameterAsCrs(
+            parameters, self.CRS, context)
+        extent = self.parameterAsExtent(
+            parameters, self.EXTENT, context)
+        load_feature = self.parameterAsBoolean(
+            parameters, self.LOAD, context)
+        range_value = self.parameterAsRange(
+            parameters, self.RANGE, context)
+        output_dir = self.parameterAsString(
+            parameters, self.OUTPUT, context)
 
-        extent = self.parameterAsExtent(parameters, self.EXTENT, context)
-        load_feature = self.parameterAsBoolean(parameters, self.LOAD, context)
+        rlayer_data_provider = rlayer.dataProvider()
+        # handle value range
+        if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
+            feedback.pushInfo(
+                f'Input data value range to be rescaled: {range_value[0]},{range_value[1]}')
+        else:
+            band_stats = rlayer_data_provider.bandStatistics(
+                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Min)
+            range_value[0] = band_stats.minimumValue
+            band_stats = rlayer_data_provider.bandStatistics(
+                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Max)
+            range_value[1] = band_stats.maximumValue
+            feedback.pushInfo(
+                f'Input data value range to be rescaled: {range_value[0]},{range_value[1]}(automatically created based on min-max value of raster layer.)')
         # if bbox.isNull() and not rlayer:
         #     raise QgsProcessingException(
         #         self.tr("No reference layer selected nor extent box provided"))
 
-        if not extent.isNull():
+        # handle crs
+        if crs is None or not crs.isValid():
+            crs = rlayer.crs()
+            feedback.pushInfo(
+                f'Layer CRS unit is {crs.mapUnits()}')  # 0 for meters, 6 for degrees, 9 for unknown
+            feedback.pushInfo(
+                f'whether the CRS is a geographic CRS (using lat/lon coordinates) {crs.isGeographic()}')
+            if crs.mapUnits() == Qgis.DistanceUnit.Degrees:
+                crs = self.estimate_utm_crs(rlayer.extent())
+
+        # target crs should use meters as units
+        if crs.mapUnits() != Qgis.DistanceUnit.Meters:
+            feedback.pushInfo(
+                f'Layer CRS unit is {crs.mapUnits()}')
+            feedback.pushInfo(
+                f'whether the CRS is a geographic CRS (using lat/lon coordinates) {crs.isGeographic()}')
+            raise QgsProcessingException(
+                self.tr("Only support CRS with the units as meters")
+            )
+
+        # handle extent
+        if extent.isNull():
+            extent = rlayer.extent()  # QgsProcessingUtils.combineLayerExtents(layers, crs, context)
+            rlayer_extent = rlayer.extent()
+        else:
             extentCrs = self.parameterAsExtentCrs(
                 parameters, self.EXTENT, context)
-            if extentCrs != rlayer.crs():
+            if extentCrs != crs:
                 transform = QgsCoordinateTransform(
-                    extentCrs, rlayer.crs(), context.transformContext())
+                    extentCrs, crs, context.transformContext())
                 extent = transform.transformBoundingBox(extent)
+                if rlayer.crs().mapUnits() != Qgis.DistanceUnit.Meters:
+                    rlayer_extent = transform.transformBoundingBox(
+                        rlayer.extent())
 
-        if extent.isNull() and rlayer:
-            extent = rlayer.extent()  # QgsProcessingUtils.combineLayerExtents(layers, crs, context)
-
-        # output_dir = self.parameterAsFileOutput(
-        #     parameters, self.OUTPUT, context)
-
-        output_dir = self.parameterAsString(
-            parameters, self.OUTPUT, context)
+        # if res is not provided, get res info from rlayer
+        if np.isnan(res) or res == 0:
+            if rlayer.crs().mapUnits() == Qgis.DistanceUnit.Meters:
+                res = rlayer.rasterUnitsPerPixelX()  # rasterUnitsPerPixelY() is negative
+            else:
+                res = (rlayer_extent.xMaximum() -
+                       rlayer_extent.xMinimum()) / rlayer.width()
+        self.res = res
 
         # Send some information to the user
-        # feedback.pushInfo('CRS is {}'.format(rlayer.crs().authid()))
+        feedback.pushInfo(
+            f'Layer path: {rlayer_data_provider.dataSourceUri()}')
+        feedback.pushInfo(
+            f'Layer band scale: {rlayer_data_provider.bandScale(self.selected_bands[0])}')
+        feedback.pushInfo(f'Layer name: {rlayer.name()}')
+        feedback.pushInfo(f'Layer CRS is {rlayer.crs().authid()}')
+        feedback.pushInfo(
+            f'Layer Pixel size is {rlayer.rasterUnitsPerPixelX()}, {rlayer.rasterUnitsPerPixelY()}')
         # feedback.pushInfo('Band number is {}'.format(rlayer.bandCount()))
         # feedback.pushInfo('Band name is {}'.format(rlayer.bandName(1)))
-        feedback.pushInfo('Layer path: {}'.format(
-            rlayer.dataProvider().dataSourceUri()))
-        feedback.pushInfo('Layer name: {}'.format(rlayer.name()))
-        feedback.pushInfo(f'Bands selected: {selected_bands}')
+        feedback.pushInfo(f'Bands selected: {self.selected_bands}')
+        feedback.pushInfo(f'Resolution: {self.res}')
         # feedback.pushInfo('Layer display band name is {}'.format(
         #     rlayer.dataProvider().displayBandName(1)))
         feedback.pushInfo(
-            f'Layer extent: minx:{extent.xMinimum():.2f}, maxx:{extent.xMaximum():.2f}, miny:{extent.yMinimum():.2f}, maxy:{extent.yMaximum():.2f}')
+            f'Processing extent: minx:{extent.xMinimum():.2f}, maxx:{extent.xMaximum():.2f}, miny:{extent.yMinimum():.2f}, maxy:{extent.yMaximum():.2f}')
 
         model_type = self.model_type_options[model_type_idx]
         if model_type not in os.path.basename(ckpt_path):
@@ -236,13 +330,19 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             rlayer.bandName(i_band) for i_band in range(1, rlayer.bandCount()+1)
         ]
         # currently only support rgb bands
-        input_bands = [rlayer.bandName(i_band) for i_band in selected_bands]
+        input_bands = [rlayer.bandName(i_band)
+                       for i_band in self.selected_bands]
 
-        rlayer_ds = SamTestRasterDataset(
-            root=rlayer_dir, crs=rlayer.crs().toWkt(), bands=input_bands, cache=False)
+        if self.res:
+            rlayer_ds = SamTestRasterDataset(
+                root=rlayer_dir, crs=crs.toWkt(), res=self.res, bands=input_bands, cache=False)
+        else:
+            rlayer_ds = SamTestRasterDataset(
+                root=rlayer_dir, crs=crs.toWkt(), res=None, bands=input_bands, cache=False)
         feedback.pushInfo(
             f'RasterDS info, input bands: {rlayer_ds.bands}, \n all bands: {rlayer_ds.all_bands}, \
-            \n raster_ds crs: {rlayer_ds.crs}, \
+            \n raster_ds crs: {str(CRS(rlayer_ds.crs))}, \
+            \n raster_ds res: {rlayer_ds.res}, \
             \n raster_ds index: {rlayer_ds.index}')
         extent_bbox = BoundingBox(minx=extent.xMinimum(), maxx=extent.xMaximum(), miny=extent.yMinimum(), maxy=extent.yMaximum(),
                                   mint=rlayer_ds.index.bounds[4], maxt=rlayer_ds.index.bounds[5])
@@ -265,11 +365,16 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             start_time = time.time()
             # Stop the algorithm if cancel button has been clicked
             if feedback.isCanceled():
+                load_feature = False
+                feedback.pushInfo(self.tr("Processing is canceled by user."))
                 break
             feedback.pushInfo(' '.join(str(size)
                               for size in list(batch['image'].shape)))
 
             batch_input = batch['image']  # .to(device=device)
+            if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
+                batch_input = self.rescale_img(
+                    batch_input=batch_input, range_value=range_value)
             features = self.get_sam_feature(sam_model, batch_input)
 
             end_time = time.time()
@@ -299,12 +404,12 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     load_feature_widget.setFilePath(feature_dir)
                     sam_tool_widget.pushButton_load_feature.click()  # try sender
                     feedback.pushInfo(
-                        'GeoSAM widget found and load feature button clicked in {elapsed_time:.3f} ms')
+                        f'GeoSAM widget found and load feature button clicked in {elapsed_time:.3f} ms')
                     break
                 # try 3 seconds
                 if elapsed_time > 3000:
                     feedback.pushInfo(
-                        'GeoSAM widget not found {elapsed_time:.3f} ms')
+                        f'GeoSAM widget not found {elapsed_time:.3f} ms')
                     break
         # Return the results of the algorithm. In this case our only result is
         # the feature sink which contains the processed features, but some
@@ -322,9 +427,17 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     @torch.no_grad()
     def get_sam_feature(self, sam_model: Sam, batch_input: Tensor) -> np.ndarray:
         # batch_input = (batch_input - sam_model.pixel_mean) / sam_model.pixel_std
+        batch_input.to(device=sam_model.device)
         batch_input = sam_model.preprocess(batch_input)
         features = sam_model.image_encoder(batch_input)
         return features.cpu().numpy()
+
+    def rescale_img(self, batch_input: np.ndarray, range_value: List[float]) -> np.ndarray:
+        'rescale input image to [0,255]'
+        range_min = range_value[0]
+        range_max = range_value[1]
+        batch_output = (batch_input - range_min)*255/(range_max - range_min)
+        return batch_output
 
     def save_sam_feature(
         self,
@@ -355,8 +468,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             extent_hash = hashlib.sha256(
                 extent_str.encode("utf-8")).hexdigest()
 
+            bands_str = '_'.join([str(band) for band in self.selected_bands])
             export_dir_sub = (export_dir / filepath.stem /
-                              f"sam_feat_{model_type}_{extent_hash[0:16]}")
+                              f"sam_feat_{model_type}_res_{round(self.res)}m_bands_{bands_str}_{extent_hash[0:16]}")
             export_dir_sub.mkdir(parents=True, exist_ok=True)
             feature_tiff = (export_dir_sub /
                             f"sam_feat_{model_type}_{bbox_hash}.tif")
@@ -401,6 +515,20 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             self.iPatch += 1
 
         return str(export_dir_sub)
+
+    def estimate_utm_crs(self, extent: QgsRectangle):
+        utm_crs_list = query_utm_crs_info(
+            datum_name="WGS 84",
+            area_of_interest=AreaOfInterest(
+                west_lon_degree=extent.xMinimum(),
+                south_lat_degree=extent.yMinimum(),
+                east_lon_degree=extent.xMaximum(),
+                north_lat_degree=extent.yMaximum(),
+            ),
+        )
+        utm_crs = CRS.from_epsg(utm_crs_list[0].code)
+        utm_crs = QgsCoordinateReferenceSystem(str(utm_crs))
+        return utm_crs
 
     def tr(self, string):
         """
