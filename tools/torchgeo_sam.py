@@ -63,6 +63,7 @@ class SamTestGridGeoSampler(GeoSampler):
         """
         super().__init__(dataset, roi)
         self.size = _to_tuple(size)
+        self.patch_size = self.size
         self.stride = _to_tuple(stride)
 
         if units == Units.PIXELS:
@@ -125,7 +126,7 @@ class SamTestGridGeoSampler(GeoSampler):
                         query = {
                             "bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
                             "path": cast(str, hit.object),
-                            "size": self.size[0]
+                            "size": self.patch_size[0]
                         }
 
                         # BoundingBox(minx, maxx, miny, maxy, mint, maxt)
@@ -141,7 +142,7 @@ class SamTestGridGeoSampler(GeoSampler):
                 query = {
                     "bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
                     "path": cast(str, hit.object),
-                    "size": self.size[0]
+                    "size": self.size[0]/self.res
                 }
 
                 yield query
@@ -455,6 +456,9 @@ class SamTestRasterDataset(RasterDataset):
         #     )
         # else:
         # resize
+        if out_height == 0 or out_width == 0:
+            raise Exception("Patch size should be greater than zero.")
+
         target_height, target_width = self.get_preprocess_shape(
             out_height, out_width, patch_size)
         target_shape = (count, target_height, target_width)
