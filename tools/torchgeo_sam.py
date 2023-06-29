@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch import Tensor
+from torch.nn import functional as F
 from torchgeo.datasets import unbind_samples, stack_samples, BoundingBox, RasterDataset, GeoDataset, IntersectionDataset
 from torchgeo.datasets.utils import disambiguate_timestamp
 from torchgeo.samplers import Units, GeoSampler, PreChippedGeoSampler, GridGeoSampler
@@ -77,7 +78,8 @@ class SamTestGridGeoSampler(GeoSampler):
             bounds = BoundingBox(*hit.bounds)
             if (
                 bounds.maxx - bounds.minx >= self.size[1]
-                and bounds.maxy - bounds.miny >= self.size[0]
+                # change 'and' to 'or' for handling strip images
+                or bounds.maxy - bounds.miny >= self.size[0]
             ):
                 self.hits.append(hit)
             else:
@@ -115,6 +117,8 @@ class SamTestGridGeoSampler(GeoSampler):
                     if maxy > bounds.maxy:
                         maxy = bounds.maxy
                         miny = bounds.maxy - self.size[0]
+                        if miny < bounds.miny:
+                            miny = bounds.miny
 
                     # For each column...
                     for j in range(cols):
@@ -123,10 +127,13 @@ class SamTestGridGeoSampler(GeoSampler):
                         if maxx > bounds.maxx:
                             maxx = bounds.maxx
                             minx = bounds.maxx - self.size[1]
+                            if minx < bounds.minx:
+                                minx = bounds.minx
+
                         query = {
                             "bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
                             "path": cast(str, hit.object),
-                            "size": self.patch_size[0]
+                            "size": int(self.patch_size[0])
                         }
 
                         # BoundingBox(minx, maxx, miny, maxy, mint, maxt)
@@ -142,7 +149,7 @@ class SamTestGridGeoSampler(GeoSampler):
                 query = {
                     "bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
                     "path": cast(str, hit.object),
-                    "size": self.size[0]/self.res
+                    "size": int(self.patch_size[0])
                 }
 
                 yield query
@@ -476,6 +483,7 @@ class SamTestRasterDataset(RasterDataset):
             dest = dest.astype(np.int64)
 
         tensor = torch.tensor(dest)  # .float()
+        tensor = self.pad_patch(tensor, patch_size)
 
         sample = {"crs": self.crs, "bbox": bbox,
                   "path": filepath, "img_shape": out_shape, "input_shape": target_shape}
@@ -490,15 +498,27 @@ class SamTestRasterDataset(RasterDataset):
         return sample
 
     @staticmethod
-    def get_preprocess_shape(oldh: int, oldw: int, long_side_length: int) -> Tuple[int, int]:
+    def get_preprocess_shape(old_h: int, old_w: int, long_side_length: int) -> Tuple[int, int]:
         """
         Compute the output size given input size and target long side length.
         """
-        scale = long_side_length * 1.0 / max(oldh, oldw)
-        newh, neww = oldh * scale, oldw * scale
-        neww = int(neww + 0.5)  # floor
-        newh = int(newh + 0.5)
-        return (newh, neww)
+        scale = long_side_length * 1.0 / max(old_h, old_w)
+        new_h, new_w = old_h * scale, old_w * scale
+        new_w = int(new_w + 0.5)  # floor
+        new_h = int(new_h + 0.5)
+        return (new_h, new_w)
+
+    @staticmethod
+    def pad_patch(x: Tensor, patch_size: int):
+        """
+        Pad the patch to desired patch_size
+        """
+        h, w = x.shape[-2:]
+        pad_h = patch_size - h
+        pad_w = patch_size - w
+        # pads are described starting from the last dimension and moving forward.
+        x = F.pad(x, (0, pad_w, 0, pad_h))
+        return x
 
     def plot(self, sample, bright=1):
         check_rgb = all(item in self.bands for item in self.rgb_bands)

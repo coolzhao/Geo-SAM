@@ -148,6 +148,10 @@ class SAM_Model:
         QgsMessageLog.logMessage(
             f"SAM predict executed with {elapsed_time:.3f} ms", 'Geo SAM', level=Qgis.Info)
 
+        # QgsMessageLog.logMessage(
+        #     f"SAM feature shape {masks.shape}", 'Geo SAM', level=Qgis.Info)
+
+        # shape (1, 1024, 1024)
         mask = masks[0, ...]
         # mask = mask_morph
 

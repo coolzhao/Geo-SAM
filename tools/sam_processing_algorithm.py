@@ -110,7 +110,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterCrs(
                 name=self.CRS,
-                description=self.tr('Target CRS (units in meters)'),
+                description=self.tr('Target CRS (default to original CRS)'),
                 optional=True,
             )
         )
@@ -257,64 +257,77 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # handle crs
         if crs is None or not crs.isValid():
             crs = rlayer.crs()
-            feedback.pushInfo(
-                f'Layer CRS unit is {crs.mapUnits()}')  # 0 for meters, 6 for degrees, 9 for unknown
-            feedback.pushInfo(
-                f'whether the CRS is a geographic CRS (using lat/lon coordinates) {crs.isGeographic()}')
-            if crs.mapUnits() == Qgis.DistanceUnit.Degrees:
-                crs = self.estimate_utm_crs(rlayer.extent())
+            # feedback.pushInfo(
+            #     f'Layer CRS unit is {crs.mapUnits()}')  # 0 for meters, 6 for degrees, 9 for unknown
+            # feedback.pushInfo(
+            #     f'whether the CRS is a geographic CRS (using lat/lon coordinates) {crs.isGeographic()}')
+            # if crs.mapUnits() == Qgis.DistanceUnit.Degrees:
+            #     crs = self.estimate_utm_crs(rlayer.extent())
 
         # target crs should use meters as units
-        if crs.mapUnits() != Qgis.DistanceUnit.Meters:
-            feedback.pushInfo(
-                f'Layer CRS unit is {crs.mapUnits()}')
-            feedback.pushInfo(
-                f'whether the CRS is a geographic CRS (using lat/lon coordinates) {crs.isGeographic()}')
-            raise QgsProcessingException(
-                self.tr("Only support CRS with the units as meters")
-            )
+        # if crs.mapUnits() != Qgis.DistanceUnit.Meters:
+        #     feedback.pushInfo(
+        #         f'Layer CRS unit is {crs.mapUnits()}')
+        #     feedback.pushInfo(
+        #         f'whether the CRS is a geographic CRS (using lat/lon coordinates) {crs.isGeographic()}')
+        #     raise QgsProcessingException(
+        #         self.tr("Only support CRS with the units as meters")
+        #     )
+
+        # if res is not provided, get res info from rlayer
+        if np.isnan(res) or res == 0:
+            res = rlayer.rasterUnitsPerPixelX()  # rasterUnitsPerPixelY() is negative
+        else:
+            # when given res in meters by users, convert crs to utm if the original crs unit is degree
+            if crs.mapUnits() != Qgis.DistanceUnit.Meters:
+                if rlayer.crs().mapUnits() == Qgis.DistanceUnit.Degrees:
+                    # estimate utm crs based on layer extent
+                    crs = self.estimate_utm_crs(rlayer.extent())
+                else:
+                    raise QgsProcessingException(
+                        f"Resampling of image with the CRS of {crs.authid()} in meters is not supported.")
+            # else:
+            #     res = (rlayer_extent.xMaximum() -
+            #            rlayer_extent.xMinimum()) / rlayer.width()
+        self.res = res
 
         # handle extent
         if extent.isNull():
             extent = rlayer.extent()  # QgsProcessingUtils.combineLayerExtents(layers, crs, context)
-            rlayer_extent = rlayer.extent()
+            # rlayer_extent = rlayer.extent()
+            extent_crs = rlayer.crs()
         else:
-            extentCrs = self.parameterAsExtentCrs(
+            extent_crs = self.parameterAsExtentCrs(
                 parameters, self.EXTENT, context)
-            if extentCrs != crs:
-                transform = QgsCoordinateTransform(
-                    extentCrs, crs, context.transformContext())
-                extent = transform.transformBoundingBox(extent)
-                if rlayer.crs().mapUnits() != Qgis.DistanceUnit.Meters:
-                    rlayer_extent = transform.transformBoundingBox(
-                        rlayer.extent())
-
-        # if res is not provided, get res info from rlayer
-        if np.isnan(res) or res == 0:
-            if rlayer.crs().mapUnits() == Qgis.DistanceUnit.Meters:
-                res = rlayer.rasterUnitsPerPixelX()  # rasterUnitsPerPixelY() is negative
-            else:
-                res = (rlayer_extent.xMaximum() -
-                       rlayer_extent.xMinimum()) / rlayer.width()
-        self.res = res
+        # if extent crs != target crs, convert it to target crs
+        if extent_crs != crs:
+            transform = QgsCoordinateTransform(
+                extent_crs, crs, context.transformContext())
+            extent = transform.transformBoundingBox(extent)
+            # if rlayer.crs().mapUnits() != Qgis.DistanceUnit.Meters:
+            #     rlayer_extent = transform.transformBoundingBox(
+            #         rlayer.extent())
 
         # Send some information to the user
         feedback.pushInfo(
             f'Layer path: {rlayer_data_provider.dataSourceUri()}')
-        feedback.pushInfo(
-            f'Layer band scale: {rlayer_data_provider.bandScale(self.selected_bands[0])}')
+        # feedback.pushInfo(
+        #     f'Layer band scale: {rlayer_data_provider.bandScale(self.selected_bands[0])}')
         feedback.pushInfo(f'Layer name: {rlayer.name()}')
         feedback.pushInfo(f'Layer CRS is {rlayer.crs().authid()}')
         feedback.pushInfo(
             f'Layer Pixel size is {rlayer.rasterUnitsPerPixelX()}, {rlayer.rasterUnitsPerPixelY()}')
+
+        feedback.pushInfo(f'Target CRS is {crs.authid()}')
         # feedback.pushInfo('Band number is {}'.format(rlayer.bandCount()))
         # feedback.pushInfo('Band name is {}'.format(rlayer.bandName(1)))
         feedback.pushInfo(f'Bands selected: {self.selected_bands}')
-        feedback.pushInfo(f'Resolution: {self.res}')
+        feedback.pushInfo(f'Target resolution: {self.res}')
         # feedback.pushInfo('Layer display band name is {}'.format(
         #     rlayer.dataProvider().displayBandName(1)))
         feedback.pushInfo(
-            f'Processing extent: minx:{extent.xMinimum():.2f}, maxx:{extent.xMaximum():.2f}, miny:{extent.yMinimum():.2f}, maxy:{extent.yMaximum():.2f}')
+            (f'Processing extent: minx:{extent.xMinimum():.6f}, maxx:{extent.xMaximum():.6f},'
+             f'miny:{extent.yMinimum():.6f}, maxy:{extent.yMaximum():.6f}'))
 
         model_type = self.model_type_options[model_type_idx]
         if model_type not in os.path.basename(ckpt_path):
@@ -360,7 +373,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         if len(ds_sampler) == 0:
             feedback.pushInfo(
                 f'No available patch sample inside the chosen extent')
-            return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler)}
+            return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler.res),
+                    'Sample size': len(ds_sampler.size), 'Sample stride': len(ds_sampler.stride)}
 
         feedback.pushInfo(f'Sample number: {len(ds_sampler)}')
 
@@ -376,7 +390,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 load_feature = False
                 feedback.pushInfo(self.tr("Processing is canceled by user."))
                 break
-            feedback.pushInfo(' '.join(str(size)
+            feedback.pushInfo('img_shape: ' + ','.join(str(size)
+                              for size in list(batch['img_shape'])))
+            feedback.pushInfo('patch_size: ' + ','.join(str(size)
                               for size in list(batch['image'].shape)))
 
             batch_input = batch['image']  # .to(device=device)
@@ -388,7 +404,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             end_time = time.time()
             # get the execution time of sam predictor, ms
             elapsed_time = (end_time - start_time) * 1000
-            feedback.pushInfo(', '.join(str(size)
+            feedback.pushInfo('feature_shape:' + ','.join(str(size)
                               for size in list(features.shape)))
             feedback.pushInfo(
                 f"SAM encoding executed with {elapsed_time:.3f} ms")
@@ -434,9 +450,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
     @torch.no_grad()
     def get_sam_feature(self, sam_model: Sam, batch_input: Tensor) -> np.ndarray:
-        # batch_input = (batch_input - sam_model.pixel_mean) / sam_model.pixel_std
         batch_input.to(device=sam_model.device)
-        batch_input = sam_model.preprocess(batch_input)
+        batch_input = ((batch_input - sam_model.pixel_mean) /
+                       sam_model.pixel_std)
+        # batch_input = sam_model.preprocess(batch_input)
         features = sam_model.image_encoder(batch_input)
         return features.cpu().numpy()
 
