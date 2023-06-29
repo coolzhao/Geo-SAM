@@ -1,24 +1,152 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Generator: Adobe Illustrator 25.4.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
-<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 200 200" style="enable-background:new 0 0 200 200;" xml:space="preserve">
-<style type="text/css">
+
+<svg
+   version="1.1"
+   id="图层_1"
+   x="0px"
+   y="0px"
+   viewBox="0 0 200 200"
+   style="enable-background:new 0 0 200 200;"
+   xml:space="preserve"
+   sodipodi:docname="geo_sam_tool.svg"
+   inkscape:version="1.2.2 (b0a84865, 2022-12-01)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><defs
+   id="defs2034"><linearGradient
+     id="linearGradient4945"
+     inkscape:swatch="solid"><stop
+       style="stop-color:#000000;stop-opacity:1;"
+       offset="0"
+       id="stop4943" /></linearGradient><linearGradient
+     id="linearGradient4937"
+     inkscape:swatch="solid"><stop
+       style="stop-color:#000000;stop-opacity:1;"
+       offset="0"
+       id="stop4935" /></linearGradient><linearGradient
+     id="linearGradient4200"
+     inkscape:swatch="solid"><stop
+       style="stop-color:#000000;stop-opacity:1;"
+       offset="0"
+       id="stop4198" /></linearGradient><linearGradient
+     id="linearGradient4192"
+     inkscape:swatch="solid"><stop
+       style="stop-color:#000000;stop-opacity:1;"
+       offset="0"
+       id="stop4190" /></linearGradient><linearGradient
+     id="linearGradient3970"
+     inkscape:swatch="solid"><stop
+       style="stop-color:#ffffff;stop-opacity:1;"
+       offset="0"
+       id="stop3968" /></linearGradient><linearGradient
+     inkscape:collect="always"
+     xlink:href="#linearGradient3970"
+     id="linearGradient3972"
+     x1="114.6"
+     y1="145.89999"
+     x2="177.39999"
+     y2="145.89999"
+     gradientUnits="userSpaceOnUse" /></defs><sodipodi:namedview
+   id="namedview2032"
+   pagecolor="#505050"
+   bordercolor="#eeeeee"
+   borderopacity="1"
+   inkscape:showpageshadow="0"
+   inkscape:pageopacity="0"
+   inkscape:pagecheckerboard="0"
+   inkscape:deskcolor="#505050"
+   showgrid="false"
+   inkscape:zoom="2.6951674"
+   inkscape:cx="86.822064"
+   inkscape:cy="100.1793"
+   inkscape:window-width="1512"
+   inkscape:window-height="916"
+   inkscape:window-x="0"
+   inkscape:window-y="136"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="图层_1" />
+<style
+   type="text/css"
+   id="style2003">
 	.st0{fill:#0B99C5;}
 	.st1{fill:#4D4D4D;}
 	.st2{fill:#FF2E17;}
 </style>
-<rect x="56.4" y="5.4" class="st0" width="36.4" height="21.8"/>
-<rect x="107.3" y="5.4" class="st0" width="36.4" height="21.8"/>
-<rect x="56.4" y="172.8" class="st0" width="36.4" height="21.8"/>
-<path class="st0" d="M27.3,5.4c-12,0-21.8,9.7-21.8,21.7v14.6h21.8v-7.3c0-4,3.3-7.3,7.3-7.3h7.3V5.4H27.3z"/>
-<rect x="5.4" y="56.4" class="st0" width="21.8" height="36.4"/>
-<rect x="5.4" y="107.3" class="st0" width="21.8" height="36.4"/>
-<path class="st0" d="M27.3,165.5v-7.3H5.4v14.5c0,12,9.7,21.8,21.7,21.8h14.6v-21.8h-7.3C30.5,172.8,27.3,169.5,27.3,165.5
-	L27.3,165.5z"/>
-<path class="st0" d="M172.8,34.5v7.3h21.8V27.3c0-12-9.7-21.8-21.7-21.8h-14.6v21.8h7.3C169.5,27.3,172.8,30.5,172.8,34.5z"/>
-<rect x="172.8" y="56.4" class="st0" width="21.8" height="36.4"/>
-<polyline class="st1" points="153.4,150.2 177.4,137.3 114.6,114.5 137.4,177.3 "/>
-<path class="st0" d="M186.6,144.7l1.9,39.9l-42-0.8c0,0,17.7-6.1,25.3-14.4C179.4,161,186.6,144.7,186.6,144.7L186.6,144.7z"/>
-<circle class="st0" cx="63.9" cy="75.4" r="16.6"/>
-<path class="st2" d="M151.9,75.6c0,9.2-7.4,16.6-16.6,16.6c-9.2,0-16.6-7.4-16.6-16.6S126,59,135.2,59S151.9,66.4,151.9,75.6z"/>
-</svg>
+<rect
+   x="56.4"
+   y="5.4"
+   class="st0"
+   width="36.4"
+   height="21.8"
+   id="rect2005" />
+<rect
+   x="107.3"
+   y="5.4"
+   class="st0"
+   width="36.4"
+   height="21.8"
+   id="rect2007" />
+<rect
+   x="56.4"
+   y="172.8"
+   class="st0"
+   width="36.4"
+   height="21.8"
+   id="rect2009" />
+<path
+   class="st0"
+   d="M27.3,5.4c-12,0-21.8,9.7-21.8,21.7v14.6h21.8v-7.3c0-4,3.3-7.3,7.3-7.3h7.3V5.4H27.3z"
+   id="path2011" />
+<rect
+   x="5.4"
+   y="56.4"
+   class="st0"
+   width="21.8"
+   height="36.4"
+   id="rect2013" />
+<rect
+   x="5.4"
+   y="107.3"
+   class="st0"
+   width="21.8"
+   height="36.4"
+   id="rect2015" />
+<path
+   class="st0"
+   d="M27.3,165.5v-7.3H5.4v14.5c0,12,9.7,21.8,21.7,21.8h14.6v-21.8h-7.3C30.5,172.8,27.3,169.5,27.3,165.5  L27.3,165.5z"
+   id="path2017" />
+<path
+   class="st0"
+   d="M172.8,34.5v7.3h21.8V27.3c0-12-9.7-21.8-21.7-21.8h-14.6v21.8h7.3C169.5,27.3,172.8,30.5,172.8,34.5z"
+   id="path2019" />
+<rect
+   x="172.8"
+   y="56.4"
+   class="st0"
+   width="21.8"
+   height="36.4"
+   id="rect2021" />
+
+<path
+   class="st0"
+   d="M186.6,144.7l1.9,39.9l-42-0.8c0,0,17.7-6.1,25.3-14.4C179.4,161,186.6,144.7,186.6,144.7L186.6,144.7z"
+   id="path2025" />
+<circle
+   class="st0"
+   cx="63.9"
+   cy="75.4"
+   r="16.6"
+   id="circle2027" />
+<path
+   class="st2"
+   d="M151.9,75.6c0,9.2-7.4,16.6-16.6,16.6c-9.2,0-16.6-7.4-16.6-16.6S126,59,135.2,59S151.9,66.4,151.9,75.6z"
+   id="path2029" />
+<path
+   id="polyline2023"
+   style="enable-background:new 0 0 200 200;stroke:url(#linearGradient3972);stroke-width:3;stroke-dasharray:none"
+   class="st1"
+   inkscape:label="polyline2023"
+   d="M 114.59961 114.5 L 137.40039 177.30078 L 153.40039 150.19922 L 177.40039 137.30078 L 114.59961 114.5 z " /></svg>
