@@ -90,8 +90,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # geometry.
         self.addParameter(
             QgsProcessingParameterRasterLayer(
-                self.INPUT,
-                self.tr('Input Layer')
+                name=self.INPUT,
+                description=self.tr('Input raster layer or tif file path')
             )
         )
         # add ParameterRasterCalculatorExpression to normalize raster values to 0-255
@@ -100,7 +100,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterBand(
                 name=self.BANDS,
                 description=self.tr(
-                    'Select three visual bands in R G B order.'),
+                    'Select no more than three bands (preferably in R G B order)'),
                 defaultValue=[1, 2, 3],
                 parentLayerParameterName=self.INPUT,
                 allowMultiple=True
@@ -110,7 +110,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterCrs(
                 name=self.CRS,
-                description=self.tr('CRS'),
+                description=self.tr('Target CRS (units in meters)'),
                 optional=True,
             )
         )
@@ -118,7 +118,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 name=self.RESOLUTION,
-                description=self.tr('Resolution (cell size in meters)'),
+                description=self.tr(
+                    'Target resolution in meters (default to native resolution)'),
                 type=QgsProcessingParameterNumber.Double,
                 optional=True,
                 minValue=0,
@@ -131,7 +132,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterRange(
                 name=self.RANGE,
                 description=self.tr(
-                    'The input data range to be rescaled to [0, 255]'),
+                    'The input data value range to be rescaled to [0, 255] (default to min and max values of the image)'),
                 type=QgsProcessingParameterNumber.Double,
                 defaultValue=None,
                 optional=True
@@ -140,20 +141,22 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
         self.addParameter(
             QgsProcessingParameterExtent(
-                self.EXTENT,
-                self.tr(
-                    'Processing extent'),
+                name=self.EXTENT,
+                description=self.tr(
+                    'Processing extent (default to the entire image)'),
                 optional=True
             )
         )
 
         self.addParameter(
             QgsProcessingParameterNumber(
-                self.STRIDE,
-                self.tr('Stride'),
+                name=self.STRIDE,
+                # large images will be sampled into patches in a grid-like fashion
+                description=self.tr(
+                    'Stride (the bigger the stride, the smaller the overlap)'),
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=512,
-                minValue=256,
+                minValue=1,
                 maxValue=1024
             )
         )
@@ -161,7 +164,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFile(
                 name=self.CKPT,
-                description=self.tr('Checkpoint Path'),
+                description=self.tr(
+                    'SAM checkpoint path (download in advance)'),
                 extension='pth',
             )
         )
@@ -170,7 +174,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 name=self.MODEL_TYPE,
-                description=self.tr('Model Type'),
+                description=self.tr(
+                    'SAM model type: b for base, l for large, h for huge'),
                 options=self.model_type_options,
                 defaultValue=0,  # 'vit_h'
             )
@@ -179,14 +184,14 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFolderDestination(
                 self.OUTPUT,
-                self.tr("Output Folder"),
+                self.tr("Output folder"),
             )
         )
 
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.LOAD,
-                self.tr("Load output features after processing"),
+                self.tr("Load output features in Geo-SAM tool after processing"),
                 defaultValue=True
             )
         )
@@ -206,9 +211,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
         self.selected_bands = self.parameterAsInts(
             parameters, self.BANDS, context)
-        if len(self.selected_bands) != 3:
+        if len(self.selected_bands) > 3:
             raise QgsProcessingException(
-                self.tr("SAM only supports three-band RGB image!")
+                # self.tr("SAM only supports three-band RGB image!")
+                self.tr("Please choose no more three bands")
             )
 
         ckpt_path = self.parameterAsFile(
@@ -332,6 +338,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # currently only support rgb bands
         input_bands = [rlayer.bandName(i_band)
                        for i_band in self.selected_bands]
+        # ensure only three bands are used, less than three bands will be broadcasted to three bands
+        input_bands = (input_bands * 3)[0:3]
 
         if self.res:
             rlayer_ds = SamTestRasterDataset(

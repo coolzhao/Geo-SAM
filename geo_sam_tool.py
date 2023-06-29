@@ -250,7 +250,7 @@ class Geo_SAM(QObject):
         parent_tree_layer = tree_layer.parent()
         parent_tree_layer.removeChildNode(tree_layer)
 
-    def clear_canvas_layers_safely(self, clear_extent: bool = True):
+    def clear_canvas_layers_safely(self, clear_extent: bool = False):
         '''Clear canvas layers safely'''
         if hasattr(self, "canvas_points"):
             self.canvas_points.clear()
