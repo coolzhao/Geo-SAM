@@ -41,8 +41,16 @@ Open your own terminal application, and change the directory to the QGIS Python 
 ```bash
 # Mac
 cd /Applications/QGIS.app/Contents/MacOS/bin
-# Linux (not confirmed)
-cd /<qgispath>/share/qgis/python
+# Linux (Please confirm the python env by "import qgis")
+cd /usr/bin
+```
+
+To confirm the QGIS Python environment:
+
+```bash
+./python3
+
+>>> import qgis
 ```
 
 Then install the libraries.
@@ -54,6 +62,8 @@ Then install the libraries.
 ./pip3 install segment-anything
 ./pip3 install rasterio==1.3.7
 ```
+
+
 
 ### Install the GeoSAM Plugin
 
