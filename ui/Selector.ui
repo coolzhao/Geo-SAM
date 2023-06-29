@@ -22,7 +22,7 @@
         <property name="toolTip">
          <string>Shortcut: C</string>
         </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="5,1,1">
+        <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="2,1,2,1,1">
          <property name="spacing">
           <number>5</number>
          </property>
@@ -39,14 +39,17 @@
           <number>5</number>
          </property>
          <item>
-          <widget class="QGroupBox" name="PromptSelector">
+          <widget class="QGroupBox" name="horizontalGroupBox">
            <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
              <horstretch>0</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
-           <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="2,1,2">
+           <property name="title">
+            <string>Add Points</string>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_2">
             <property name="spacing">
              <number>5</number>
             </property>
@@ -63,200 +66,170 @@
              <number>5</number>
             </property>
             <item>
-             <widget class="QGroupBox" name="horizontalGroupBox">
+             <widget class="QPushButton" name="pushButton_fg">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
-              <property name="title">
-               <string>Add Points</string>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>25</height>
+               </size>
               </property>
-              <layout class="QHBoxLayout" name="horizontalLayout_2">
-               <property name="spacing">
-                <number>5</number>
-               </property>
-               <property name="leftMargin">
-                <number>5</number>
-               </property>
-               <property name="topMargin">
-                <number>5</number>
-               </property>
-               <property name="rightMargin">
-                <number>5</number>
-               </property>
-               <property name="bottomMargin">
-                <number>5</number>
-               </property>
-               <item>
-                <widget class="QPushButton" name="pushButton_fg">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>25</height>
-                  </size>
-                 </property>
-                 <property name="toolTip">
-                  <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
-                 </property>
-                 <property name="text">
-                  <string>Foreground</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_bg">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>25</height>
-                  </size>
-                 </property>
-                 <property name="toolTip">
-                  <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
-                 </property>
-                 <property name="text">
-                  <string>Background</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
+              <property name="toolTip">
+               <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
+              </property>
+              <property name="text">
+               <string>Foreground</string>
+              </property>
              </widget>
             </item>
             <item>
-             <widget class="QGroupBox" name="BBoxPrompt">
-              <property name="enabled">
-               <bool>true</bool>
+             <widget class="QPushButton" name="pushButton_bg">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
               </property>
-              <property name="title">
-               <string>Add BBox</string>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>25</height>
+               </size>
               </property>
-              <layout class="QGridLayout" name="gridLayout_2">
-               <property name="leftMargin">
-                <number>5</number>
-               </property>
-               <property name="topMargin">
-                <number>5</number>
-               </property>
-               <property name="rightMargin">
-                <number>5</number>
-               </property>
-               <property name="bottomMargin">
-                <number>5</number>
-               </property>
-               <property name="spacing">
-                <number>5</number>
-               </property>
-               <item row="0" column="0">
-                <widget class="QPushButton" name="pushButton_rect">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>100</width>
-                   <height>25</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>16777215</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="toolTip">
-                  <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
-                 </property>
-                 <property name="text">
-                  <string>Rectangle</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
+              <property name="toolTip">
+               <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
+              </property>
+              <property name="text">
+               <string>Background</string>
+              </property>
              </widget>
             </item>
-            <item>
-             <widget class="QGroupBox" name="ClearPromptGroupBox">
-              <property name="title">
-               <string>Clear/Undo Prompts</string>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="BBoxPrompt">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+           <property name="title">
+            <string>Add BBox</string>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_2">
+            <property name="leftMargin">
+             <number>5</number>
+            </property>
+            <property name="topMargin">
+             <number>5</number>
+            </property>
+            <property name="rightMargin">
+             <number>5</number>
+            </property>
+            <property name="bottomMargin">
+             <number>5</number>
+            </property>
+            <property name="spacing">
+             <number>5</number>
+            </property>
+            <item row="0" column="0">
+             <widget class="QPushButton" name="pushButton_rect">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
               </property>
-              <layout class="QGridLayout" name="gridLayout_7">
-               <property name="leftMargin">
-                <number>5</number>
-               </property>
-               <property name="topMargin">
-                <number>5</number>
-               </property>
-               <property name="rightMargin">
-                <number>5</number>
-               </property>
-               <property name="bottomMargin">
-                <number>5</number>
-               </property>
-               <property name="spacing">
-                <number>5</number>
-               </property>
-               <item row="3" column="0">
-                <widget class="QPushButton" name="pushButton_clear">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>100</width>
-                   <height>25</height>
-                  </size>
-                 </property>
-                 <property name="toolTip">
-                  <string>Press &quot;C&quot; to clear (shortcut)</string>
-                 </property>
-                 <property name="text">
-                  <string>Clear</string>
-                 </property>
-                </widget>
-               </item>
-               <item row="3" column="1">
-                <widget class="QPushButton" name="pushButton_undo">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>100</width>
-                   <height>25</height>
-                  </size>
-                 </property>
-                 <property name="toolTip">
-                  <string>Press &quot;Z&quot; to undo (shortcut)</string>
-                 </property>
-                 <property name="text">
-                  <string>Undo</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
+              <property name="minimumSize">
+               <size>
+                <width>100</width>
+                <height>25</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
+              </property>
+              <property name="text">
+               <string>Rectangle</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="ClearPromptGroupBox">
+           <property name="title">
+            <string>Clear/Undo Prompts</string>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_7">
+            <property name="leftMargin">
+             <number>5</number>
+            </property>
+            <property name="topMargin">
+             <number>5</number>
+            </property>
+            <property name="rightMargin">
+             <number>5</number>
+            </property>
+            <property name="bottomMargin">
+             <number>5</number>
+            </property>
+            <property name="spacing">
+             <number>5</number>
+            </property>
+            <item row="3" column="0">
+             <widget class="QPushButton" name="pushButton_clear">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>100</width>
+                <height>25</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Press &quot;C&quot; to clear (shortcut)</string>
+              </property>
+              <property name="text">
+               <string>Clear</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QPushButton" name="pushButton_undo">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>100</width>
+                <height>25</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Press &quot;Z&quot; to undo (shortcut)</string>
+              </property>
+              <property name="text">
+               <string>Undo</string>
+              </property>
              </widget>
             </item>
            </layout>
@@ -355,122 +328,110 @@
           </widget>
          </item>
         </layout>
-        <zorder>PolygonGroupBox</zorder>
-        <zorder>PromptSelector</zorder>
-        <zorder>EditModeGroupBox</zorder>
        </widget>
       </item>
       <item>
        <widget class="QFrame" name="Bottom">
         <layout class="QHBoxLayout" name="Bottom_row" stretch="6,1">
+         <property name="topMargin">
+          <number>6</number>
+         </property>
          <item>
-          <widget class="QGroupBox" name="DirGroupBox">
-           <layout class="QHBoxLayout" name="horizontalLayout">
-            <property name="leftMargin">
-             <number>5</number>
+          <widget class="QSplitter" name="splitterBottom">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="handleWidth">
+            <number>20</number>
+           </property>
+           <widget class="QGroupBox" name="OutShapefileGroupBox">
+            <property name="title">
+             <string>Output shapefile.(Append)</string>
             </property>
-            <property name="rightMargin">
-             <number>5</number>
+            <layout class="QGridLayout" name="gridLayout_10">
+             <property name="leftMargin">
+              <number>5</number>
+             </property>
+             <property name="topMargin">
+              <number>5</number>
+             </property>
+             <property name="rightMargin">
+              <number>5</number>
+             </property>
+             <property name="bottomMargin">
+              <number>5</number>
+             </property>
+             <property name="spacing">
+              <number>5</number>
+             </property>
+             <item row="2" column="0">
+              <layout class="QHBoxLayout" name="horizontalLayout_dir">
+               <item>
+                <widget class="QgsFileWidget" name="QgsFile_shapefile">
+                 <property name="options">
+                  <set>QFileDialog::DontConfirmOverwrite</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButton_load_file">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>25</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Load</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QGroupBox" name="FeatureFolderGroupBox">
+            <property name="title">
+             <string>Feature Folder</string>
             </property>
-            <item>
-             <widget class="QSplitter" name="splitterBottom">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="handleWidth">
-               <number>20</number>
-              </property>
-              <widget class="QGroupBox" name="OutShapefileGroupBox">
-               <property name="title">
-                <string>Output shapefile.(Append)</string>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_10">
-                <property name="leftMargin">
-                 <number>5</number>
-                </property>
-                <property name="topMargin">
-                 <number>5</number>
-                </property>
-                <property name="rightMargin">
-                 <number>5</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>5</number>
-                </property>
-                <property name="spacing">
-                 <number>5</number>
-                </property>
-                <item row="2" column="0">
-                 <layout class="QHBoxLayout" name="horizontalLayout_dir">
-                  <item>
-                   <widget class="QgsFileWidget" name="QgsFile_shapefile">
-                    <property name="options">
-                     <set>QFileDialog::DontConfirmOverwrite</set>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="pushButton_load_file">
-                    <property name="minimumSize">
-                     <size>
-                      <width>0</width>
-                      <height>25</height>
-                     </size>
-                    </property>
-                    <property name="text">
-                     <string>Load</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-              <widget class="QGroupBox" name="FeatureFolderGroupBox">
-               <property name="title">
-                <string>Feature Folder</string>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_11">
-                <property name="leftMargin">
-                 <number>5</number>
-                </property>
-                <property name="topMargin">
-                 <number>5</number>
-                </property>
-                <property name="rightMargin">
-                 <number>5</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>5</number>
-                </property>
-                <property name="spacing">
-                 <number>5</number>
-                </property>
-                <item row="2" column="0">
-                 <layout class="QHBoxLayout" name="Feature_folder" stretch="0,0">
-                  <item>
-                   <widget class="QgsFileWidget" name="QgsFile_feature"/>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="pushButton_load_feature">
-                    <property name="minimumSize">
-                     <size>
-                      <width>0</width>
-                      <height>25</height>
-                     </size>
-                    </property>
-                    <property name="text">
-                     <string>Load</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-             </widget>
-            </item>
-           </layout>
+            <layout class="QGridLayout" name="gridLayout_11">
+             <property name="leftMargin">
+              <number>5</number>
+             </property>
+             <property name="topMargin">
+              <number>5</number>
+             </property>
+             <property name="rightMargin">
+              <number>5</number>
+             </property>
+             <property name="bottomMargin">
+              <number>5</number>
+             </property>
+             <property name="spacing">
+              <number>5</number>
+             </property>
+             <item row="2" column="0">
+              <layout class="QHBoxLayout" name="Feature_folder" stretch="0,0">
+               <item>
+                <widget class="QgsFileWidget" name="QgsFile_feature"/>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButton_load_feature">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>25</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Load</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
           </widget>
          </item>
          <item>
