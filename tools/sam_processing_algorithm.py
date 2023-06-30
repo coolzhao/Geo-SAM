@@ -398,6 +398,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             rlayer_ds, size=self.sam_model.image_encoder.img_size, stride=stride, roi=extent_bbox, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
 
         if len(ds_sampler) == 0:
+            self.load_feature = False
             feedback.pushWarning(
                 f'!!!No available patch sample inside the chosen extent!!!')
             # return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler.res),
@@ -439,6 +440,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 self.batch_input = self.rescale_img(
                     batch_input=self.batch_input, range_value=range_value)
             if not self.get_sam_feature(self.batch_input, feedback):
+                self.load_feature = False
                 break
 
             end_time = time.time()
@@ -454,6 +456,16 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             # Update the progress bar
             feedback.setProgress(int((current+1) * total))
 
+        # Return the results of the algorithm. In this case our only result is
+        # the feature sink which contains the processed features, but some
+        # algorithms may return multiple feature sinks, calculated numeric
+        # statistics, etc. These should all be included in the returned
+        # dictionary, with keys matching the feature corresponding parameter
+        # or output names.
+        return {"Output feature path": self.feature_dir, 'Patch samples saved': self.iPatch, 'Feature folder loaded': self.load_feature}
+
+    # used to handle any thread-sensitive cleanup which is required by the algorithm.
+    def postProcessAlgorithm(self, context, feedback) -> Dict[str, Any]:
         if torch.cuda.is_available() and self.use_gpu:
             # self.sam_model.to(device='cpu')
             # batch_input.to(device='cpu')
@@ -462,26 +474,21 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             if hasattr(self, 'batch_input'):
                 del self.batch_input
             torch.cuda.empty_cache()
-        # Return the results of the algorithm. In this case our only result is
-        # the feature sink which contains the processed features, but some
-        # algorithms may return multiple feature sinks, calculated numeric
-        # statistics, etc. These should all be included in the returned
-        # dictionary, with keys matching the feature corresponding parameter
-        # or output names.
-        return {"Output feature path": self.feature_dir, 'Patch samples saved': self.iPatch, self.LOAD: self.load_feature}
-
-    # used to handle any thread-sensitive cleanup which is required by the algorithm.
-    def postProcessAlgorithm(self, context, feedback) -> Dict[str, Any]:
         if self.load_feature and self.feature_dir:
-            sam_tool_action: QAction = iface.mainWindow().findChild(QAction,
-                                                                    "mActionGeoSamTool")
+            self.load_feature = self.load_feature_dir(feedback=feedback)
+        return {"Output feature path": self.feature_dir, 'Patch samples saved': self.iPatch, 'Feature folder loaded': self.load_feature}
+
+    def load_feature_dir(self, feedback: QgsProcessingFeedback) -> bool:
+        sam_tool_action: QAction = iface.mainWindow().findChild(QAction,
+                                                                "mActionGeoSamTool")
+        if sam_tool_action:
             sam_tool_action.trigger()
             start_time = time.time()
             while True:
                 if feedback.isCanceled():
                     feedback.pushInfo(
                         self.tr("Loading feature is canceled by user."))
-                    break
+                    return False
                 sam_tool_widget: QgsDockWidget = iface.mainWindow().findChild(QDockWidget, 'GeoSAM')
                 current_time = time.time()
                 elapsed_time = (current_time - start_time) * 1000
@@ -490,14 +497,16 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     load_feature_widget.setFilePath(self.feature_dir)
                     sam_tool_widget.pushButton_load_feature.click()  # try sender
                     feedback.pushInfo(
-                        f'GeoSAM widget found and load feature button clicked in {elapsed_time:.3f} ms')
-                    break
+                        f'GeoSAM widget found and features loaded in {elapsed_time:.3f} ms')
+                    return True
                 # try 3 seconds
                 if elapsed_time > 3000:
                     feedback.pushInfo(
                         f'GeoSAM widget not found {elapsed_time:.3f} ms')
-                    break
-        return {"Output feature path": self.feature_dir, 'Patch samples saved': self.iPatch, self.LOAD: self.load_feature}
+                    return False
+        else:
+            feedback.pushInfo('GeoSAM tool action not found.')
+            return False
 
     def initialize_sam(self, model_type: str, sam_ckpt_path: str) -> Sam:
         sam_model = sam_model_registry[model_type](
