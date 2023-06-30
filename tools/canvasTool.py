@@ -14,7 +14,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QKeySequence, QIcon, QColor, QCursor, QBitmap, QPixmap
 from qgis.utils import iface
 from .geoTool import ImageCRSManager, LayerExtent
-from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect
+from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect, UI_SCALE
 
 
 class RectangleMapTool(QgsMapToolEmitPoint):
@@ -253,7 +253,8 @@ class Canvas_Points:
         else:
             m.setColor(QColor(255, 0, 0))
             m.setFillColor(QColor(255, 0, 0))
-        m.setIconSize(12)
+        # m.setIconSize(12)
+        m.setIconSize(round(UI_SCALE/3))
         m.setIconType(QgsVertexMarker.ICON_CIRCLE)
 
         # add to markers and labels
@@ -392,13 +393,13 @@ class SAM_PolygonFeature:
             return self.layer.name()
         except:
             return "polygon_sam"
-    
+
     @property
     def layer_id(self):
         try:
             return self.layer.id()
         except:
-            return None      
+            return None
 
     def _load_shapefile(self, shapefile):
         '''Load the shapefile to the layer.'''

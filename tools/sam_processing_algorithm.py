@@ -467,8 +467,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     # used to handle any thread-sensitive cleanup which is required by the algorithm.
     def postProcessAlgorithm(self, context, feedback) -> Dict[str, Any]:
         if torch.cuda.is_available() and self.use_gpu:
-            # self.sam_model.to(device='cpu')
-            # batch_input.to(device='cpu')
             if hasattr(self, 'sam_model'):
                 del self.sam_model
             if hasattr(self, 'batch_input'):
