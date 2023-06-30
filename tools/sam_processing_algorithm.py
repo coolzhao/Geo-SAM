@@ -11,7 +11,6 @@ from qgis.core import (QgsProcessing, Qgis,
                        QgsCoordinateReferenceSystem,
                        QgsUnitTypes,
                        QgsRasterBandStats,
-                       QgsUnitTypes,
                        QgsCoordinateTransform,
                        QgsFeatureSink,
                        QgsProcessingException,
@@ -31,6 +30,7 @@ from qgis.core import (QgsProcessing, Qgis,
                        QgsProcessingParameterExpression,
                        QgsProcessingParameterRange,
                        QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterDefinition,
                        QgsProcessingParameterFeatureSink)
 from qgis import processing
 from segment_anything import sam_model_registry, SamPredictor
@@ -89,15 +89,13 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         with some other properties.
         """
 
-        # We add the input vector features source. It can have any kind of
-        # geometry.
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 name=self.INPUT,
-                description=self.tr('Input raster layer or tif file path')
+                description=self.tr(
+                    'Input raster layer or tif image file path')
             )
         )
-        # add ParameterRasterCalculatorExpression to normalize raster values to 0-255
 
         self.addParameter(
             QgsProcessingParameterBand(
@@ -110,36 +108,30 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             )
         )
 
-        self.addParameter(
-            QgsProcessingParameterCrs(
-                name=self.CRS,
-                description=self.tr('Target CRS (default to original CRS)'),
-                optional=True,
-            )
+        crs_param = QgsProcessingParameterCrs(
+            name=self.CRS,
+            description=self.tr('Target CRS (default to original CRS)'),
+            optional=True,
         )
 
-        self.addParameter(
-            QgsProcessingParameterNumber(
-                name=self.RESOLUTION,
-                description=self.tr(
-                    'Target resolution in meters (default to native resolution)'),
-                type=QgsProcessingParameterNumber.Double,
-                optional=True,
-                minValue=0,
-                maxValue=100000
-            )
+        res_param = QgsProcessingParameterNumber(
+            name=self.RESOLUTION,
+            description=self.tr(
+                'Target resolution in meters (default to native resolution)'),
+            type=QgsProcessingParameterNumber.Double,
+            optional=True,
+            minValue=0,
+            maxValue=100000
         )
 
         # expression for scaling the raster values to [0,255]
-        self.addParameter(
-            QgsProcessingParameterRange(
-                name=self.RANGE,
-                description=self.tr(
-                    'The input data value range to be rescaled to [0, 255] (default to min and max values of the image)'),
-                type=QgsProcessingParameterNumber.Double,
-                defaultValue=None,
-                optional=True
-            )
+        range_param = QgsProcessingParameterRange(
+            name=self.RANGE,
+            description=self.tr(
+                'The input data value range to be rescaled to [0, 255] (default to min and max values of the image)'),
+            type=QgsProcessingParameterNumber.Double,
+            defaultValue=None,
+            optional=True
         )
 
         self.addParameter(
@@ -156,7 +148,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 name=self.STRIDE,
                 # large images will be sampled into patches in a grid-like fashion
                 description=self.tr(
-                    'Stride (the bigger the stride, the smaller the overlap)'),
+                    'Stride (large image will be sampled into overlapped patches, patch size for SAM is 1024, overlap = patch size - stride)'),
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=512,
                 minValue=1,
@@ -178,16 +170,17 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterEnum(
                 name=self.MODEL_TYPE,
                 description=self.tr(
-                    'SAM model type: b for base, l for large, h for huge'),
+                    'SAM model type (b for base, l for large, h for huge)'),
                 options=self.model_type_options,
-                defaultValue=0,  # 'vit_h'
+                defaultValue=1,  # 'vit_l'
             )
         )
 
         self.addParameter(
             QgsProcessingParameterFolderDestination(
                 self.OUTPUT,
-                self.tr("Output folder"),
+                self.tr(
+                    "Output directory (choose the location that the image features will be saved)"),
             )
         )
 
@@ -219,6 +212,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 defaultValue=True
             )
         )
+
+        for param in (crs_param, res_param, range_param):
+            param.setFlags(
+                param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+            self.addParameter(param)
 
         # self.addOutput()
 
@@ -265,6 +263,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             parameters, self.OUTPUT, context)
 
         rlayer_data_provider = rlayer.dataProvider()
+
         # handle value range
         if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
             feedback.pushInfo(
@@ -278,9 +277,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             range_value[1] = band_stats.maximumValue
             feedback.pushInfo(
                 f'Input data value range to be rescaled: {range_value[0]},{range_value[1]}(automatically created based on min-max value of raster layer.)')
-        # if bbox.isNull() and not rlayer:
-        #     raise QgsProcessingException(
-        #         self.tr("No reference layer selected nor extent box provided"))
+        if range_value[0] >= range_value[1]:
+            raise QgsProcessingException(
+                self.tr("Data value range is wrongly set or the image is with constant values."))
 
         # handle crs
         if crs is None or not crs.isValid():
@@ -302,9 +301,14 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         #         self.tr("Only support CRS with the units as meters")
         #     )
 
+        if rlayer.crs().mapUnits() == Qgis.DistanceUnit.Degrees:
+            layer_units = 'degrees'
+        else:
+            layer_units = 'meters'
         # if res is not provided, get res info from rlayer
         if np.isnan(res) or res == 0:
             res = rlayer.rasterUnitsPerPixelX()  # rasterUnitsPerPixelY() is negative
+            target_units = layer_units
         else:
             # when given res in meters by users, convert crs to utm if the original crs unit is degree
             if crs.mapUnits() != Qgis.DistanceUnit.Meters:
@@ -314,6 +318,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 else:
                     raise QgsProcessingException(
                         f"Resampling of image with the CRS of {crs.authid()} in meters is not supported.")
+            target_units = 'meters'
             # else:
             #     res = (rlayer_extent.xMaximum() -
             #            rlayer_extent.xMinimum()) / rlayer.width()
@@ -344,13 +349,14 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(f'Layer name: {rlayer.name()}')
         feedback.pushInfo(f'Layer CRS is {rlayer.crs().authid()}')
         feedback.pushInfo(
-            f'Layer Pixel size is {rlayer.rasterUnitsPerPixelX()}, {rlayer.rasterUnitsPerPixelY()}')
+            f'Layer pixel size is {rlayer.rasterUnitsPerPixelX()}, {rlayer.rasterUnitsPerPixelY()} {layer_units}')
+
         feedback.pushInfo(f'Bands selected: {self.selected_bands}')
 
         feedback.pushInfo(f'Target CRS is {crs.authid()}')
         # feedback.pushInfo('Band number is {}'.format(rlayer.bandCount()))
         # feedback.pushInfo('Band name is {}'.format(rlayer.bandName(1)))
-        feedback.pushInfo(f'Target resolution: {self.res}')
+        feedback.pushInfo(f'Target resolution: {self.res} {target_units}')
         # feedback.pushInfo('Layer display band name is {}'.format(
         #     rlayer.dataProvider().displayBandName(1)))
         feedback.pushInfo(
@@ -383,57 +389,61 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             root=rlayer_dir, crs=crs.toWkt(), res=self.res, bands=input_bands, cache=False)
         # \n raster_ds crs: {str(CRS(rlayer_ds.crs))}, \
         feedback.pushInfo(
-            f'\n RasterDS info: \
-            \n filename_glob: {rlayer_ds.filename_glob} \
-            \n input bands: {rlayer_ds.bands}, \
+            f'\n RasterDataset info: \
+            \n filename_glob: {rlayer_ds.filename_glob}, \
             \n all bands: {rlayer_ds.all_bands}, \
+            \n input bands: {rlayer_ds.bands}, \
             \n resolution: {rlayer_ds.res}, \
-            \n index: {rlayer_ds.index} \n')
+            \n bounds: {rlayer_ds.index.bounds}, \
+            \n num: {len(rlayer_ds.index)}\n')
+
         extent_bbox = BoundingBox(minx=extent.xMinimum(), maxx=extent.xMaximum(), miny=extent.yMinimum(), maxy=extent.yMaximum(),
                                   mint=rlayer_ds.index.bounds[4], maxt=rlayer_ds.index.bounds[5])
 
         self.sam_model = self.initialize_sam(
             model_type=model_type, sam_ckpt_path=ckpt_path)
+
         ds_sampler = SamTestGridGeoSampler(
             rlayer_ds, size=self.sam_model.image_encoder.img_size, stride=stride, roi=extent_bbox, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
 
         if len(ds_sampler) == 0:
             self.load_feature = False
             feedback.pushWarning(
-                f'!!!No available patch sample inside the chosen extent!!!')
+                f'\n !!!No available patch sample inside the chosen extent!!! \n')
             # return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler.res),
             #         'Sample size': len(ds_sampler.size), 'Sample stride': len(ds_sampler.stride)}
 
         if torch.cuda.is_available() and self.use_gpu:
             # if self.sam_model.device != 'cpu':
             feedback.pushInfo(
-                f'sam model using {self.sam_model.device} on {torch.cuda.get_device_name(0)}, batch size set as {batch_size}')
+                f'SAM model {model_type} using {self.sam_model.device} on {torch.cuda.get_device_name(0)}, batch size set as {batch_size}')
         else:
             batch_size = 1
             feedback.pushInfo(
-                f'sam model using {self.sam_model.device}, batch size set as {batch_size}')
+                f'SAM model {model_type} using {self.sam_model.device}, batch size set as {batch_size}')
 
         ds_dataloader = DataLoader(
             rlayer_ds, batch_size=batch_size, sampler=ds_sampler, collate_fn=stack_samples)
 
         feedback.pushInfo(f'Patch sample number: {len(ds_sampler)}')
-        feedback.pushInfo(f'Total batch number: {len(ds_dataloader)}')
+        feedback.pushInfo(f'Total batch number: {len(ds_dataloader)}\n \
+                          ----------------------------------------------------')
 
         self.iPatch = 0
         self.feature_dir = ""
+        elapsed_time_list = []
         total = 100 / len(ds_dataloader) if len(ds_dataloader) else 0
         for current, batch in enumerate(ds_dataloader):
             start_time = time.time()
             # Stop the algorithm if cancel button has been clicked
             if feedback.isCanceled():
                 self.load_feature = False
-                feedback.pushInfo(self.tr("Processing is canceled by user."))
+                feedback.pushWarning(
+                    self.tr("\n !!!Processing is canceled by user!!! \n"))
                 break
             feedback.pushInfo(f'Batch no. {current+1} loaded')
-            feedback.pushInfo('img_shape: ' + ','.join(str(size)
-                              for size in list(batch['img_shape'])))
-            feedback.pushInfo('patch_size: ' + ','.join(str(size)
-                              for size in list(batch['image'].shape)))
+            feedback.pushInfo(f'img_shape: ' + str(batch['img_shape'][0]))
+            feedback.pushInfo('patch_size: ' + str(batch['image'].shape))
 
             self.batch_input = batch['image']  # .to(device=device)
             if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
@@ -446,22 +456,20 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             end_time = time.time()
             # get the execution time of sam predictor, ms
             elapsed_time = (end_time - start_time) * 1000
-            feedback.pushInfo('feature_shape:' + ','.join(str(size)
-                              for size in list(self.features.shape)))
+            elapsed_time_list.append(elapsed_time)
+            time_remain = (sum(elapsed_time_list) / len(elapsed_time_list)
+                           )*(len(ds_dataloader) - current - 1)/1000
+            feedback.pushInfo('feature_shape:' + str(self.features.shape))
             feedback.pushInfo(
-                f"SAM encoding executed with {elapsed_time:.3f} ms")
+                f"SAM encoding executed with {elapsed_time:.3f} ms, \n \
+                  Estimated time remaining: {time_remain:.3f} s \n \
+                  ----------------------------------------------------")
             self.feature_dir = self.save_sam_feature(
                 output_dir, batch, self.features, extent_bbox, model_type)
 
             # Update the progress bar
             feedback.setProgress(int((current+1) * total))
 
-        # Return the results of the algorithm. In this case our only result is
-        # the feature sink which contains the processed features, but some
-        # algorithms may return multiple feature sinks, calculated numeric
-        # statistics, etc. These should all be included in the returned
-        # dictionary, with keys matching the feature corresponding parameter
-        # or output names.
         return {"Output feature path": self.feature_dir, 'Patch samples saved': self.iPatch, 'Feature folder loaded': self.load_feature}
 
     # used to handle any thread-sensitive cleanup which is required by the algorithm.
@@ -495,15 +503,15 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     load_feature_widget.setFilePath(self.feature_dir)
                     sam_tool_widget.pushButton_load_feature.click()  # try sender
                     feedback.pushInfo(
-                        f'GeoSAM widget found and features loaded in {elapsed_time:.3f} ms')
+                        f'\n GeoSAM widget found and features loaded in {elapsed_time:.3f} ms \n')
                     return True
                 # try 3 seconds
                 if elapsed_time > 3000:
                     feedback.pushInfo(
-                        f'GeoSAM widget not found {elapsed_time:.3f} ms')
+                        f'\n GeoSAM widget not found {elapsed_time:.3f} ms \n')
                     return False
         else:
-            feedback.pushInfo('GeoSAM tool action not found.')
+            feedback.pushInfo('\n GeoSAM tool action not found. \n')
             return False
 
     def initialize_sam(self, model_type: str, sam_ckpt_path: str) -> Sam:
@@ -524,12 +532,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         except RuntimeError as inst:
             # torch.cuda.OutOfMemoryError
             if 'CUDA out of memory' in inst.args[0]:
-                # del self.sam_model, batch_input
-                # torch.cuda.empty_cache()
                 feedback.pushWarning(
-                    "\n !!!CUDA out of memory, try to choose a smaller batch size.!!!")
+                    "\n !!!CUDA out of memory, try to choose a smaller batch size or smaller version of SAM model.!!!")
                 feedback.pushWarning(
-                    f'Error type: {type(inst).__name__}, context: {inst}'
+                    f'Error type: {type(inst).__name__}, context: {inst} \n'
                 )
             # raise QgsProcessingException(
             #     f'Error type: {type(inst).__name__}, context: {inst}')
