@@ -267,7 +267,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # handle value range
         if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
             feedback.pushInfo(
-                f'Input data value range to be rescaled: {range_value[0]},{range_value[1]}')
+                f'Input data value range to be rescaled: {range_value} (set by user)')
         else:
             band_stats = rlayer_data_provider.bandStatistics(
                 bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Min)
@@ -276,7 +276,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Max)
             range_value[1] = band_stats.maximumValue
             feedback.pushInfo(
-                f'Input data value range to be rescaled: {range_value[0]},{range_value[1]}(automatically created based on min-max value of raster layer.)')
+                f'Input data value range to be rescaled: {range_value} (automatically created based on min-max value of raster layer.)')
         if range_value[0] >= range_value[1]:
             raise QgsProcessingException(
                 self.tr("Data value range is wrongly set or the image is with constant values."))
@@ -455,13 +455,14 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
             end_time = time.time()
             # get the execution time of sam predictor, ms
-            elapsed_time = (end_time - start_time) * 1000
+            elapsed_time = (end_time - start_time)
             elapsed_time_list.append(elapsed_time)
             time_remain = (sum(elapsed_time_list) / len(elapsed_time_list)
-                           )*(len(ds_dataloader) - current - 1)/1000
+                           )*(len(ds_dataloader) - current - 1)
             feedback.pushInfo('feature_shape:' + str(self.features.shape))
             feedback.pushInfo(
-                f"SAM encoding executed with {elapsed_time:.3f} ms, \n \
+                f"SAM encoder executed with {elapsed_time:.3f} s \n \
+                  Time spent: {sum(elapsed_time_list):3f} s \n \
                   Estimated time remaining: {time_remain:.3f} s \n \
                   ----------------------------------------------------")
             self.feature_dir = self.save_sam_feature(
