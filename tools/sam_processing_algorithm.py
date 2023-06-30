@@ -362,9 +362,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException(
                 self.tr("Model type does not match the checkpoint"))
 
-        self.sam_model = self.initialize_sam(
-            model_type=model_type, sam_ckpt_path=ckpt_path)
-
         # feedback.pushInfo(
         #     f'SAM Image Size: {self.sam_model.image_encoder.img_size}')
 
@@ -382,12 +379,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # ensure only three bands are used, less than three bands will be broadcasted to three bands
         input_bands = (input_bands * 3)[0:3]
 
-        if self.res:
-            rlayer_ds = SamTestRasterDataset(
-                root=rlayer_dir, crs=crs.toWkt(), res=self.res, bands=input_bands, cache=False)
-        else:
-            rlayer_ds = SamTestRasterDataset(
-                root=rlayer_dir, crs=crs.toWkt(), res=None, bands=input_bands, cache=False)
+        rlayer_ds = SamTestRasterDataset(
+            root=rlayer_dir, crs=crs.toWkt(), res=self.res, bands=input_bands, cache=False)
         # \n raster_ds crs: {str(CRS(rlayer_ds.crs))}, \
         feedback.pushInfo(
             f'\n RasterDS info: \
@@ -398,17 +391,27 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             \n index: {rlayer_ds.index} \n')
         extent_bbox = BoundingBox(minx=extent.xMinimum(), maxx=extent.xMaximum(), miny=extent.yMinimum(), maxy=extent.yMaximum(),
                                   mint=rlayer_ds.index.bounds[4], maxt=rlayer_ds.index.bounds[5])
+
+        self.sam_model = self.initialize_sam(
+            model_type=model_type, sam_ckpt_path=ckpt_path)
         ds_sampler = SamTestGridGeoSampler(
-            rlayer_ds, size=1024, stride=stride, roi=extent_bbox, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
+            rlayer_ds, size=self.sam_model.image_encoder.img_size, stride=stride, roi=extent_bbox, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
 
         if len(ds_sampler) == 0:
-            feedback.pushInfo(
-                f'No available patch sample inside the chosen extent')
-            return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler.res),
-                    'Sample size': len(ds_sampler.size), 'Sample stride': len(ds_sampler.stride)}
+            feedback.pushWarning(
+                f'!!!No available patch sample inside the chosen extent!!!')
+            # return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler.res),
+            #         'Sample size': len(ds_sampler.size), 'Sample stride': len(ds_sampler.stride)}
 
-        if not torch.cuda.is_available() or not self.use_gpu:
+        if torch.cuda.is_available() and self.use_gpu:
+            # if self.sam_model.device != 'cpu':
+            feedback.pushInfo(
+                f'sam model using {self.sam_model.device} on {torch.cuda.get_device_name(0)}, batch size set as {batch_size}')
+        else:
             batch_size = 1
+            feedback.pushInfo(
+                f'sam model using {self.sam_model.device}, batch size set as {batch_size}')
+
         ds_dataloader = DataLoader(
             rlayer_ds, batch_size=batch_size, sampler=ds_sampler, collate_fn=stack_samples)
 
@@ -431,11 +434,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             feedback.pushInfo('patch_size: ' + ','.join(str(size)
                               for size in list(batch['image'].shape)))
 
-            batch_input = batch['image']  # .to(device=device)
+            self.batch_input = batch['image']  # .to(device=device)
             if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
-                batch_input = self.rescale_img(
-                    batch_input=batch_input, range_value=range_value)
-            if not self.get_sam_feature(batch_input, feedback):
+                self.batch_input = self.rescale_img(
+                    batch_input=self.batch_input, range_value=range_value)
+            if not self.get_sam_feature(self.batch_input, feedback):
                 break
 
             end_time = time.time()
@@ -454,7 +457,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         if torch.cuda.is_available() and self.use_gpu:
             # self.sam_model.to(device='cpu')
             # batch_input.to(device='cpu')
-            del self.sam_model, batch_input
+            if hasattr(self, 'sam_model'):
+                del self.sam_model
+            if hasattr(self, 'batch_input'):
+                del self.batch_input
             torch.cuda.empty_cache()
         # Return the results of the algorithm. In this case our only result is
         # the feature sink which contains the processed features, but some
@@ -466,7 +472,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
     # used to handle any thread-sensitive cleanup which is required by the algorithm.
     def postProcessAlgorithm(self, context, feedback) -> Dict[str, Any]:
-        if self.load_feature:
+        if self.load_feature and self.feature_dir:
             sam_tool_action: QAction = iface.mainWindow().findChild(QAction,
                                                                     "mActionGeoSamTool")
             sam_tool_action.trigger()
