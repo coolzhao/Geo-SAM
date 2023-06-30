@@ -15,6 +15,7 @@ from qgis.core import (QgsProcessing, Qgis,
                        QgsCoordinateTransform,
                        QgsFeatureSink,
                        QgsProcessingException,
+                       QgsProcessingFeedback,
                        QgsProcessingAlgorithm,
                        QgsProcessingParameterRasterLayer,
                        QgsProcessingParameterFolderDestination,
@@ -203,7 +204,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 name=self.BATCH_SIZE,
                 # large images will be sampled into patches in a grid-like fashion
                 description=self.tr(
-                    'Batch size (take effect if CUDA is available)'),
+                    'Batch size (take effect if choose to use GPU and CUDA is available)'),
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=1,
                 minValue=1,
@@ -344,11 +345,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(f'Layer CRS is {rlayer.crs().authid()}')
         feedback.pushInfo(
             f'Layer Pixel size is {rlayer.rasterUnitsPerPixelX()}, {rlayer.rasterUnitsPerPixelY()}')
+        feedback.pushInfo(f'Bands selected: {self.selected_bands}')
 
         feedback.pushInfo(f'Target CRS is {crs.authid()}')
         # feedback.pushInfo('Band number is {}'.format(rlayer.bandCount()))
         # feedback.pushInfo('Band name is {}'.format(rlayer.bandName(1)))
-        feedback.pushInfo(f'Bands selected: {self.selected_bands}')
         feedback.pushInfo(f'Target resolution: {self.res}')
         # feedback.pushInfo('Layer display band name is {}'.format(
         #     rlayer.dataProvider().displayBandName(1)))
@@ -364,8 +365,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.sam_model = self.initialize_sam(
             model_type=model_type, sam_ckpt_path=ckpt_path)
 
-        feedback.pushInfo(
-            f'SAM Image Size: {self.sam_model.image_encoder.img_size}')
+        # feedback.pushInfo(
+        #     f'SAM Image Size: {self.sam_model.image_encoder.img_size}')
 
         rlayer_path = rlayer.dataProvider().dataSourceUri()
         rlayer_dir = os.path.dirname(rlayer_path)
@@ -387,11 +388,14 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         else:
             rlayer_ds = SamTestRasterDataset(
                 root=rlayer_dir, crs=crs.toWkt(), res=None, bands=input_bands, cache=False)
+        # \n raster_ds crs: {str(CRS(rlayer_ds.crs))}, \
         feedback.pushInfo(
-            f'RasterDS info, input bands: {rlayer_ds.bands}, \n all bands: {rlayer_ds.all_bands}, \
-            \n raster_ds crs: {str(CRS(rlayer_ds.crs))}, \
-            \n raster_ds res: {rlayer_ds.res}, \
-            \n raster_ds index: {rlayer_ds.index}')
+            f'\n RasterDS info: \
+            \n filename_glob: {rlayer_ds.filename_glob} \
+            \n input bands: {rlayer_ds.bands}, \
+            \n all bands: {rlayer_ds.all_bands}, \
+            \n resolution: {rlayer_ds.res}, \
+            \n index: {rlayer_ds.index} \n')
         extent_bbox = BoundingBox(minx=extent.xMinimum(), maxx=extent.xMaximum(), miny=extent.yMinimum(), maxy=extent.yMaximum(),
                                   mint=rlayer_ds.index.bounds[4], maxt=rlayer_ds.index.bounds[5])
         ds_sampler = SamTestGridGeoSampler(
@@ -403,14 +407,16 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler.res),
                     'Sample size': len(ds_sampler.size), 'Sample stride': len(ds_sampler.stride)}
 
-        feedback.pushInfo(f'Sample number: {len(ds_sampler)}')
-
         if not torch.cuda.is_available() or not self.use_gpu:
             batch_size = 1
         ds_dataloader = DataLoader(
             rlayer_ds, batch_size=batch_size, sampler=ds_sampler, collate_fn=stack_samples)
 
+        feedback.pushInfo(f'Patch sample number: {len(ds_sampler)}')
+        feedback.pushInfo(f'Total batch number: {len(ds_dataloader)}')
+
         self.iPatch = 0
+        self.feature_dir = ""
         total = 100 / len(ds_dataloader) if len(ds_dataloader) else 0
         for current, batch in enumerate(ds_dataloader):
             start_time = time.time()
@@ -419,6 +425,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 self.load_feature = False
                 feedback.pushInfo(self.tr("Processing is canceled by user."))
                 break
+            feedback.pushInfo(f'Batch no. {current+1} loaded')
             feedback.pushInfo('img_shape: ' + ','.join(str(size)
                               for size in list(batch['img_shape'])))
             feedback.pushInfo('patch_size: ' + ','.join(str(size)
@@ -428,24 +435,26 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
                 batch_input = self.rescale_img(
                     batch_input=batch_input, range_value=range_value)
-            features = self.get_sam_feature(batch_input)
+            if not self.get_sam_feature(batch_input, feedback):
+                break
 
             end_time = time.time()
             # get the execution time of sam predictor, ms
             elapsed_time = (end_time - start_time) * 1000
             feedback.pushInfo('feature_shape:' + ','.join(str(size)
-                              for size in list(features.shape)))
+                              for size in list(self.features.shape)))
             feedback.pushInfo(
                 f"SAM encoding executed with {elapsed_time:.3f} ms")
             self.feature_dir = self.save_sam_feature(
-                output_dir, batch, features, extent_bbox, model_type)
+                output_dir, batch, self.features, extent_bbox, model_type)
 
             # Update the progress bar
             feedback.setProgress(int((current+1) * total))
 
         if torch.cuda.is_available() and self.use_gpu:
-            self.sam_model.to(device='cpu')
-            batch_input.to(device='cpu')
+            # self.sam_model.to(device='cpu')
+            # batch_input.to(device='cpu')
+            del self.sam_model, batch_input
             torch.cuda.empty_cache()
         # Return the results of the algorithm. In this case our only result is
         # the feature sink which contains the processed features, but some
@@ -453,7 +462,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # statistics, etc. These should all be included in the returned
         # dictionary, with keys matching the feature corresponding parameter
         # or output names.
-        return {self.OUTPUT: self.feature_dir, 'Patch sample num': len(ds_sampler)}
+        return {"Output feature path": self.feature_dir, 'Patch samples saved': self.iPatch, self.LOAD: self.load_feature}
 
     # used to handle any thread-sensitive cleanup which is required by the algorithm.
     def postProcessAlgorithm(self, context, feedback) -> Dict[str, Any]:
@@ -482,7 +491,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     feedback.pushInfo(
                         f'GeoSAM widget not found {elapsed_time:.3f} ms')
                     break
-        return {self.OUTPUT: self.feature_dir, self.LOAD: self.load_feature}
+        return {"Output feature path": self.feature_dir, 'Patch samples saved': self.iPatch, self.LOAD: self.load_feature}
 
     def initialize_sam(self, model_type: str, sam_ckpt_path: str) -> Sam:
         sam_model = sam_model_registry[model_type](
@@ -492,15 +501,32 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         return sam_model
 
     @torch.no_grad()
-    def get_sam_feature(self, batch_input: Tensor) -> np.ndarray:
+    def get_sam_feature(self, batch_input: Tensor, feedback: QgsProcessingFeedback) -> bool:
         batch_input = batch_input.to(device=self.sam_model.device)
         batch_input = ((batch_input - self.sam_model.pixel_mean) /
                        self.sam_model.pixel_std)
         # batch_input = sam_model.preprocess(batch_input)
-        features = self.sam_model.image_encoder(batch_input)
+        try:
+            features = self.sam_model.image_encoder(batch_input)
+        except RuntimeError as inst:
+            # torch.cuda.OutOfMemoryError
+            if 'CUDA out of memory' in inst.args[0]:
+                # del self.sam_model, batch_input
+                # torch.cuda.empty_cache()
+                feedback.pushWarning(
+                    "\n !!!CUDA out of memory, try to choose a smaller batch size.!!!")
+                feedback.pushWarning(
+                    f'Error type: {type(inst).__name__}, context: {inst}'
+                )
+            # raise QgsProcessingException(
+            #     f'Error type: {type(inst).__name__}, context: {inst}')
+            return False
+        except Exception as err:
+            raise QgsProcessingException(f"Unexpected {err=}, {type(err)=}")
         # batch_input = batch_input.to(device='cpu')
         # torch.cuda.empty_cache()
-        return features.cpu().numpy()
+        self.features = features.cpu().numpy()
+        return True
 
     def rescale_img(self, batch_input: Tensor, range_value: List[float]) -> Tensor:
         'rescale input image to [0,255]'
