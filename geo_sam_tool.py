@@ -179,13 +179,13 @@ class Geo_SAM(QObject):
 
         # add widget to QGIS
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
-        QgsMessageLog.logMessage(
-            f"Geo-SAM widget name: {self.wdg_sel.objectName()}", 'Geo SAM', level=Qgis.Info)
-        sam_tool_widget = self.iface.mainWindow().findChild(QDockWidget, 'GeoSAM')
-        QgsMessageLog.logMessage(
-            f"Geo-SAM widget name found: {sam_tool_widget.objectName()}", 'Geo SAM', level=Qgis.Info)
-        QgsMessageLog.logMessage(
-            f"Sender name {self.sender()}", 'Geo SAM', level=Qgis.Info)
+        # QgsMessageLog.logMessage(
+        #     f"Geo-SAM widget name: {self.wdg_sel.objectName()}", 'Geo SAM', level=Qgis.Info)
+        # sam_tool_widget = self.iface.mainWindow().findChild(QDockWidget, 'GeoSAM')
+        # QgsMessageLog.logMessage(
+        #     f"Geo-SAM widget name found: {sam_tool_widget.objectName()}", 'Geo SAM', level=Qgis.Info)
+        # QgsMessageLog.logMessage(
+        #     f"Sender name {self.sender()}", 'Geo SAM', level=Qgis.Info)
         # sam_tool_widget.pushButton_load_feature.click()
         # self.wdg_sel.setToggleVisibilityAction()
 

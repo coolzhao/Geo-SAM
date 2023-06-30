@@ -79,6 +79,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     RANGE = 'RANGE'
     RESOLUTION = 'RESOLUTION'
     CRS = 'CRS'
+    CUDA = 'CUDA'
+    BATCH_SIZE = 'BATCH_SIZE'
 
     def initAlgorithm(self, config=None):
         """
@@ -190,6 +192,27 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
         self.addParameter(
             QgsProcessingParameterBoolean(
+                self.CUDA,
+                self.tr("Use GPU if CUDA is available."),
+                defaultValue=True
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterNumber(
+                name=self.BATCH_SIZE,
+                # large images will be sampled into patches in a grid-like fashion
+                description=self.tr(
+                    'Batch size (take effect if CUDA is available)'),
+                type=QgsProcessingParameterNumber.Integer,
+                defaultValue=1,
+                minValue=1,
+                maxValue=1024
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterBoolean(
                 self.LOAD,
                 self.tr("Load output features in Geo-SAM tool after processing"),
                 defaultValue=True
@@ -229,8 +252,12 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             parameters, self.CRS, context)
         extent = self.parameterAsExtent(
             parameters, self.EXTENT, context)
-        load_feature = self.parameterAsBoolean(
+        self.load_feature = self.parameterAsBoolean(
             parameters, self.LOAD, context)
+        self.use_gpu = self.parameterAsBoolean(
+            parameters, self.CUDA, context)
+        batch_size = self.parameterAsInt(
+            parameters, self.BATCH_SIZE, context)
         range_value = self.parameterAsRange(
             parameters, self.RANGE, context)
         output_dir = self.parameterAsString(
@@ -334,11 +361,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException(
                 self.tr("Model type does not match the checkpoint"))
 
-        sam_model = self.initialize_sam(
+        self.sam_model = self.initialize_sam(
             model_type=model_type, sam_ckpt_path=ckpt_path)
 
         feedback.pushInfo(
-            f'SAM Image Size: {sam_model.image_encoder.img_size}')
+            f'SAM Image Size: {self.sam_model.image_encoder.img_size}')
 
         rlayer_path = rlayer.dataProvider().dataSourceUri()
         rlayer_dir = os.path.dirname(rlayer_path)
@@ -378,8 +405,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
         feedback.pushInfo(f'Sample number: {len(ds_sampler)}')
 
+        if not torch.cuda.is_available() or not self.use_gpu:
+            batch_size = 1
         ds_dataloader = DataLoader(
-            rlayer_ds, batch_size=1, sampler=ds_sampler, collate_fn=stack_samples)
+            rlayer_ds, batch_size=batch_size, sampler=ds_sampler, collate_fn=stack_samples)
 
         self.iPatch = 0
         total = 100 / len(ds_dataloader) if len(ds_dataloader) else 0
@@ -387,7 +416,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             start_time = time.time()
             # Stop the algorithm if cancel button has been clicked
             if feedback.isCanceled():
-                load_feature = False
+                self.load_feature = False
                 feedback.pushInfo(self.tr("Processing is canceled by user."))
                 break
             feedback.pushInfo('img_shape: ' + ','.join(str(size)
@@ -399,7 +428,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
                 batch_input = self.rescale_img(
                     batch_input=batch_input, range_value=range_value)
-            features = self.get_sam_feature(sam_model, batch_input)
+            features = self.get_sam_feature(batch_input)
 
             end_time = time.time()
             # get the execution time of sam predictor, ms
@@ -408,24 +437,42 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                               for size in list(features.shape)))
             feedback.pushInfo(
                 f"SAM encoding executed with {elapsed_time:.3f} ms")
-            feature_dir = self.save_sam_feature(
+            self.feature_dir = self.save_sam_feature(
                 output_dir, batch, features, extent_bbox, model_type)
 
             # Update the progress bar
             feedback.setProgress(int((current+1) * total))
 
-        if load_feature:
+        if torch.cuda.is_available() and self.use_gpu:
+            self.sam_model.to(device='cpu')
+            batch_input.to(device='cpu')
+            torch.cuda.empty_cache()
+        # Return the results of the algorithm. In this case our only result is
+        # the feature sink which contains the processed features, but some
+        # algorithms may return multiple feature sinks, calculated numeric
+        # statistics, etc. These should all be included in the returned
+        # dictionary, with keys matching the feature corresponding parameter
+        # or output names.
+        return {self.OUTPUT: self.feature_dir, 'Patch sample num': len(ds_sampler)}
+
+    # used to handle any thread-sensitive cleanup which is required by the algorithm.
+    def postProcessAlgorithm(self, context, feedback) -> Dict[str, Any]:
+        if self.load_feature:
             sam_tool_action: QAction = iface.mainWindow().findChild(QAction,
                                                                     "mActionGeoSamTool")
             sam_tool_action.trigger()
             start_time = time.time()
             while True:
+                if feedback.isCanceled():
+                    feedback.pushInfo(
+                        self.tr("Loading feature is canceled by user."))
+                    break
                 sam_tool_widget: QgsDockWidget = iface.mainWindow().findChild(QDockWidget, 'GeoSAM')
                 current_time = time.time()
                 elapsed_time = (current_time - start_time) * 1000
                 if sam_tool_widget:
                     load_feature_widget: QgsFileWidget = sam_tool_widget.QgsFile_feature
-                    load_feature_widget.setFilePath(feature_dir)
+                    load_feature_widget.setFilePath(self.feature_dir)
                     sam_tool_widget.pushButton_load_feature.click()  # try sender
                     feedback.pushInfo(
                         f'GeoSAM widget found and load feature button clicked in {elapsed_time:.3f} ms')
@@ -435,29 +482,27 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     feedback.pushInfo(
                         f'GeoSAM widget not found {elapsed_time:.3f} ms')
                     break
-        # Return the results of the algorithm. In this case our only result is
-        # the feature sink which contains the processed features, but some
-        # algorithms may return multiple feature sinks, calculated numeric
-        # statistics, etc. These should all be included in the returned
-        # dictionary, with keys matching the feature corresponding parameter
-        # or output names.
-        return {self.OUTPUT: feature_dir, 'Patch sample num': len(ds_sampler)}
+        return {self.OUTPUT: self.feature_dir, self.LOAD: self.load_feature}
 
     def initialize_sam(self, model_type: str, sam_ckpt_path: str) -> Sam:
-        sam_model = sam_model_registry[model_type](checkpoint=sam_ckpt_path)
-        # self.sam_model.to(device=device)
+        sam_model = sam_model_registry[model_type](
+            checkpoint=sam_ckpt_path)
+        if torch.cuda.is_available() and self.use_gpu:
+            sam_model.to(device='cuda')
         return sam_model
 
     @torch.no_grad()
-    def get_sam_feature(self, sam_model: Sam, batch_input: Tensor) -> np.ndarray:
-        batch_input.to(device=sam_model.device)
-        batch_input = ((batch_input - sam_model.pixel_mean) /
-                       sam_model.pixel_std)
+    def get_sam_feature(self, batch_input: Tensor) -> np.ndarray:
+        batch_input = batch_input.to(device=self.sam_model.device)
+        batch_input = ((batch_input - self.sam_model.pixel_mean) /
+                       self.sam_model.pixel_std)
         # batch_input = sam_model.preprocess(batch_input)
-        features = sam_model.image_encoder(batch_input)
+        features = self.sam_model.image_encoder(batch_input)
+        # batch_input = batch_input.to(device='cpu')
+        # torch.cuda.empty_cache()
         return features.cpu().numpy()
 
-    def rescale_img(self, batch_input: np.ndarray, range_value: List[float]) -> np.ndarray:
+    def rescale_img(self, batch_input: Tensor, range_value: List[float]) -> Tensor:
         'rescale input image to [0,255]'
         range_min = range_value[0]
         range_max = range_value[1]
