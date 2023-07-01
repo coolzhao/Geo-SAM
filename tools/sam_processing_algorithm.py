@@ -82,6 +82,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     CRS = 'CRS'
     CUDA = 'CUDA'
     BATCH_SIZE = 'BATCH_SIZE'
+    CUDA_ID = 'CUDA_ID'
 
     def initAlgorithm(self, config=None):
         """
@@ -132,6 +133,17 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             type=QgsProcessingParameterNumber.Double,
             defaultValue=None,
             optional=True
+        )
+
+        cuda_id_param = QgsProcessingParameterNumber(
+            name=self.CUDA_ID,
+            # large images will be sampled into patches in a grid-like fashion
+            description=self.tr(
+                'CUDA Device ID (Choose which GPU to use, default to device 0)'),
+            type=QgsProcessingParameterNumber.Integer,
+            defaultValue=0,
+            minValue=0,
+            maxValue=9
         )
 
         self.addParameter(
@@ -213,7 +225,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             )
         )
 
-        for param in (crs_param, res_param, range_param):
+        for param in (crs_param, res_param, range_param, cuda_id_param):
             param.setFlags(
                 param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
             self.addParameter(param)
@@ -261,6 +273,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             parameters, self.RANGE, context)
         output_dir = self.parameterAsString(
             parameters, self.OUTPUT, context)
+        self.cuda_id = self.parameterAsInt(
+            parameters, self.CUDA_ID, context)
 
         rlayer_data_provider = rlayer.dataProvider()
 
@@ -421,14 +435,15 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
               SAM model type:  {model_type}')
         if torch.cuda.is_available() and self.use_gpu:
             feedback.pushInfo(
-                f'Device type: {self.sam_model.device} on {torch.cuda.get_device_name(0)}')
+                f'Device type: {self.sam_model.device} on {torch.cuda.get_device_name(self.sam_model.device)}')
         else:
             batch_size = 1
             feedback.pushInfo(
                 f'Device type: {self.sam_model.device}')
 
         feedback.pushInfo(
-            f'Batch size: {batch_size}')
+            f'Patch size: {ds_sampler.patch_size} \n \
+            Batch size: {batch_size}')
         ds_dataloader = DataLoader(
             rlayer_ds, batch_size=batch_size, sampler=ds_sampler, collate_fn=stack_samples)
 
@@ -468,11 +483,28 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             time_remain = (time_spent / (current + 1)) * \
                 (len(ds_dataloader) - current - 1)
             feedback.pushInfo('feature_shape:' + str(self.features.shape))
+
+            # TODO: show gpu usage info
+            # if torch.cuda.is_available() and self.use_gpu:
+            #     gpu_mem_used = torch.cuda.max_memory_reserved(self.sam_model.device) / (1024 ** 3)
+            #     # gpu_mem_free = torch.cuda.mem_get_info(self.sam_model.device)[0] / (1024 ** 3)
+            #     gpu_mem_total = torch.cuda.mem_get_info(self.sam_model.device)[1] / (1024 ** 3)
+            #     feedback.pushInfo(
+            #         f'GPU memory usage: {gpu_mem_used:.2f}GB / {gpu_mem_total:.2f}GB')
+            #     feedback.pushInfo(str(torch.cuda.memory_summary(self.sam_model.device)))
+
             feedback.pushInfo(
-                f"SAM encoder executed with {elapsed_time:.3f} s \n \
-                  Time spent: {time_spent:.3f} s \n \
-                  Estimated time remaining: {time_remain:.3f} s \n \
-                  ----------------------------------------------------")
+                f"SAM encoder executed with {elapsed_time:.3f}s \n \
+                  Time spent: {time_spent:.3f}s")
+            if time_remain <= 60:
+                feedback.pushInfo(f"Estimated time remaining: {time_remain:.3f}s \n \
+                                  ----------------------------------------------------")
+            else:
+                time_remain_m, time_remain_s = divmod(int(time_remain), 60)
+                time_remain_h, time_remain_m = divmod(time_remain_m, 60)
+                feedback.pushInfo(f"Estimated time remaining: {time_remain_h:d}h:{time_remain_m:02d}m:{time_remain_s:02d}s \n \
+                                  ----------------------------------------------------")
+
             self.feature_dir = self.save_sam_feature(
                 output_dir, batch, self.features, extent_bbox, model_type)
 
@@ -527,7 +559,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         sam_model = sam_model_registry[model_type](
             checkpoint=sam_ckpt_path)
         if torch.cuda.is_available() and self.use_gpu:
-            sam_model.to(device='cuda')
+            if self.cuda_id + 1 > torch.cuda.device_count():
+                self.cuda_id = torch.cuda.device_count() - 1
+            cuda_device = f'cuda:{self.cuda_id}'
+            sam_model.to(device=cuda_device)
         return sam_model
 
     @torch.no_grad()
