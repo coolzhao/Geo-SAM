@@ -362,6 +362,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(
             (f'Processing extent: minx:{extent.xMinimum():.6f}, maxx:{extent.xMaximum():.6f},'
              f'miny:{extent.yMinimum():.6f}, maxy:{extent.yMaximum():.6f}'))
+        feedback.pushInfo(
+            (f'Processing image size: (width {round((extent.xMaximum() - extent.xMinimum())/self.res)}, '
+             f'height {round((extent.yMaximum() - extent.yMinimum())/self.res)})'))
 
         model_type = self.model_type_options[model_type_idx]
         if model_type not in os.path.basename(ckpt_path):
@@ -413,20 +416,24 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             # return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler.res),
             #         'Sample size': len(ds_sampler.size), 'Sample stride': len(ds_sampler.stride)}
 
+        feedback.pushInfo(
+            f'SAM model initialized. \n \
+              SAM model type:  {model_type}')
         if torch.cuda.is_available() and self.use_gpu:
-            # if self.sam_model.device != 'cpu':
             feedback.pushInfo(
-                f'SAM model {model_type} using {self.sam_model.device} on {torch.cuda.get_device_name(0)}, batch size set as {batch_size}')
+                f'Device type: {self.sam_model.device} on {torch.cuda.get_device_name(0)}')
         else:
             batch_size = 1
             feedback.pushInfo(
-                f'SAM model {model_type} using {self.sam_model.device}, batch size set as {batch_size}')
+                f'Device type: {self.sam_model.device}')
 
+        feedback.pushInfo(
+            f'Batch size: {batch_size}')
         ds_dataloader = DataLoader(
             rlayer_ds, batch_size=batch_size, sampler=ds_sampler, collate_fn=stack_samples)
 
-        feedback.pushInfo(f'Patch sample number: {len(ds_sampler)}')
-        feedback.pushInfo(f'Total batch number: {len(ds_dataloader)}\n \
+        feedback.pushInfo(f'Patch sample num: {len(ds_sampler)}')
+        feedback.pushInfo(f'Total batch num: {len(ds_dataloader)}\n \
                           ----------------------------------------------------')
 
         self.iPatch = 0
@@ -457,12 +464,13 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             # get the execution time of sam predictor, ms
             elapsed_time = (end_time - start_time)
             elapsed_time_list.append(elapsed_time)
-            time_remain = (sum(elapsed_time_list) / len(elapsed_time_list)
-                           )*(len(ds_dataloader) - current - 1)
+            time_spent = sum(elapsed_time_list)
+            time_remain = (time_spent / (current + 1)) * \
+                (len(ds_dataloader) - current - 1)
             feedback.pushInfo('feature_shape:' + str(self.features.shape))
             feedback.pushInfo(
                 f"SAM encoder executed with {elapsed_time:.3f} s \n \
-                  Time spent: {sum(elapsed_time_list):3f} s \n \
+                  Time spent: {time_spent:.3f} s \n \
                   Estimated time remaining: {time_remain:.3f} s \n \
                   ----------------------------------------------------")
             self.feature_dir = self.save_sam_feature(
