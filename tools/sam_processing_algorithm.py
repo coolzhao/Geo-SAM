@@ -7,6 +7,7 @@ from qgis.PyQt.QtWidgets import QAction, QDockWidget
 from qgis.gui import QgsDockWidget, QgsFileWidget
 from qgis.utils import iface
 from qgis.core import (QgsProcessing, Qgis,
+                       QgsGeometry,
                        QgsRectangle,
                        QgsCoordinateReferenceSystem,
                        QgsUnitTypes,
@@ -278,23 +279,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
         rlayer_data_provider = rlayer.dataProvider()
 
-        # handle value range
-        if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
-            feedback.pushInfo(
-                f'Input data value range to be rescaled: {range_value} (set by user)')
-        else:
-            band_stats = rlayer_data_provider.bandStatistics(
-                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Min)
-            range_value[0] = band_stats.minimumValue
-            band_stats = rlayer_data_provider.bandStatistics(
-                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Max)
-            range_value[1] = band_stats.maximumValue
-            feedback.pushInfo(
-                f'Input data value range to be rescaled: {range_value} (automatically created based on min-max value of raster layer.)')
-        if range_value[0] >= range_value[1]:
-            raise QgsProcessingException(
-                self.tr("Data value range is wrongly set or the image is with constant values."))
-
         # handle crs
         if crs is None or not crs.isValid():
             crs = rlayer.crs()
@@ -341,19 +325,57 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # handle extent
         if extent.isNull():
             extent = rlayer.extent()  # QgsProcessingUtils.combineLayerExtents(layers, crs, context)
-            # rlayer_extent = rlayer.extent()
             extent_crs = rlayer.crs()
         else:
+            if extent.isEmpty():
+                raise QgsProcessingException(
+                    self.tr("The extent for processing can not be empty!"))
             extent_crs = self.parameterAsExtentCrs(
                 parameters, self.EXTENT, context)
         # if extent crs != target crs, convert it to target crs
         if extent_crs != crs:
             transform = QgsCoordinateTransform(
                 extent_crs, crs, context.transformContext())
-            extent = transform.transformBoundingBox(extent)
-            # if rlayer.crs().mapUnits() != Qgis.DistanceUnit.Meters:
-            #     rlayer_extent = transform.transformBoundingBox(
-            #         rlayer.extent())
+            # extent = transform.transformBoundingBox(extent)
+            # to ensure coverage of the transformed extent
+            # convert extent to polygon, transform polygon, then get boundingBox of the new polygon
+            extent_polygon = QgsGeometry.fromRect(extent)
+            extent_polygon.transform(transform)
+            extent = extent_polygon.boundingBox()
+
+        # check intersects between extent and rlayer_extent
+        if rlayer.crs() != crs:
+            transform = QgsCoordinateTransform(
+                rlayer.crs(), crs, context.transformContext())
+            rlayer_extent = transform.transformBoundingBox(
+                rlayer.extent())
+        else:
+            rlayer_extent = rlayer.extent()
+        if not rlayer_extent.intersects(extent):
+            raise QgsProcessingException(
+                self.tr("The extent for processing is not intersected with the input image!"))
+
+        model_type = self.model_type_options[model_type_idx]
+        if model_type not in os.path.basename(ckpt_path):
+            raise QgsProcessingException(
+                self.tr("Model type does not match the checkpoint"))
+
+        # handle value range
+        if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
+            feedback.pushInfo(
+                f'Input data value range to be rescaled: {range_value} (set by user)')
+        else:
+            band_stats = rlayer_data_provider.bandStatistics(
+                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Min)
+            range_value[0] = band_stats.minimumValue
+            band_stats = rlayer_data_provider.bandStatistics(
+                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Max)
+            range_value[1] = band_stats.maximumValue
+            feedback.pushInfo(
+                f'Input data value range to be rescaled: {range_value} (automatically set based on min-max value of input image.)')
+        if range_value[0] >= range_value[1]:
+            raise QgsProcessingException(
+                self.tr("Data value range is wrongly set or the image is with constant values."))
 
         # Send some information to the user
         feedback.pushInfo(
@@ -379,11 +401,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(
             (f'Processing image size: (width {round((extent.xMaximum() - extent.xMinimum())/self.res)}, '
              f'height {round((extent.yMaximum() - extent.yMinimum())/self.res)})'))
-
-        model_type = self.model_type_options[model_type_idx]
-        if model_type not in os.path.basename(ckpt_path):
-            raise QgsProcessingException(
-                self.tr("Model type does not match the checkpoint"))
 
         # feedback.pushInfo(
         #     f'SAM Image Size: {self.sam_model.image_encoder.img_size}')
@@ -467,10 +484,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             feedback.pushInfo(f'img_shape: ' + str(batch['img_shape'][0]))
             feedback.pushInfo('patch_size: ' + str(batch['image'].shape))
 
-            self.batch_input = batch['image']  # .to(device=device)
-            if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
-                self.batch_input = self.rescale_img(
-                    batch_input=self.batch_input, range_value=range_value)
+            self.batch_input = self.rescale_img(
+                batch_input=batch['image'], range_value=range_value)
+
             if not self.get_sam_feature(self.batch_input, feedback):
                 self.load_feature = False
                 break
