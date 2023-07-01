@@ -63,6 +63,12 @@ Then install the libraries.
 ./pip3 install rasterio==1.3.7
 ```
 
+For Linux users, if `pip3` is not found in `/usr/bin`, try the following commands:
+
+```bash
+sudo apt-get update
+sudo apt-get install python3-pip
+```
 
 
 ### Install the GeoSAM Plugin
