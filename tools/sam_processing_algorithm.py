@@ -635,7 +635,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             bbox_list = [bbox.minx, bbox.miny, bbox.maxx, bbox.maxy]
             bbox_str = '_'.join(map("{:.6f}".format, bbox_list))
             extent_list = [extent.minx, extent.miny, extent.maxx, extent.maxy]
-            extent_str = '_'.join(map("{:.6f}".format, extent_list))
+            extent_str = '_'.join(map("{:.6f}".format, extent_list)) + f"_res_{self.res:.6f}"
             #  Unicode-objects must be encoded before hashing with hashlib and
             #  because strings in Python 3 are Unicode by default (unlike Python 2),
             #  you'll need to encode the string using the .encode method.
@@ -645,7 +645,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
             bands_str = '_'.join([str(band) for band in self.selected_bands])
             export_dir_sub = (export_dir / filepath.stem /
-                              f"sam_feat_{model_type}_res_{round(self.res)}m_bands_{bands_str}_{extent_hash[0:16]}")
+                              f"sam_feat_{model_type}_bands_{bands_str}_{extent_hash[0:16]}")
             export_dir_sub.mkdir(parents=True, exist_ok=True)
             feature_tiff = (export_dir_sub /
                             f"sam_feat_{model_type}_{bbox_hash}.tif")
@@ -666,6 +666,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 tags = {
                     "img_shape": data_batch["img_shape"][idx],
                     "input_shape": data_batch["input_shape"][idx],
+                    "model_type": model_type,
                 }
                 feature_dataset.update_tags(**tags)
                 feature_res = feature_dataset.res[0]
@@ -683,7 +684,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             index_df['mint'] = [bbox.mint]
             index_df['maxt'] = [bbox.maxt]
             index_df['crs'] = [str(feature_crs)]
-            index_df['res'] = [feature_res]
+            index_df['res'] = [self.res]
+            index_df['model_type'] = [model_type]
             # append data frame to CSV file, index=False
             index_df.to_csv(feature_csv, mode='a',
                             header=not feature_csv.exists(), index=True)

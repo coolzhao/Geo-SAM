@@ -51,7 +51,7 @@ class SAM_Model:
         self.extent = QgsRectangle(
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
 
-    def sam_predict(self, canvas_points: Canvas_Points, canvas_rect: Canvas_Rectangle, sam_polygon: SAM_PolygonFeature):
+    def sam_predict(self, canvas_points: Canvas_Points, canvas_rect: Canvas_Rectangle, sam_polygon: SAM_PolygonFeature) -> bool:
         extent_union = LayerExtent.union_extent(
             canvas_points.extent, canvas_rect.extent)
 
@@ -71,16 +71,15 @@ class SAM_Model:
         if len(test_sampler) == 0:
             mb = QMessageBox()
             # ,  please press CMD/Ctrl+Z to undo the edit
-            mb.setText('Point is located outside of the image boundary')
+            mb.setText(
+                'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
             mb.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
             return_value = mb.exec()
             # TODO: Clear last point falls outside the boundary
             if return_value == QMessageBox.Ok:
-                print('You pressed OK')
+                return False
             elif return_value == QMessageBox.Cancel:
-                print('You pressed Cancel')
-
-            return False
+                return True
 
         for query in test_sampler:
             # different query than last time, update feature

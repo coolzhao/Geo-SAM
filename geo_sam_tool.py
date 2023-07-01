@@ -381,8 +381,9 @@ class Geo_SAM(QObject):
             self.sam_feature_history.append([last_id])
 
         # execute segmentation
-        self.sam_model.sam_predict(
-            self.canvas_points, self.canvas_rect, self.polygon)
+        if not self.sam_model.sam_predict(
+                self.canvas_points, self.canvas_rect, self.polygon):
+            self.undo_last_prompt()
         self.topping_polygon_sam_layer()
 
     def draw_foreground_point(self):
