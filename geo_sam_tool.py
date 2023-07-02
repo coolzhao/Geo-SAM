@@ -366,7 +366,7 @@ class Geo_SAM(QObject):
         self.load_shp_file()
 
     def execute_segmentation(self) -> bool:
-        # check inside feature extent
+        # check last prompt inside feature extent
         if len(self.prompt_history) > 0:
             prompt_last = self.prompt_history[-1]
             if prompt_last == 'bbox':
