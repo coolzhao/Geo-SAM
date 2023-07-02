@@ -165,21 +165,24 @@ class Geo_SAM(QObject):
             # self.shortcut_show_hide_extent.activatedAmbiguously.connect(
             #    self.hide_sam_feature_extent)
 
-            self.wdg_sel.setFloating(True)
+            # self.wdg_sel.setFloating(True)
 
             # default is fgpt, but do not change when reloading feature folder
             # self.reset_prompt_type()
             self.dockFirstOpen = False
+            # add widget to QGIS
+            self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
         else:
             self.clear_layers(clear_extent=True)
 
         self.enable_disable_edit_mode()
         self.show_hide_sam_feature_extent()
+
+        if not self.wdg_sel.isUserVisible():
+            self.wdg_sel.setUserVisible(True)
         # if self.wdg_sel.radioButton_enable.isChecked():
         #     self.reset_prompt_type()
 
-        # add widget to QGIS
-        self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
         # QgsMessageLog.logMessage(
         #     f"Geo-SAM widget name: {self.wdg_sel.objectName()}", 'Geo SAM', level=Qgis.Info)
         # sam_tool_widget = self.iface.mainWindow().findChild(QDockWidget, 'GeoSAM')
