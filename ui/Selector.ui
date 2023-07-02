@@ -12,7 +12,7 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>768</width>
+    <width>0</width>
     <height>0</height>
    </size>
   </property>
@@ -34,13 +34,16 @@
    </property>
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <layout class="QGridLayout" name="gridLayout_5">
+     <layout class="QGridLayout" name="gridLayout_5" rowstretch="0,0">
+      <property name="verticalSpacing">
+       <number>0</number>
+      </property>
       <item row="0" column="0">
        <widget class="QFrame" name="Top">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
           <horstretch>0</horstretch>
-          <verstretch>1</verstretch>
+          <verstretch>0</verstretch>
          </sizepolicy>
         </property>
         <property name="maximumSize">
@@ -71,7 +74,7 @@
          <item>
           <widget class="QGroupBox" name="horizontalGroupBox">
            <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
              <horstretch>0</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>
@@ -362,7 +365,7 @@
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
           <horstretch>0</horstretch>
-          <verstretch>1</verstretch>
+          <verstretch>0</verstretch>
          </sizepolicy>
         </property>
         <property name="maximumSize">
@@ -370,6 +373,9 @@
           <width>16777215</width>
           <height>100</height>
          </size>
+        </property>
+        <property name="saveCollapsedState">
+         <bool>false</bool>
         </property>
         <layout class="QHBoxLayout" name="horizontalLayout" stretch="9,1">
          <property name="spacing">
@@ -389,6 +395,12 @@
          </property>
          <item>
           <widget class="QSplitter" name="splitterBottom">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
