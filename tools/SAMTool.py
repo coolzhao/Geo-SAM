@@ -57,7 +57,7 @@ class SAM_Model:
 
         if extent_union is None:
             sam_polygon.rollback_changes()
-            return False
+            return True
 
         min_x, max_x, min_y, max_y = extent_union
 

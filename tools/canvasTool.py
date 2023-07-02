@@ -1,11 +1,11 @@
-from typing import List
+from typing import List, Any
 import os
 from PyQt5 import QtGui
 import numpy as np
 from pathlib import Path
 from rasterio.transform import rowcol, Affine
 from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle, Qgis, QgsMessageLog
-from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker
+from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker, QgsMapCanvas
 from qgis.core import (
     QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFields, QgsFillSymbol, QgsApplication,
     QgsGeometry, QgsFeature, QgsVectorLayer)
@@ -17,91 +17,14 @@ from .geoTool import ImageCRSManager, LayerExtent
 from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect, UI_SCALE
 
 
-class RectangleMapTool(QgsMapToolEmitPoint):
-    '''A map tool to draw a rectangle on canvas'''
-
-    def __init__(self, canvas_rect, prompt_history, execute_SAM, img_crs_manager: ImageCRSManager):
-        self.qgis_project = QgsProject.instance()
-        self.canvas_rect = canvas_rect
-        self.prompt_history = prompt_history
-        self.rubberBand = canvas_rect.rubberBand
-        self.execute_SAM = execute_SAM
-        self.img_crs_manager = img_crs_manager
-        QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
-        self.setCursor(CursorRect)
-
-        self.reset()
-
-    def reset(self):
-        self.startPoint = self.endPoint = None
-        self.isEmittingPoint = False
-        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
-
-    def canvasPressEvent(self, e):
-        self.startPoint = self.toMapCoordinates(e.pos())
-        self.endPoint = self.startPoint
-        self.isEmittingPoint = True
-        self.showRect(self.startPoint, self.endPoint)
-
-    def canvasReleaseEvent(self, e):
-        self.isEmittingPoint = False
-        box_geo = self.rectangle()
-        if box_geo is not None:
-            self.canvas_rect.box_geo = box_geo
-            self.prompt_history.append('bbox')
-            self.execute_SAM.emit()
-
-    def canvasMoveEvent(self, e):
-        if not self.isEmittingPoint:
-            return
-
-        self.endPoint = self.toMapCoordinates(e.pos())
-        self.showRect(self.startPoint, self.endPoint)
-
-    def showRect(self, startPoint, endPoint):
-        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
-        if startPoint.x() == endPoint.x() or startPoint.y() == endPoint.y():
-            return
-
-        point1 = QgsPointXY(startPoint.x(), startPoint.y())
-        point2 = QgsPointXY(startPoint.x(), endPoint.y())
-        point3 = QgsPointXY(endPoint.x(), endPoint.y())
-        point4 = QgsPointXY(endPoint.x(), startPoint.y())
-
-        self.rubberBand.addPoint(point1, False)
-        self.rubberBand.addPoint(point2, False)
-        self.rubberBand.addPoint(point3, False)
-        self.rubberBand.addPoint(point4, True)    # true to update canvas
-        self.rubberBand.show()
-
-    def rectangle(self):
-        '''Returns a rectangle from two points with img crs'''
-        if self.startPoint is None or self.endPoint is None:
-            return None
-        elif (self.startPoint.x() == self.endPoint.x() or
-              self.startPoint.y() == self.endPoint.y()):
-            return None
-        else:
-            # startPoint endPoint transform
-            if self.qgis_project.crs() != self.img_crs_manager.img_crs:
-                self.startPoint = self.img_crs_manager.point_to_img_crs(
-                    self.startPoint, self.qgis_project.crs())
-                self.endPoint = self.img_crs_manager.point_to_img_crs(
-                    self.endPoint, self.qgis_project.crs())
-            return [self.startPoint.x(), self.startPoint.y(), self.endPoint.x(), self.endPoint.y()]
-
-    def deactivate(self):
-        QgsMapTool.deactivate(self)
-        self.deactivated.emit()
-
-
 class Canvas_Rectangle:
     '''A class to manage Rectangle on canvas.'''
 
-    def __init__(self, canvas, img_crs_manager: ImageCRSManager, use_type='bbox'):
+    def __init__(self, canvas: QgsMapCanvas, img_crs_manager: ImageCRSManager, use_type='bbox'):
         self.canvas = canvas
         self.qgis_project = QgsProject.instance()
-        self.box_geo = None
+        self.rect_list = []
+        # self.box_geo = None
         self.img_crs_manager = img_crs_manager
         self.rubberBand = QgsRubberBand(
             self.canvas, QgsWkbTypes.PolygonGeometry)
@@ -142,11 +65,54 @@ class Canvas_Rectangle:
         '''Clear the rectangle on canvas'''
         self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
         self.canvas.refresh()
-        self.box_geo = None
+        self.rect_list.clear()
+
+    def addRect(self, startPoint: QgsPointXY, endPoint: QgsPointXY):
+        self.rect_list.append((startPoint, endPoint))
+
+    def popRect(self):
+        if len(self.rect_list) > 0:
+            self.rect_list.pop()
+            if len(self.rect_list) > 0:
+                startPoint, endPoint = self.rect_list[-1]
+                self.showRect(startPoint, endPoint)
+            else:
+                self.clear()
+
+    def showRect(self, startPoint, endPoint):
+        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
+        if startPoint.x() == endPoint.x() or startPoint.y() == endPoint.y():
+            return None
+
+        point1 = QgsPointXY(startPoint.x(), startPoint.y())
+        point2 = QgsPointXY(startPoint.x(), endPoint.y())
+        point3 = QgsPointXY(endPoint.x(), endPoint.y())
+        point4 = QgsPointXY(endPoint.x(), startPoint.y())
+
+        self.rubberBand.addPoint(point1, False)
+        self.rubberBand.addPoint(point2, False)
+        self.rubberBand.addPoint(point3, False)
+        self.rubberBand.addPoint(point4, True)    # true to update canvas
+        self.rubberBand.show()
+
+    @property
+    def box_geo(self):
+        '''Returns a rectangle from two points with img crs'''
+        if len(self.rect_list) == 0:
+            return None
+        else:
+            # startPoint endPoint transform
+            startPoint, endPoint = self.rect_list[-1]
+            if self.qgis_project.crs() != self.img_crs_manager.img_crs:
+                startPoint = self.img_crs_manager.point_to_img_crs(
+                    startPoint, self.qgis_project.crs())
+                endPoint = self.img_crs_manager.point_to_img_crs(
+                    endPoint, self.qgis_project.crs())
+            return [startPoint.x(), startPoint.y(), endPoint.x(), endPoint.y()]
 
     @property
     def extent(self):
-        '''Return the extent of the rectangle'''
+        '''Return the extent of the rectangle (minX, maxX. minY, maxY)'''
         if self.box_geo is not None:
             extent = [
                 min(self.box_geo[0], self.box_geo[2]),
@@ -158,11 +124,11 @@ class Canvas_Rectangle:
         else:
             return None
 
-    def get_img_box(self, tf):
+    def get_img_box(self, transform):
         '''Return the box for SAM image'''
         if self.box_geo is not None:
-            rowcol1 = rowcol(tf, self.box_geo[0], self.box_geo[1])
-            rowcol2 = rowcol(tf, self.box_geo[2], self.box_geo[3])
+            rowcol1 = rowcol(transform, self.box_geo[0], self.box_geo[1])
+            rowcol2 = rowcol(transform, self.box_geo[2], self.box_geo[3])
             box = [
                 min(rowcol1[1], rowcol2[1]),
                 min(rowcol1[0], rowcol2[0]),
@@ -174,10 +140,59 @@ class Canvas_Rectangle:
             return None
 
 
+class RectangleMapTool(QgsMapToolEmitPoint):
+    '''A map tool to draw a rectangle on canvas'''
+
+    def __init__(self, canvas_rect: Canvas_Rectangle, prompt_history: List[Any], execute_SAM, img_crs_manager: ImageCRSManager):
+        self.qgis_project = QgsProject.instance()
+        self.canvas_rect = canvas_rect
+        self.prompt_history = prompt_history
+        self.execute_SAM = execute_SAM
+        self.img_crs_manager = img_crs_manager
+        QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
+        self.setCursor(CursorRect)
+
+        self.reset()
+
+    def reset(self):
+        self.startPoint = self.endPoint = None
+        self.isEmittingPoint = False
+        self.canvas_rect.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
+
+    def canvasPressEvent(self, e):
+        self.startPoint = self.toMapCoordinates(e.pos())
+        self.endPoint = self.startPoint
+        self.isEmittingPoint = True
+        self.canvas_rect.showRect(self.startPoint, self.endPoint)
+
+    def canvasReleaseEvent(self, e):
+        self.isEmittingPoint = False
+        if self.startPoint is None or self.endPoint is None:
+            return None
+        elif (self.startPoint.x() == self.endPoint.x() or
+              self.startPoint.y() == self.endPoint.y()):
+            return None
+        else:
+            self.canvas_rect.addRect(self.startPoint, self.endPoint)
+            self.prompt_history.append('bbox')
+            self.execute_SAM.emit()
+
+    def canvasMoveEvent(self, e):
+        if not self.isEmittingPoint:
+            return
+
+        self.endPoint = self.toMapCoordinates(e.pos())
+        self.canvas_rect.showRect(self.startPoint, self.endPoint)
+
+    def deactivate(self):
+        QgsMapTool.deactivate(self)
+        self.deactivated.emit()
+
+
 class Canvas_Extent:
     '''A class to manage feature Extent on canvas.'''
 
-    def __init__(self, canvas, img_crs_manager: ImageCRSManager) -> None:
+    def __init__(self, canvas: QgsMapCanvas, img_crs_manager: ImageCRSManager) -> None:
         self.canvas = canvas
         self.img_crs_manager = img_crs_manager
 
@@ -216,7 +231,7 @@ class Canvas_Points:
     A class to manage points on canvas.
     """
 
-    def __init__(self, canvas, img_crs_manager: ImageCRSManager):
+    def __init__(self, canvas: QgsMapCanvas, img_crs_manager: ImageCRSManager):
         '''
         Parameters:
         ----------
@@ -268,12 +283,13 @@ class Canvas_Points:
 
     def popPoint(self):
         """remove the last marker"""
-        m = self.markers.pop()
-        self.canvas.scene().removeItem(m)
-        self.points_img_crs.pop()
-        self.labels.pop()
+        if len(self.markers) > 0:
+            m = self.markers.pop()
+            self.canvas.scene().removeItem(m)
+            self.points_img_crs.pop()
+            self.labels.pop()
 
-        self._update_extent()
+            self._update_extent()
 
     def clear(self):
         """remove all markers"""

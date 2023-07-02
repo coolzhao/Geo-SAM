@@ -4,7 +4,7 @@ from typing import List
 from pathlib import Path
 from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication
 from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
-from qgis.core import QgsRasterLayer
+from qgis.core import QgsRasterLayer, QgsRectangle
 from qgis.PyQt.QtWidgets import QDockWidget
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtWidgets import (
@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QShortcut,
     QToolBar,
+    QMessageBox,
 )
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 from PyQt5 import uic
@@ -313,10 +314,10 @@ class Geo_SAM(QObject):
         if len(self.prompt_history) > 0:
             prompt_last = self.prompt_history.pop()
             if prompt_last == 'bbox':
-                self.canvas_rect.clear()
+                # self.canvas_rect.clear()
+                self.canvas_rect.popRect()
             else:
-                if len(self.canvas_points.markers) > 0:
-                    self.canvas_points.popPoint()
+                self.canvas_points.popPoint()
             self.execute_SAM.emit()
 
     def enable_disable_edit_mode(self):
@@ -364,7 +365,22 @@ class Geo_SAM(QObject):
                 return None
         self.load_shp_file()
 
-    def execute_segmentation(self):
+    def execute_segmentation(self) -> bool:
+        # check inside feature extent
+        if len(self.prompt_history) > 0:
+            prompt_last = self.prompt_history[-1]
+            if prompt_last == 'bbox':
+                last_rect = self.canvas_rect.extent
+                last_prompt = QgsRectangle(
+                    last_rect[0], last_rect[2], last_rect[1], last_rect[3])
+            else:
+                last_point = self.canvas_points.points_img_crs[-1]
+                last_prompt = QgsRectangle(last_point, last_point)
+            if not last_prompt.intersects(self.sam_model.extent):
+                if not self.message_box_outside():
+                    self.undo_last_prompt()
+                return False
+
         self.ensure_polygon_sam_exist()
 
         # add last id to history
@@ -385,6 +401,8 @@ class Geo_SAM(QObject):
                 self.canvas_points, self.canvas_rect, self.polygon):
             self.undo_last_prompt()
         self.topping_polygon_sam_layer()
+
+        return True
 
     def draw_foreground_point(self):
         '''draw foreground point in canvas'''
@@ -514,3 +532,15 @@ class Geo_SAM(QObject):
     def encodeImage(self):
         '''Convert layer containing a point x & y coordinate to a new point layer'''
         processing.execAlgorithmDialog('geo_sam:geo_sam_encoder', {})
+
+    def message_box_outside(self):
+        mb = QMessageBox()
+        mb.setText(
+            'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
+        mb.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        return_value = mb.exec()
+        # TODO: Clear last point falls outside the boundary
+        if return_value == QMessageBox.Ok:
+            return False
+        elif return_value == QMessageBox.Cancel:
+            return True
