@@ -249,7 +249,12 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         if len(self.selected_bands) > 3:
             raise QgsProcessingException(
                 # self.tr("SAM only supports three-band RGB image!")
-                self.tr("Please choose no more three bands")
+                self.tr("Please choose no more than three bands!")
+            )
+        if max(self.selected_bands) > rlayer.bandCount():
+            raise QgsProcessingException(
+                # self.tr("SAM only supports three-band RGB image!")
+                self.tr("The chosen bands exceed the largest band number!")
             )
 
         ckpt_path = self.parameterAsFile(
@@ -419,8 +424,12 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # ensure only three bands are used, less than three bands will be broadcasted to three bands
         input_bands = (input_bands * 3)[0:3]
 
-        rlayer_ds = SamTestRasterDataset(
-            root=rlayer_dir, crs=crs.toWkt(), res=self.res, bands=input_bands, cache=False)
+        if crs == rlayer.crs():
+            rlayer_ds = SamTestRasterDataset(
+                root=rlayer_dir, crs=None, res=self.res, bands=input_bands, cache=False)
+        else:
+            rlayer_ds = SamTestRasterDataset(
+                root=rlayer_dir, crs=crs.toWkt(), res=self.res, bands=input_bands, cache=False)
         # \n raster_ds crs: {str(CRS(rlayer_ds.crs))}, \
         feedback.pushInfo(
             f'\n RasterDataset info: \
