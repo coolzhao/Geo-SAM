@@ -1,0 +1,5 @@
+This tool helps to preprocess geospatial images and generate image features using SAM image encoder.
+The generated image features can then be used in our Geo-SAM tool to label the landforms by adding points and bounding box prompts.
+
+First, select raster layer or image file supported by rasterio.
+Second, 

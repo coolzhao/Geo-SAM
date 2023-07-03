@@ -50,6 +50,7 @@ from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
 from ..ui.icons import QIcon_GeoSAMEncoder
+from ..docs import encoder_help
 
 
 class SamProcessingAlgorithm(QgsProcessingAlgorithm):
@@ -799,14 +800,13 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         should provide a basic description about what the algorithm does and the
         parameters and outputs associated with it..
         """
-        return self.tr("Generate image features using SAM image encoder.")
+        file = encoder_help
+        if not os.path.exists(file):
+            return self.tr("Generate image features using SAM image encoder.")
+        with open(file) as help_file:
+            help_str = help_file.read()
+        return help_str
+        # return self.tr("Generate image features using SAM image encoder.")
 
     def icon(self):
         return QIcon_GeoSAMEncoder
-
-
-class SamEncoder:
-    def __init__(self, ckp_path: str, model_type: str = "vit_h", device: str = "cpu") -> None:
-        sam_checkpoint = "./checkpoint/sam_vit_h_4b8939.pth"
-        self.model_type = model_type
-        device = "cuda"
