@@ -95,7 +95,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterRasterLayer(
                 name=self.INPUT,
                 description=self.tr(
-                    'Input raster layer or tif image file path')
+                    'Input raster layer or image file path')
             )
         )
 
@@ -103,10 +103,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterBand(
                 name=self.BANDS,
                 description=self.tr(
-                    'Select no more than three bands (preferably in R G B order)'),
-                defaultValue=[1, 2, 3],
+                    'Select no more than 3 bands (preferably in RGB order, default to first 3 available bands)'),
+                # defaultValue=[1, 2, 3],
                 parentLayerParameterName=self.INPUT,
-                allowMultiple=True
+                optional=True,
+                allowMultiple=True,
             )
         )
 
@@ -130,7 +131,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         range_param = QgsProcessingParameterRange(
             name=self.RANGE,
             description=self.tr(
-                'The input data value range to be rescaled to [0, 255] (default to min and max values of the image)'),
+                'Data value range to be rescaled to [0, 255] (default to [min, max] of the image values inside processing extent)'),
             type=QgsProcessingParameterNumber.Double,
             defaultValue=None,
             optional=True
@@ -161,7 +162,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 name=self.STRIDE,
                 # large images will be sampled into patches in a grid-like fashion
                 description=self.tr(
-                    'Stride (large image will be sampled into overlapped patches, patch size for SAM is 1024, overlap = patch size - stride)'),
+                    'Stride (large image will be sampled into overlapped patches, overlap = patch_size(1024) - stride)'),
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=512,
                 minValue=1,
@@ -238,6 +239,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         Here is where the processing itself takes place.
         """
 
+        self.iPatch = 0
+        self.feature_dir = ""
+
         rlayer = self.parameterAsRasterLayer(
             parameters, self.INPUT, context)
         if rlayer is None:
@@ -246,14 +250,17 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
         self.selected_bands = self.parameterAsInts(
             parameters, self.BANDS, context)
+
+        if len(self.selected_bands) == 0:
+            max_band = min(3, rlayer.bandCount())
+            self.selected_bands = list(range(1, max_band+1))
+
         if len(self.selected_bands) > 3:
             raise QgsProcessingException(
-                # self.tr("SAM only supports three-band RGB image!")
                 self.tr("Please choose no more than three bands!")
             )
         if max(self.selected_bands) > rlayer.bandCount():
             raise QgsProcessingException(
-                # self.tr("SAM only supports three-band RGB image!")
                 self.tr("The chosen bands exceed the largest band number!")
             )
 
@@ -347,6 +354,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             extent_polygon = QgsGeometry.fromRect(extent)
             extent_polygon.transform(transform)
             extent = extent_polygon.boundingBox()
+            extent_crs = crs
 
         # check intersects between extent and rlayer_extent
         if rlayer.crs() != crs:
@@ -365,19 +373,37 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException(
                 self.tr("Model type does not match the checkpoint"))
 
+        img_width_in_extent = round(
+            (extent.xMaximum() - extent.xMinimum())/self.res)
+        img_height_in_extent = round(
+            (extent.yMaximum() - extent.yMinimum())/self.res)
         # handle value range
         if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
             feedback.pushInfo(
                 f'Input data value range to be rescaled: {range_value} (set by user)')
         else:
+            if extent_crs == rlayer.crs():
+                stat_extent = extent
+            else:
+                transform = QgsCoordinateTransform(
+                    extent_crs, rlayer.crs(), context.transformContext())
+                stat_extent = transform.transformBoundingBox(
+                    extent)
+            start_time = time.time()
+            # set sample size to limit statistic time
+            sample_size = min(1e8, img_height_in_extent*img_width_in_extent)
             band_stats = rlayer_data_provider.bandStatistics(
-                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Min)
+                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.All, extent=stat_extent, sampleSize=sample_size)
             range_value[0] = band_stats.minimumValue
-            band_stats = rlayer_data_provider.bandStatistics(
-                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.Max)
             range_value[1] = band_stats.maximumValue
+            end_time = time.time()
+            elapsed_time = (end_time - start_time)
             feedback.pushInfo(
-                f'Input data value range to be rescaled: {range_value} (automatically set based on min-max value of input image.)')
+                f'Input data value range to be rescaled: {range_value} (automatically set based on min-max value of input image inside the processing extent.)')
+            feedback.pushInfo(
+                f'Band statistics took time {elapsed_time:.3f}s'
+            )
+
         if range_value[0] >= range_value[1]:
             raise QgsProcessingException(
                 self.tr("Data value range is wrongly set or the image is with constant values."))
@@ -388,13 +414,20 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # feedback.pushInfo(
         #     f'Layer band scale: {rlayer_data_provider.bandScale(self.selected_bands[0])}')
         feedback.pushInfo(f'Layer name: {rlayer.name()}')
-        feedback.pushInfo(f'Layer CRS is {rlayer.crs().authid()}')
+        if rlayer.crs().authid():
+            feedback.pushInfo(f'Layer CRS: {rlayer.crs().authid()}')
+        else:
+            feedback.pushInfo(
+                f'Layer CRS in WKT format: {rlayer.crs().toWkt()}')
         feedback.pushInfo(
-            f'Layer pixel size is {rlayer.rasterUnitsPerPixelX()}, {rlayer.rasterUnitsPerPixelY()} {layer_units}')
+            f'Layer pixel size: {rlayer.rasterUnitsPerPixelX()}, {rlayer.rasterUnitsPerPixelY()} {layer_units}')
 
         feedback.pushInfo(f'Bands selected: {self.selected_bands}')
 
-        feedback.pushInfo(f'Target CRS is {crs.authid()}')
+        if crs.authid():
+            feedback.pushInfo(f'Target CRS: {crs.authid()}')
+        else:
+            feedback.pushInfo(f'Target CRS in WKT format: {crs.toWkt()}')
         # feedback.pushInfo('Band number is {}'.format(rlayer.bandCount()))
         # feedback.pushInfo('Band name is {}'.format(rlayer.bandName(1)))
         feedback.pushInfo(f'Target resolution: {self.res} {target_units}')
@@ -404,8 +437,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             (f'Processing extent: minx:{extent.xMinimum():.6f}, maxx:{extent.xMaximum():.6f},'
              f'miny:{extent.yMinimum():.6f}, maxy:{extent.yMaximum():.6f}'))
         feedback.pushInfo(
-            (f'Processing image size: (width {round((extent.xMaximum() - extent.xMinimum())/self.res)}, '
-             f'height {round((extent.yMaximum() - extent.yMinimum())/self.res)})'))
+            (f'Processing image size: (width {img_width_in_extent}, '
+             f'height {img_height_in_extent})'))
 
         # feedback.pushInfo(
         #     f'SAM Image Size: {self.sam_model.image_encoder.img_size}')
@@ -439,6 +472,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             \n resolution: {rlayer_ds.res}, \
             \n bounds: {rlayer_ds.index.bounds}, \
             \n num: {len(rlayer_ds.index)}\n')
+
+        # feedback.pushInfo(f'raster dataset crs: {rlayer_ds.crs}')
 
         extent_bbox = BoundingBox(minx=extent.xMinimum(), maxx=extent.xMaximum(), miny=extent.yMinimum(), maxy=extent.yMaximum(),
                                   mint=rlayer_ds.index.bounds[4], maxt=rlayer_ds.index.bounds[5])
@@ -477,8 +512,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(f'Total batch num: {len(ds_dataloader)}\n \
                           ----------------------------------------------------')
 
-        self.iPatch = 0
-        self.feature_dir = ""
         elapsed_time_list = []
         total = 100 / len(ds_dataloader) if len(ds_dataloader) else 0
         for current, batch in enumerate(ds_dataloader):
@@ -644,7 +677,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             bbox_list = [bbox.minx, bbox.miny, bbox.maxx, bbox.maxy]
             bbox_str = '_'.join(map("{:.6f}".format, bbox_list))
             extent_list = [extent.minx, extent.miny, extent.maxx, extent.maxy]
-            extent_str = '_'.join(map("{:.6f}".format, extent_list)) + f"_res_{self.res:.6f}"
+            extent_str = '_'.join(
+                map("{:.6f}".format, extent_list)) + f"_res_{self.res:.6f}"
             #  Unicode-objects must be encoded before hashing with hashlib and
             #  because strings in Python 3 are Unicode by default (unlike Python 2),
             #  you'll need to encode the string using the .encode method.
