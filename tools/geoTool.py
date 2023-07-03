@@ -11,7 +11,7 @@ class ImageCRSManager:
     def __init__(self, img_crs) -> None:
         self.img_crs = QgsCoordinateReferenceSystem(
             img_crs)  # from str to QgsCRS
-        print(self.img_crs.authid())
+        # print(self.img_crs.authid())
 
     def img_point_to_crs(
         self, point: QgsPointXY, dst_crs: QgsCoordinateReferenceSystem
@@ -25,13 +25,15 @@ class ImageCRSManager:
         dst_crs: QgsCoordinateReferenceSystem
             destination crs for point
         """
+        if dst_crs == self.img_crs:
+            return point
         transform = QgsCoordinateTransform(
             self.img_crs, dst_crs, QgsProject.instance())
         point_transformed = transform.transform(point)
         return point_transformed
 
     def point_to_img_crs(
-        self, point: QgsPointXY, point_crs: QgsCoordinateReferenceSystem
+        self, point: QgsPointXY, dst_crs: QgsCoordinateReferenceSystem
     ):
         """transform point from point crs to this image crs
 
@@ -42,8 +44,10 @@ class ImageCRSManager:
         point_crs: QgsCoordinateReferenceSystem
             crs of point
         """
+        if dst_crs == self.img_crs:
+            return point
         transform = QgsCoordinateTransform(
-            point_crs, self.img_crs, QgsProject.instance()
+            dst_crs, self.img_crs, QgsProject.instance()
         )
         point_transformed = transform.transform(point)  # direction can be used
         return point_transformed
@@ -60,6 +64,8 @@ class ImageCRSManager:
         dst_crs: QgsCoordinateReferenceSystem
             destination crs for extent
         """
+        if dst_crs == self.img_crs:
+            return extent
         transform = QgsCoordinateTransform(
             dst_crs, self.img_crs, QgsProject.instance())
         extent_transformed = transform.transformBoundingBox(extent)
@@ -75,6 +81,8 @@ class ImageCRSManager:
         dst_crs: QgsCoordinateReferenceSystem
             destination crs for extent
         '''
+        if dst_crs == self.img_crs:
+            return extent
         transform = QgsCoordinateTransform(
             self.img_crs, dst_crs, QgsProject.instance())
         extent_transformed = transform.transformBoundingBox(extent)

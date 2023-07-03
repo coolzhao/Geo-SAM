@@ -103,11 +103,10 @@ class Canvas_Rectangle:
         else:
             # startPoint endPoint transform
             startPoint, endPoint = self.rect_list[-1]
-            if self.qgis_project.crs() != self.img_crs_manager.img_crs:
-                startPoint = self.img_crs_manager.point_to_img_crs(
-                    startPoint, self.qgis_project.crs())
-                endPoint = self.img_crs_manager.point_to_img_crs(
-                    endPoint, self.qgis_project.crs())
+            startPoint = self.img_crs_manager.point_to_img_crs(
+                startPoint, self.qgis_project.crs())
+            endPoint = self.img_crs_manager.point_to_img_crs(
+                endPoint, self.qgis_project.crs())
             return [startPoint.x(), startPoint.y(), endPoint.x(), endPoint.y()]
 
     @property
@@ -500,9 +499,8 @@ class SAM_PolygonFeature:
             for coord in coordinates:
                 # transform pointXY from img_crs to polygon layer crs, if not match
                 point = QgsPointXY(*coord)
-                if self.layer.crs() != self.img_crs_manager.img_crs:
-                    point = self.img_crs_manager.img_point_to_crs(
-                        point, self.layer.crs())
+                point = self.img_crs_manager.img_point_to_crs(
+                    point, self.layer.crs())
                 points.append(point)
 
             # Add a new feature and assign the geometry
