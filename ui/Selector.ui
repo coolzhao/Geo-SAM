@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>787</width>
-    <height>184</height>
+    <width>880</width>
+    <height>273</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -130,7 +130,7 @@
               <property name="minimumSize">
                <size>
                 <width>0</width>
-                <height>25</height>
+                <height>0</height>
                </size>
               </property>
               <property name="toolTip">
@@ -180,19 +180,7 @@
            <property name="alignment">
             <set>Qt::AlignHCenter|Qt::AlignTop</set>
            </property>
-           <layout class="QGridLayout" name="gridLayout_7" rowstretch="0" columnstretch="0">
-            <property name="leftMargin">
-             <number>11</number>
-            </property>
-            <property name="topMargin">
-             <number>11</number>
-            </property>
-            <property name="rightMargin">
-             <number>11</number>
-            </property>
-            <property name="bottomMargin">
-             <number>11</number>
-            </property>
+           <layout class="QGridLayout" name="gridLayout_7">
             <item row="0" column="0">
              <widget class="QPushButton" name="pushButton_rect">
               <property name="sizePolicy">
@@ -387,9 +375,6 @@
          <bool>false</bool>
         </property>
         <layout class="QHBoxLayout" name="horizontalLayout" stretch="9,1">
-         <property name="spacing">
-          <number>3</number>
-         </property>
          <property name="leftMargin">
           <number>3</number>
          </property>
@@ -403,18 +388,9 @@
           <number>3</number>
          </property>
          <item>
-          <widget class="QSplitter" name="splitterBottom">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
+          <widget class="QSplitter" name="splitter">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="handleWidth">
-            <number>10</number>
            </property>
            <widget class="QGroupBox" name="OutShapefileGroupBox">
             <property name="title">
@@ -423,8 +399,8 @@
             <property name="alignment">
              <set>Qt::AlignHCenter|Qt::AlignTop</set>
             </property>
-            <layout class="QGridLayout" name="gridLayout_9">
-             <item row="0" column="0">
+            <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="0,0">
+             <item>
               <widget class="QgsFileWidget" name="QgsFile_shapefile">
                <property name="toolTip">
                 <string>Input or choose the shape file path to append the polygon results</string>
@@ -434,7 +410,7 @@
                </property>
               </widget>
              </item>
-             <item row="0" column="1">
+             <item>
               <widget class="QPushButton" name="pushButton_load_file">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -444,7 +420,7 @@
                </property>
                <property name="minimumSize">
                 <size>
-                 <width>50</width>
+                 <width>0</width>
                  <height>0</height>
                 </size>
                </property>
@@ -465,15 +441,15 @@
             <property name="alignment">
              <set>Qt::AlignHCenter|Qt::AlignTop</set>
             </property>
-            <layout class="QGridLayout" name="gridLayout_8" columnstretch="0,0">
-             <item row="0" column="0">
+            <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0,0">
+             <item>
               <widget class="QgsFileWidget" name="QgsFile_feature">
                <property name="toolTip">
                 <string>Input or choose the image feature folder to load</string>
                </property>
               </widget>
              </item>
-             <item row="0" column="1">
+             <item>
               <widget class="QPushButton" name="pushButton_load_feature">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -483,7 +459,7 @@
                </property>
                <property name="minimumSize">
                 <size>
-                 <width>50</width>
+                 <width>0</width>
                  <height>0</height>
                 </size>
                </property>
@@ -507,23 +483,8 @@
            <property name="alignment">
             <set>Qt::AlignHCenter|Qt::AlignTop</set>
            </property>
-           <layout class="QGridLayout" name="feature_extent">
-            <property name="leftMargin">
-             <number>5</number>
-            </property>
-            <property name="topMargin">
-             <number>5</number>
-            </property>
-            <property name="rightMargin">
-             <number>5</number>
-            </property>
-            <property name="bottomMargin">
-             <number>5</number>
-            </property>
-            <property name="spacing">
-             <number>5</number>
-            </property>
-            <item row="1" column="0">
+           <layout class="QGridLayout" name="gridLayout_10">
+            <item row="0" column="0">
              <widget class="QRadioButton" name="radioButton_show_extent">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
