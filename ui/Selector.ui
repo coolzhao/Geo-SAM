@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>852</width>
-    <height>174</height>
+    <width>787</width>
+    <height>184</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -32,7 +32,7 @@
    <property name="maximumSize">
     <size>
      <width>16777215</width>
-     <height>200</height>
+     <height>250</height>
     </size>
    </property>
    <layout class="QGridLayout" name="gridLayout">
@@ -70,18 +70,18 @@
         <property name="toolTip">
          <string/>
         </property>
-        <layout class="QHBoxLayout" name="top_row" stretch="6,3,6,3,2">
+        <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="6,3,6,3,2">
          <property name="spacing">
-          <number>1</number>
+          <number>3</number>
          </property>
          <property name="leftMargin">
-          <number>1</number>
+          <number>3</number>
          </property>
          <property name="topMargin">
-          <number>1</number>
+          <number>3</number>
          </property>
          <property name="rightMargin">
-          <number>1</number>
+          <number>3</number>
          </property>
          <property name="bottomMargin">
           <number>1</number>
@@ -100,23 +100,14 @@
            <property name="title">
             <string>Add Points</string>
            </property>
-           <layout class="QGridLayout" name="gridLayout_3">
-            <property name="leftMargin">
-             <number>5</number>
-            </property>
-            <property name="topMargin">
-             <number>5</number>
-            </property>
-            <property name="rightMargin">
-             <number>5</number>
-            </property>
-            <property name="bottomMargin">
-             <number>5</number>
-            </property>
+           <property name="alignment">
+            <set>Qt::AlignHCenter|Qt::AlignTop</set>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_2" columnstretch="1,1" columnminimumwidth="0,0">
             <item row="0" column="0">
              <widget class="QPushButton" name="pushButton_fg">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -138,7 +129,7 @@
             <item row="0" column="1">
              <widget class="QPushButton" name="pushButton_bg">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -171,26 +162,26 @@
            <property name="title">
             <string>Add BBox</string>
            </property>
-           <layout class="QGridLayout" name="gridLayout_2">
+           <property name="alignment">
+            <set>Qt::AlignHCenter|Qt::AlignTop</set>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_7">
             <property name="leftMargin">
-             <number>5</number>
+             <number>11</number>
             </property>
             <property name="topMargin">
-             <number>5</number>
+             <number>11</number>
             </property>
             <property name="rightMargin">
-             <number>5</number>
+             <number>11</number>
             </property>
             <property name="bottomMargin">
-             <number>5</number>
-            </property>
-            <property name="spacing">
-             <number>5</number>
+             <number>11</number>
             </property>
             <item row="0" column="0">
              <widget class="QPushButton" name="pushButton_rect">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -224,28 +215,16 @@
             <string>Press &quot;C&quot; to clear all prompts, &quot;Z&quot; to undo last prompt </string>
            </property>
            <property name="title">
-            <string>Clear/Undo Prompts</string>
+            <string>Clear/Undo</string>
            </property>
-           <layout class="QGridLayout" name="gridLayout_7">
-            <property name="leftMargin">
-             <number>5</number>
-            </property>
-            <property name="topMargin">
-             <number>5</number>
-            </property>
-            <property name="rightMargin">
-             <number>5</number>
-            </property>
-            <property name="bottomMargin">
-             <number>5</number>
-            </property>
-            <property name="spacing">
-             <number>5</number>
-            </property>
-            <item row="3" column="0">
+           <property name="alignment">
+            <set>Qt::AlignHCenter|Qt::AlignTop</set>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_6" columnstretch="1,1">
+            <item row="0" column="0">
              <widget class="QPushButton" name="pushButton_clear">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -264,10 +243,10 @@
               </property>
              </widget>
             </item>
-            <item row="3" column="1">
+            <item row="0" column="1">
              <widget class="QPushButton" name="pushButton_undo">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -295,28 +274,16 @@
             <string>Press &quot;S&quot; to save current segementation results</string>
            </property>
            <property name="title">
-            <string>Save Polygon</string>
+            <string>Save Results</string>
            </property>
-           <layout class="QGridLayout" name="gridLayout_4">
-            <property name="leftMargin">
-             <number>5</number>
-            </property>
-            <property name="topMargin">
-             <number>5</number>
-            </property>
-            <property name="rightMargin">
-             <number>5</number>
-            </property>
-            <property name="bottomMargin">
-             <number>5</number>
-            </property>
-            <property name="spacing">
-             <number>5</number>
-            </property>
-            <item row="1" column="0">
+           <property name="alignment">
+            <set>Qt::AlignHCenter|Qt::AlignTop</set>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_3">
+            <item row="0" column="0">
              <widget class="QPushButton" name="pushButton_save">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -331,7 +298,7 @@
                <string>Save current segmentation results (S)</string>
               </property>
               <property name="text">
-               <string>Save </string>
+               <string>Save</string>
               </property>
              </widget>
             </item>
@@ -343,26 +310,14 @@
            <property name="title">
             <string>Mode</string>
            </property>
-           <layout class="QGridLayout" name="EditMode">
-            <property name="leftMargin">
-             <number>5</number>
-            </property>
-            <property name="topMargin">
-             <number>5</number>
-            </property>
-            <property name="rightMargin">
-             <number>5</number>
-            </property>
-            <property name="bottomMargin">
-             <number>5</number>
-            </property>
-            <property name="spacing">
-             <number>5</number>
-            </property>
-            <item row="1" column="0">
+           <property name="alignment">
+            <set>Qt::AlignHCenter|Qt::AlignTop</set>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_4">
+            <item row="0" column="0">
              <widget class="QRadioButton" name="radioButton_enable">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -401,7 +356,7 @@
         <property name="maximumSize">
          <size>
           <width>16777215</width>
-          <height>100</height>
+          <height>120</height>
          </size>
         </property>
         <property name="saveCollapsedState">
@@ -409,19 +364,19 @@
         </property>
         <layout class="QHBoxLayout" name="horizontalLayout" stretch="9,1">
          <property name="spacing">
-          <number>1</number>
+          <number>3</number>
          </property>
          <property name="leftMargin">
-          <number>1</number>
+          <number>3</number>
          </property>
          <property name="topMargin">
           <number>1</number>
          </property>
          <property name="rightMargin">
-          <number>1</number>
+          <number>3</number>
          </property>
          <property name="bottomMargin">
-          <number>1</number>
+          <number>3</number>
          </property>
          <item>
           <widget class="QSplitter" name="splitterBottom">
@@ -435,57 +390,47 @@
             <enum>Qt::Horizontal</enum>
            </property>
            <property name="handleWidth">
-            <number>20</number>
+            <number>10</number>
            </property>
            <widget class="QGroupBox" name="OutShapefileGroupBox">
             <property name="title">
              <string>Output shapefile.(Append)</string>
             </property>
-            <layout class="QGridLayout" name="gridLayout_10">
-             <property name="leftMargin">
-              <number>5</number>
-             </property>
-             <property name="topMargin">
-              <number>5</number>
-             </property>
-             <property name="rightMargin">
-              <number>5</number>
-             </property>
-             <property name="bottomMargin">
-              <number>5</number>
-             </property>
-             <property name="spacing">
-              <number>5</number>
-             </property>
-             <item row="2" column="0">
-              <layout class="QHBoxLayout" name="horizontalLayout_dir">
-               <item>
-                <widget class="QgsFileWidget" name="QgsFile_shapefile">
-                 <property name="toolTip">
-                  <string>Input or choose the shape file path to append the polygon results</string>
-                 </property>
-                 <property name="options">
-                  <set>QFileDialog::DontConfirmOverwrite</set>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_load_file">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="toolTip">
-                  <string>Press to import the shapefile</string>
-                 </property>
-                 <property name="text">
-                  <string>Import</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
+            <property name="alignment">
+             <set>Qt::AlignHCenter|Qt::AlignTop</set>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_9">
+             <item row="0" column="0">
+              <widget class="QgsFileWidget" name="QgsFile_shapefile">
+               <property name="toolTip">
+                <string>Input or choose the shape file path to append the polygon results</string>
+               </property>
+               <property name="options">
+                <set>QFileDialog::DontConfirmOverwrite</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QPushButton" name="pushButton_load_file">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>50</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Press to import the shapefile</string>
+               </property>
+               <property name="text">
+                <string>Import</string>
+               </property>
+              </widget>
              </item>
             </layout>
            </widget>
@@ -493,48 +438,38 @@
             <property name="title">
              <string>Feature Folder</string>
             </property>
-            <layout class="QGridLayout" name="gridLayout_11">
-             <property name="leftMargin">
-              <number>5</number>
-             </property>
-             <property name="topMargin">
-              <number>5</number>
-             </property>
-             <property name="rightMargin">
-              <number>5</number>
-             </property>
-             <property name="bottomMargin">
-              <number>5</number>
-             </property>
-             <property name="spacing">
-              <number>5</number>
-             </property>
-             <item row="2" column="0">
-              <layout class="QHBoxLayout" name="Feature_folder" stretch="0,0">
-               <item>
-                <widget class="QgsFileWidget" name="QgsFile_feature">
-                 <property name="toolTip">
-                  <string>Input or choose the image feature folder to load</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_load_feature">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="toolTip">
-                  <string>Press to load the image feature</string>
-                 </property>
-                 <property name="text">
-                  <string>Load</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
+            <property name="alignment">
+             <set>Qt::AlignHCenter|Qt::AlignTop</set>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_8" columnstretch="0,0">
+             <item row="0" column="0">
+              <widget class="QgsFileWidget" name="QgsFile_feature">
+               <property name="toolTip">
+                <string>Input or choose the image feature folder to load</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QPushButton" name="pushButton_load_feature">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>50</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Press to load the image feature</string>
+               </property>
+               <property name="text">
+                <string>Load</string>
+               </property>
+              </widget>
              </item>
             </layout>
            </widget>
@@ -544,6 +479,9 @@
           <widget class="QGroupBox" name="EditModeGroupBox_2">
            <property name="title">
             <string>Extent</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignHCenter|Qt::AlignTop</set>
            </property>
            <layout class="QGridLayout" name="feature_extent">
             <property name="leftMargin">
@@ -564,7 +502,7 @@
             <item row="1" column="0">
              <widget class="QRadioButton" name="radioButton_show_extent">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
