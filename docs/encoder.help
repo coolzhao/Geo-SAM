@@ -3,3 +3,13 @@ The generated image features can then be used in our Geo-SAM tool to label the l
 
 First, select raster layer or image file supported by rasterio.
 Second, 
+
+Tips for making encoding process faster:
+
+extent
+resolution
+stride
+sam model type
+GPU
+batch_size
+value range
