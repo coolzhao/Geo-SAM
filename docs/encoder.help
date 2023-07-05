@@ -1,15 +1,11 @@
-This tool helps to preprocess geospatial images and generate image features using SAM image encoder.
-The generated image features can then be used in our Geo-SAM tool to label the landforms by adding points and bounding box prompts.
+This tool helps to preprocess geospatial images and generate image features using the SAM image encoder. The generated image features can then be used in our Geo-SAM tool to label the landforms by adding points and bounding box prompts.
 
-First, select raster layer or image file supported by rasterio.
-Second, 
+After selecting the raster layer or image file you want to process, you should also choose the proper bands. The SAM natively supports only three-band RGB images, but we have adapted the tool to support one or two-band images so that you can try grayscale images or NDVI spectral index images. 
+
+Since SAM only supports input image sizes of (1024, 1204), small images will be resized to match the input size, while large images will be sampled into overlapped patches in a grid-like fashion. The stride parameter will determine the overlap behavior.
+
+SAM model checkpoints should be downloaded in advance, and there are three versions available. You need to specify the model type which should match the checkpoint chosen.
 
 Tips for making encoding process faster:
 
-extent
-resolution
-stride
-sam model type
-GPU
-batch_size
-value range
+1. Choose smaller processing extent; 2. Reduce target resolution; 3. Increase stride to minimize overlap; 4. Choose a smaller version of sam model; 5. Use GPU; 6. Increase batch_size when using a GPU with sufficient gpu memory;
