@@ -132,7 +132,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         range_param = QgsProcessingParameterRange(
             name=self.RANGE,
             description=self.tr(
-                'Data value range to be rescaled to [0, 255] (default to [min, max] of the image values inside processing extent)'),
+                'Data value range to be rescaled to [0, 255] (default to [min, max] of the values)'),  # inside processing extent
             type=QgsProcessingParameterNumber.Double,
             defaultValue=None,
             optional=True
@@ -142,7 +142,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             name=self.CUDA_ID,
             # large images will be sampled into patches in a grid-like fashion
             description=self.tr(
-                'CUDA Device ID (Choose which GPU to use, default to device 0)'),
+                'CUDA Device ID (choose which GPU to use, default to device 0)'),
             type=QgsProcessingParameterNumber.Integer,
             defaultValue=0,
             minValue=0,
@@ -163,7 +163,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 name=self.STRIDE,
                 # large images will be sampled into patches in a grid-like fashion
                 description=self.tr(
-                    'Stride (large image will be sampled into overlapped patches, overlap = patch_size(1024) - stride)'),
+                    'Stride (large image will be sampled into overlapped patches)'),
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=512,
                 minValue=1,
