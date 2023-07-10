@@ -51,34 +51,34 @@ class Geo_SAM(QObject):
     def initGui(self):
         self.initProcessing()
 
-        self.toolbar: QToolBar = self.iface.addToolBar('Geo-SAM Toolbar')
+        self.toolbar: QToolBar = self.iface.addToolBar('Geo SAM Toolbar')
         self.toolbar.setObjectName('mGeoSamToolbar')
-        self.toolbar.setToolTip('Geo-SAM Toolbar')
+        self.toolbar.setToolTip('Geo SAM Toolbar')
 
         self.actionSamTool = QAction(
             QIcon_GeoSAMTool,
-            "Geo-SAM Tool",
+            "Geo SAM Segmentation Tool",
             self.iface.mainWindow()
         )
 
         self.actionSamEncoder = QAction(
             QIcon_GeoSAMEncoder,
-            "Geo-SAM Encoder",
+            "Geo SAM Encoding Tool",
             self.iface.mainWindow()
         )
         self.actionSamTool.setObjectName("mActionGeoSamTool")
         self.actionSamTool.setToolTip(
-            "Geo-SAM Tool: Use it to label landforms")
+            "Geo SAM Segmentation Tool: Use it to label landforms")
         self.actionSamTool.triggered.connect(self.create_widget_selector)
 
         self.actionSamEncoder.setObjectName("mActionGeoSamEncoder")
         self.actionSamEncoder.setToolTip(
-            "Geo-SAM Encoder: Use it to encode/preprocess image before labeling")
+            "Geo SAM Encoding Tool: Use it to encode/preprocess image before labeling")
         self.actionSamEncoder.triggered.connect(self.encodeImage)
         # QgsMessageLog.logMessage(
         #     f"Geo-SAM action name {self.action.objectName()}", 'Geo SAM', level=Qgis.Info)
-        self.iface.addPluginToMenu('Geo-SAM', self.actionSamTool)
-        self.iface.addPluginToMenu('Geo-SAM', self.actionSamEncoder)
+        self.iface.addPluginToMenu('Geo SAM Tools', self.actionSamTool)
+        self.iface.addPluginToMenu('Geo SAM Tools', self.actionSamEncoder)
         # self.iface.addToolBarIcon(self.action)
         self.toolbar.addAction(self.actionSamTool)
         self.toolbar.addAction(self.actionSamEncoder)
