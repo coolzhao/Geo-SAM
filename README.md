@@ -32,13 +32,13 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https:
 
 Geo SAM is a QGIS plugin that aims to help people segment, delineate or label landforms efficiently when using large-size geospatial raster images. [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with the superpower, but the model size is huge, and using it to process images can take a long time, even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model. The interactive segmentation process can be run in real-time on a laptop by only using a CPU, making it a convenient and efficient tool for dealing with satellite images.
 
-The Geo SAM plugin includes two separate tools, the encoding tool and segmentation tool. The encoding tool is designed to generate and save the image features using the SAM image encoder, and the encoding process only need to run once per image. The segmentation tool is for interactively segmenting landforms, it can only be used to segment preprocessed images (whose features have been generated in advance using the encoding tool, as the included demo image).
+The Geo SAM plugin includes two separate tools, the encoding tool, and the segmentation tool. The encoding tool is designed to generate and save the image features using the SAM image encoder, and the encoding process only needs to run once per image. The segmentation tool is for interactively segmenting landforms, and it can only be used to segment preprocessed images (whose features have been generated in advance using the encoding tool, as the included demo image).
 
 ## Installation
 
 ### Install QGIS
 
-You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html) since the plugin has only been tested on the versions newer than QGIS 3.30.
+You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html) since the plugin has only been tested on versions newer than QGIS 3.30.
 
 ### Install Library Dependencies
 
@@ -57,7 +57,7 @@ pip3 install torchgeo
 pip3 install segment-anything
 ```
 
-Our encoder tool now supports using CUDA GPU to accelerate the encoding process. If your PC has dedicated CUDA GPUs, you can install CUDA library first and then install the gpu-version pytorch using following command (using CUDA version 11.7 as an example):
+Our encoder tool now supports using CUDA GPU to accelerate the encoding process. If your PC has dedicated CUDA GPUs, you can install the CUDA library first and then install the gpu-version pytorch using the following command (using CUDA version 11.7 as an example):
 
 ```bash
 # add `--force-reinstall` if you installed the cpu version before.
@@ -98,7 +98,7 @@ sudo apt-get update
 sudo apt-get install python3-pip
 ```
 
-For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you installed the gpu-version pytorch. You can reach to pytorch official website for more information.
+For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you install the gpu-version pytorch. You can reach pytorch official website for more information.
 
 ### Install the Geo SAM Plugin
 
@@ -133,7 +133,7 @@ After activating the Geo SAM plugin, you may find the Geo SAM tools under the `P
   <img src="assets/Plugin_menu_geo_sam.png" width="350" title="Plugin menu">
 </p>
 
-You may also find a new toolbar including two icons.
+You may also find a new toolbar, including two icons.
 
 <p align="center">
   <img src="assets/Toolbar_geo_sam.png" width="200" title="Plugin toolbar">
@@ -171,7 +171,7 @@ After adding points and a BBox for segmenting a subject, you can save the segmen
 
 You can use the `Undo` button to undo the last point or BBox prompt.
 
-You can use the `Clear` button to clear the added points and bboxs.
+You can use the `Clear` button to clear the added points and BBox.
 
 ### Enable/Disable the Tool
 
@@ -209,7 +209,7 @@ If you want to try your own images, you can use the Encoding Tool. This tool hel
 
 ### Download SAM Checkpoints
 
-SAM model checkpoints should be downloaded in advance, and three versions (huge, large, base) are available. The large version "vit_l" is recommended to try first. You need to specify the model type that matches the checkpoint version. Using the following links to download the checkpoints.
+SAM model checkpoints should be downloaded in advance, and three versions (huge, large, and base) are available. The large version "vit_l" is recommended to try first. You need to specify the model type that matches the checkpoint version. Using the following links to download the checkpoints.
 
 - `vit_h`: [ViT-H SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth)
 - `vit_l`: [ViT-L SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth)
@@ -223,7 +223,7 @@ The values of the image input to the SAM should range from 0 to 255, and you may
 
 ### Patch Sampling
 
-Since SAM only supports input images with size of (1024, 1204), small images will be resized to match the input size, while large images will be sampled into overlapped patches (patch_size=1024) in a grid-like fashion. The stride parameter will determine the overlap behavior, overlap = patch_size - stride.
+Since SAM only supports input images with sizes of (1024, 1204), small images will be resized to match the input size, while large images will be sampled into overlapped patches (patch_size=1024) in a grid-like fashion. The stride parameter will determine the overlap behavior, overlap = patch_size - stride.
 
 ### Demo Animation
 
@@ -233,16 +233,16 @@ The following animation shows how to use the encoder tool.
   <img src="assets/encoder_demo.gif" width="600" title="Try Geo SAM">
 </p>
 
-After processing the image, by default, the generated features will automatically be loaded in the segmentation tool for you to start labeling. Or you can choose to load the image features manually afterwards.
+After processing the image, by default, the generated features will automatically be loaded in the segmentation tool for you to start labeling. Or you can choose to load the image features manually afterward.
 
 ### Tips for Making the Encoding Process Faster
 
-- Choose smaller processing extent
+- Choose a smaller processing extent
 - Reduce target resolution (in `Advanced Parameters`)
 - Increase stride to minimize overlap
-- Choose a smaller version of sam model
+- Choose a smaller version of SAM model
 - Use GPU
-- Increase batch_size when using a GPU with sufficient gpu memory
+- Increase batch_size when using a GPU with sufficient GPU memory
 
 ## Future Works
 
