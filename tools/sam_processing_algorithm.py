@@ -626,6 +626,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
     @torch.no_grad()
     def get_sam_feature(self, batch_input: Tensor, feedback: QgsProcessingFeedback) -> bool:
+        # TODO: if the input image are all zero(batch_input.any()), directly return features with all zero and give a message
+        # should know the shape of the feature in advance
         batch_input = batch_input.to(device=self.sam_model.device)
         batch_input = ((batch_input - self.sam_model.pixel_mean) /
                        self.sam_model.pixel_std)
