@@ -2,31 +2,33 @@
 
 By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
-- [Introduction](#introduction)
-- [Installation](#installation)
-  - [Install QGIS](#install-qgis)
-  - [Install Library Dependencies](#install-library-dependencies)
-    - [For Windows Users](#for-windows-users)
-    - [For Mac or Linux Users](#for-mac-or-linux-users)
-  - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
-    - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
-    - [Activate Geo SAM Plugin](#activate-geo-sam-plugin)
-- [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
-  - [Add Prompts](#add-prompts)
-  - [Save Current Results](#save-current-results)
-  - [Undo/Clear Prompts](#undoclear-prompts)
-  - [Enable/Disable the Tool](#enabledisable-the-tool)
-  - [Load Image Features](#load-image-features)
-  - [Shortcuts](#shortcuts)
-  - [Tips for Using the Segmentation Tool](#tips-for-using-the-segmentation-tool)
-- [Use the Geo SAM Encoding Tool](#use-the-geo-sam-encoding-tool)
-  - [Download SAM Checkpoints](#download-sam-checkpoints)
-  - [Select Bands and Value Range for Processing](#select-bands-and-value-range-for-processing)
-  - [Patch Sampling](#patch-sampling)
-  - [Demo Animation](#demo-animation)
-  - [Tips for Making the Encoding Process Faster](#tips-for-making-the-encoding-process-faster)
-- [Future Works](#future-works)
-- [Acknowledgement](#acknowledgement)
+- [Geo SAM](#geo-sam)
+  - [Introduction](#introduction)
+  - [Installation](#installation)
+    - [Install QGIS](#install-qgis)
+    - [Install Library Dependencies](#install-library-dependencies)
+      - [For Windows Users](#for-windows-users)
+      - [For Mac or Linux Users](#for-mac-or-linux-users)
+    - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
+      - [Download the Plugin](#download-the-plugin)
+      - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
+      - [Activate the Geo SAM Plugin](#activate-the-geo-sam-plugin)
+  - [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
+    - [Add Prompts](#add-prompts)
+    - [Save Current Results](#save-current-results)
+    - [Undo/Clear Prompts](#undoclear-prompts)
+    - [Enable/Disable the Tool](#enabledisable-the-tool)
+    - [Load Image Features](#load-image-features)
+    - [Shortcuts](#shortcuts)
+    - [Tips for Using the Segmentation Tool](#tips-for-using-the-segmentation-tool)
+  - [Use the Geo SAM Encoding Tool](#use-the-geo-sam-encoding-tool)
+    - [Download SAM Checkpoints](#download-sam-checkpoints)
+    - [Select Bands and Value Range for Processing](#select-bands-and-value-range-for-processing)
+    - [Patch Sampling](#patch-sampling)
+    - [Demo Animation](#demo-animation)
+    - [Tips for Making the Encoding Process Faster](#tips-for-making-the-encoding-process-faster)
+  - [Future Works](#future-works)
+  - [Acknowledgement](#acknowledgement)
 
 ## Introduction
 
@@ -98,17 +100,30 @@ sudo apt-get update
 sudo apt-get install python3-pip
 ```
 
-For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you install the gpu-version pytorch. You can reach pytorch official website for more information.
+For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you install the gpu-version pytorch. You can reach [pytorch official website](https://pytorch.org/get-started/locally/) for more information.
 
 ### Install the Geo SAM Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/dev.zip), unzip it, and put the `Geo-SAM` folder (please remove the version suffix of the folder to avoid potential path issues, be aware of undesired nested folders after unzipping) into the QGIS plugin folder, then restart QGIS if it's open already.
+#### Download the Plugin
+
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/dev.zip), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
 
 #### Locate the QGIS Plugin folder
 
-From the `Settings` Menu, select `User Profiles`, then select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder. Open the `plugins` folder, then put the entire `Geo-SAM` folder in it, then restart QGIS.
+In QGIS, Go to menu `Settings` > `User Profiles` > `Open active profile folder.`  You'll be taken straight to the profile directory. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder (create the `plugins` folder, if it does not exist). Put the entire `Geo-SAM` folder inside the `plugins` folder, then restart QGIS. The directory tree structure should be same as the following.
 
-Below are some general paths of different systems for your reference.
+```txt
+python
+└── plugins
+    └── Geo-SAM
+        ├── checkpoint
+        ├── docs
+        ├── ...
+        ├── tools
+        └── ui
+```
+
+Below are some general paths of the plugin folder for your reference.
 
 ```bash
 # Windows
@@ -119,9 +134,9 @@ Below are some general paths of different systems for your reference.
 ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins
 ```
 
-#### Activate Geo SAM Plugin
+#### Activate the Geo SAM Plugin
 
-After restarting QGIS, you may go to the `Plugins` menu, select `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
+After restarting QGIS, go to menu `Plugins` > `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
 
 <p align="center">
   <img src="assets/Active_geo_sam.png" width="600" title="Plugin menu">
@@ -141,7 +156,7 @@ You may also find a new toolbar, including two icons.
 
 ## Use the Geo SAM Segmentation Tool
 
-Click the segmentation tool icon to open the interactive segmentation widget. You will be shown a demo raster image with thaw slump and small pond landforms for you to try the tool. With a single click on the map, a segmentation result will be generated.
+Click the `Segmentation Tool` icon to open the interactive segmentation widget. You will be shown a demo raster image with thaw slump and small pond landforms for you to try the tool. With a single click on the map, a segmentation result will be generated.
 
 <!-- ![try geo sam](assets/try_geo_sam.png) -->
 
