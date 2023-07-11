@@ -28,10 +28,9 @@ You are suggested to install the latest version of [QGIS](https://www.qgis.org/e
 Open the `OSGeo4W Shell` application from the Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
 
 ```bash
-pip3 install torch==1.13.1 torchvision==0.14.1
+pip3 install torch torchvision
 pip3 install torchgeo
 pip3 install segment-anything
-pip3 install rasterio==1.3.7
 ```
 
 #### For Mac or Linux Users
@@ -56,11 +55,10 @@ To confirm the QGIS Python environment:
 Then install the libraries.
 
 ```bash
-# add ./ to avoid using your default Python in the system
-./pip3 install torch==1.13.1 torchvision==0.14.1
+# !important, add ./ to avoid using your default Python in the system
+./pip3 install torch torchvision
 ./pip3 install torchgeo
 ./pip3 install segment-anything
-./pip3 install rasterio==1.3.7
 ```
 
 For Linux users, if `pip3` is not found in `/usr/bin`, try the following commands:
@@ -73,13 +71,25 @@ sudo apt-get install python3-pip
 
 ### Install the GeoSAM Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/latest), unzip it, and put the `Geo-SAM` folder (please remove the version suffix of the folder to avoid potential path issues, be aware of undesired nested folders after unzipping) into the QGIS plugin folder, then restart QGIS if it's open already.
+#### Download the Plugin
 
-#### How to Locate the QGIS Plugin folder
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/latest), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
 
-From the `Settings` Menu, select `User Profiles`, then select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder. Open the `plugins` folder, then put the entire `Geo-SAM` folder in it, then restart QGIS.
+#### Locate the QGIS Plugin folder
 
-Below are some general paths of different systems for your reference.
+In QGIS, Go to the menu `Settings` > `User Profiles` > `Open active profile folder.`  You'll be taken straight to the profile directory. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder (create the `plugins` folder if it does not exist). Put the entire `Geo-SAM` folder inside the `plugins` folder, then restart QGIS. The directory tree structure should be the same as the following.
+
+```txt
+python
+└── plugins
+    └── Geo-SAM
+        ├── checkpoint
+        ├── ...
+        ├── tools
+        └── ui
+```
+
+Below are some general paths of the plugin folder for your reference.
 
 ```bash
 # Windows
