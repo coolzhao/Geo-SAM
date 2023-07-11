@@ -110,7 +110,7 @@ Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/
 
 #### Locate the QGIS Plugin folder
 
-In QGIS, Go to menu `Settings` > `User Profiles` > `Open active profile folder.`  You'll be taken straight to the profile directory. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder (create the `plugins` folder, if it does not exist). Put the entire `Geo-SAM` folder inside the `plugins` folder, then restart QGIS. The directory tree structure should be same as the following.
+In QGIS, Go to the menu `Settings` > `User Profiles` > `Open active profile folder.`  You'll be taken straight to the profile directory. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder (create the `plugins` folder if it does not exist). Put the entire `Geo-SAM` folder inside the `plugins` folder, then restart QGIS. The directory tree structure should be the same as the following.
 
 ```txt
 python
@@ -136,7 +136,7 @@ Below are some general paths of the plugin folder for your reference.
 
 #### Activate the Geo SAM Plugin
 
-After restarting QGIS, go to menu `Plugins` > `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
+After restarting QGIS, go to the menu `Plugins` > `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
 
 <p align="center">
   <img src="assets/Active_geo_sam.png" width="600" title="Plugin menu">
