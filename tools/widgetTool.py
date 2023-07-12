@@ -75,9 +75,10 @@ class Selector(QObject):
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
                 self.enable_disable_edit_mode)
-            self.wdg_sel.radioButton_show_extent.setChecked(True)
-            self.wdg_sel.radioButton_show_extent.toggled.connect(
-                self.show_hide_sam_feature_extent)
+            
+            self.wdg_sel.radioButton_exe_move.setChecked(False)
+            self.wdg_sel.radioButton_exe_move.toggled.connect(
+                self.execute_sam_move_mode)
 
             # set filter for file dialog
             self.wdg_sel.QgsFile_shapefile.setFilter("*.shp")
@@ -92,9 +93,10 @@ class Selector(QObject):
             self.wdg_sel.pushButton_rect.setCheckable(True)
 
             ######### Setting table #########
-            self.wdg_sel.radioButton_exe_move.setChecked(False)
-            self.wdg_sel.radioButton_exe_move.toggled.connect(
-                self.execute_sam_move_mode)
+            self.wdg_sel.Box_min_area.valueChanged.connect(self.filter_feature_by_area)
+            self.wdg_sel.radioButton_show_extent.setChecked(True)
+            self.wdg_sel.radioButton_show_extent.toggled.connect(
+                self.show_hide_sam_feature_extent)
 
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
@@ -294,13 +296,17 @@ class Selector(QObject):
 
     def execute_sam_move_mode(self):
         if self.wdg_sel.radioButton_exe_move.isChecked():
-            self.tool_click_fg.execute_move = True
-            self.tool_click_bg.execute_move = True
-            self.tool_click_rect.execute_move = True
+            self.tool_click_fg.move_mode = True
+            self.tool_click_bg.move_mode = True
+            self.tool_click_rect.move_mode = True
         else:
-            self.tool_click_fg.execute_move = False
-            self.tool_click_bg.execute_move = False
-            self.tool_click_rect.execute_move = False
+            self.tool_click_fg.move_mode = False
+            self.tool_click_bg.move_mode = False
+            self.tool_click_rect.move_mode = False
+
+    def filter_feature_by_area(self):
+        t_area = self.wdg_sel.Box_min_area.value()
+        self.polygon.t_area = t_area
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):

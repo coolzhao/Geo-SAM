@@ -157,7 +157,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.prompt_history = prompt_history
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
-        self.execute_move: bool = False
+        self.move_mode: bool = False
         self.have_added_for_moving = False
         QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
         self.setCursor(CursorRect)
@@ -203,7 +203,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.canvas_rect.showRect(self.startPoint, self.endPoint)
 
         # execute SAM when mouse move
-        if not self.execute_move:
+        if not self.move_mode:
             return
         if self.startPoint is None or self.endPoint is None:
             return None
@@ -385,7 +385,7 @@ class ClickTool(QgsMapToolEmitPoint):
             )
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
-        self.execute_move: bool = False
+        self.move_mode: bool = False
         QgsMapToolEmitPoint.__init__(self, self.canvas)
 
         self.have_added_for_moving = False  # whether have added a point when mouse move
@@ -411,7 +411,7 @@ class ClickTool(QgsMapToolEmitPoint):
         self.execute_SAM.emit()
 
     def canvasMoveEvent(self, e: QgsMapMouseEvent) -> None:
-        if not self.execute_move:
+        if not self.move_mode:
             return
 
         # remove the last point if have added a point when mouse move
@@ -460,6 +460,9 @@ class SAM_PolygonFeature:
         self.img_crs_manager = img_crs_manager
         self.shapefile = shapefile
         self.default_name = default_name
+        # the threshold of area
+        self.t_area: float = 0
+
         self.init_layer()
 
     def init_layer(self):
@@ -572,7 +575,6 @@ class SAM_PolygonFeature:
             self,
             geojson: Dict,
             prompt_history: List,
-            t_area: float = 0
     ):
         '''Add a geojson feature to the layer
 
@@ -582,9 +584,6 @@ class SAM_PolygonFeature:
             features in geojson format
         prompt_history: List
             a list of prompts
-        t_area: float
-            the threshold of area, if the area of the feature is less than t_area, 
-            it will not be added to the layer
         '''
         features = []
         num_polygons = self.layer.featureCount()
@@ -603,8 +602,11 @@ class SAM_PolygonFeature:
             feature = QgsFeature()
             feature.setGeometry(QgsGeometry.fromPolygonXY([points]))
             ft_area = feature.geometry().area()
-            if ft_area < t_area:
-                return None
+
+            # if the area of the feature is less than t_area,
+            # it will not be added to the layer
+            if ft_area < self.t_area:
+                continue
 
             feature.setAttributes(
                 [group_uuid,
