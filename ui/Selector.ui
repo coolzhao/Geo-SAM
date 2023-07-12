@@ -6,13 +6,13 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>676</width>
+    <width>682</width>
     <height>250</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>676</width>
+    <width>682</width>
     <height>250</height>
    </size>
   </property>
@@ -41,11 +41,11 @@
      <height>350</height>
     </size>
    </property>
-   <layout class="QGridLayout" name="gridLayout_15">
+   <layout class="QGridLayout" name="gridLayout_10">
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="Prompt">
        <attribute name="title">
@@ -372,7 +372,7 @@
             <property name="saveCollapsedState">
              <bool>false</bool>
             </property>
-            <layout class="QHBoxLayout" name="horizontalLayout" stretch="9,1">
+            <layout class="QHBoxLayout" name="horizontalLayout" stretch="9,0">
              <property name="leftMargin">
               <number>3</number>
              </property>
@@ -474,36 +474,27 @@
               </widget>
              </item>
              <item>
-              <widget class="QGroupBox" name="EditModeGroupBox_2">
+              <widget class="QGroupBox" name="groupBox">
+               <property name="toolTip">
+                <string>execute SAM with move mode (M)</string>
+               </property>
                <property name="title">
-                <string>Extent</string>
+                <string>Move mode</string>
                </property>
-               <property name="alignment">
-                <set>Qt::AlignHCenter|Qt::AlignTop</set>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_10">
+               <layout class="QGridLayout" name="gridLayout_11">
                 <item row="0" column="0">
-                 <widget class="QRadioButton" name="radioButton_show_extent">
+                 <widget class="QRadioButton" name="radioButton_exe_move">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
                   <property name="toolTip">
-                   <string>Toggle to show the extent of the image features (operable extent )</string>
+                   <string>Execute SAM while moving mouse (M)</string>
                   </property>
                   <property name="text">
-                   <string>Show</string>
-                  </property>
-                  <property name="checked">
-                   <bool>false</bool>
+                   <string>Enable</string>
                   </property>
                  </widget>
                 </item>
@@ -536,34 +527,19 @@
              <string>Prompt</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_8">
-             <item row="1" column="0">
+             <item row="0" column="0">
               <widget class="QGroupBox" name="groupBox">
                <property name="title">
                 <string>Minimum Area</string>
                </property>
                <layout class="QGridLayout" name="gridLayout_12">
                 <item row="0" column="0">
-                 <widget class="QDoubleSpinBox" name="Box_min_area"/>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item row="0" column="0">
-              <widget class="QGroupBox" name="groupBox">
-               <property name="title">
-                <string>Execute when mouse move</string>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_11">
-                <item row="0" column="0">
-                 <widget class="QRadioButton" name="radioButton_exe_move">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
+                 <widget class="QDoubleSpinBox" name="Box_min_area">
+                  <property name="decimals">
+                   <number>10</number>
                   </property>
-                  <property name="text">
-                   <string>Enable</string>
+                  <property name="maximum">
+                   <double>10000000000000000000000.000000000000000</double>
                   </property>
                  </widget>
                 </item>
@@ -695,15 +671,27 @@
                </property>
                <layout class="QGridLayout" name="gridLayout_9">
                 <item row="0" column="0">
-                 <widget class="QRadioButton" name="radioButton_show_whole">
+                 <widget class="QRadioButton" name="radioButton_show_extent">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="minimumSize">
+                   <size>
+                    <width>0</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Toggle to show the extent of the image features (operable extent )</string>
+                  </property>
                   <property name="text">
                    <string>Show</string>
+                  </property>
+                  <property name="checked">
+                   <bool>false</bool>
                   </property>
                  </widget>
                 </item>

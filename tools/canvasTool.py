@@ -150,7 +150,6 @@ class RectangleMapTool(QgsMapToolEmitPoint):
             prompt_history: List[Any],
             execute_SAM: pyqtSignal,
             img_crs_manager: ImageCRSManager,
-            execute_move: bool = False
     ):
 
         self.qgis_project = QgsProject.instance()
@@ -158,7 +157,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.prompt_history = prompt_history
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
-        self.execute_move = execute_move
+        self.execute_move: bool = False
         self.have_added_for_moving = False
         QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
         self.setCursor(CursorRect)
@@ -375,7 +374,6 @@ class ClickTool(QgsMapToolEmitPoint):
         prompt_type: str,
         prompt_history: List,
         execute_SAM: pyqtSignal,
-        execute_move: bool = False
     ):
 
         self.canvas = canvas
@@ -387,7 +385,7 @@ class ClickTool(QgsMapToolEmitPoint):
             )
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
-        self.execute_move = execute_move
+        self.execute_move: bool = False
         QgsMapToolEmitPoint.__init__(self, self.canvas)
 
         self.have_added_for_moving = False  # whether have added a point when mouse move

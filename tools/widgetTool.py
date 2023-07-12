@@ -56,7 +56,7 @@ class Selector(QObject):
                 self.execute_SAM.connect(self.execute_segmentation)
 
             self.wdg_sel = UI_Selector
-            # prompts
+            ########## prompts table ##########
             self.wdg_sel.pushButton_fg.clicked.connect(
                 self.draw_foreground_point)
             self.wdg_sel.pushButton_bg.clicked.connect(
@@ -91,6 +91,11 @@ class Selector(QObject):
             self.wdg_sel.pushButton_bg.setCheckable(True)
             self.wdg_sel.pushButton_rect.setCheckable(True)
 
+            ######### Setting table #########
+            self.wdg_sel.radioButton_exe_move.setChecked(False)
+            self.wdg_sel.radioButton_exe_move.toggled.connect(
+                self.execute_sam_move_mode)
+
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
             self.wdg_sel.closed.connect(self.destruct)
@@ -100,6 +105,7 @@ class Selector(QObject):
             self.wdg_sel.pushButton_clear.setShortcut("C")
             self.wdg_sel.pushButton_undo.setShortcut("Z")
             self.wdg_sel.pushButton_save.setShortcut("S")
+            self.wdg_sel.radioButton_exe_move.setShortcut("M")      
 
             self.shortcut_tab = QShortcut(
                 QKeySequence(Qt.Key_Tab), self.wdg_sel)
@@ -285,6 +291,16 @@ class Selector(QObject):
                                                     ("No sam feature loaded"), level=Qgis.Info, duration=10)
         else:
             self.canvas_extent.clear()
+
+    def execute_sam_move_mode(self):
+        if self.wdg_sel.radioButton_exe_move.isChecked():
+            self.tool_click_fg.execute_move = True
+            self.tool_click_bg.execute_move = True
+            self.tool_click_rect.execute_move = True
+        else:
+            self.tool_click_fg.execute_move = False
+            self.tool_click_bg.execute_move = False
+            self.tool_click_rect.execute_move = False
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):
