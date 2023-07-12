@@ -19,7 +19,7 @@ from torchgeo.samplers import Units
 
 
 class SAM_Model:
-    def __init__(self, feature_dir, cwd, model_type="vit_h"):
+    def __init__(self, feature_dir, cwd):
         self.feature_dir = feature_dir
         self.sam_checkpoint = {
             "vit_h": cwd + "/checkpoint/sam_vit_h_4b8939_no_img_encoder.pth",  # vit huge model
@@ -61,16 +61,15 @@ class SAM_Model:
 
         min_x, max_x, min_y, max_y = extent_union
 
-        points_roi = BoundingBox(
+        prompts_roi = BoundingBox(
             min_x, max_x, min_y, max_y, self.test_features.index.bounds[4], self.test_features.index.bounds[5])
 
         start_time = time.time()
         test_sampler = SamTestFeatureGeoSampler(
-            self.test_features, feature_size=64, roi=points_roi, units=Units.PIXELS)  # Units.CRS or Units.PIXELS
+            self.test_features, roi=prompts_roi)
 
         if len(test_sampler) == 0:
             mb = QMessageBox()
-            # ,  please press CMD/Ctrl+Z to undo the edit
             mb.setText(
                 'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
             mb.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
@@ -87,51 +86,37 @@ class SAM_Model:
                 QgsMessageLog.logMessage(
                     f"Same feature as last time", 'Geo SAM', level=Qgis.Info)
                 break
+
             self.sample = self.test_features[query]
             self.sample_path = self.sample['path']
-            # self.sample_bbox = self.sample['bbox']
-            # self.img_features = self.sample['image']
+
+            bbox = self.sample['bbox']  # batch['bbox'][0]
+            img_width = img_height = self.predictor.model.image_encoder.img_size  # 1024
+            input_width = input_height = self.predictor.model.image_encoder.img_size  # 1024
+            if 'img_shape' in self.sample.keys():
+                img_height = self.sample['img_shape'][-2]
+                img_width = self.sample['img_shape'][-1]
+                input_height = self.sample['input_shape'][-2]
+                input_width = self.sample['input_shape'][-1]
+
+            self.img_clip_transform = transform_from_bounds(
+                bbox.minx, bbox.miny, bbox.maxx, bbox.maxy, img_width, img_height)
+
+            img_features = self.sample['image']
+            self.predictor.set_image_feature(
+                img_features=img_features,
+                img_size=(img_height, img_width),
+                input_size=(input_height, input_width)
+            )
+
             QgsMessageLog.logMessage(
-                f"Acquire new feature", 'Geo SAM', level=Qgis.Info)
+                f"Load new feature", 'Geo SAM', level=Qgis.Info)
             break
 
-        # test_dataloader = DataLoader(
-        #     self.test_features, batch_size=1, sampler=test_sampler, collate_fn=stack_samples)
-
-        # for batch in test_dataloader:
-        #     # print(batch.keys())
-        #     # print(batch['image'].shape)
-        #     # print(batch['path'])
-        #     # print(batch['bbox'])
-        #     # print(len(batch['image']))
-        #     # break
-        #     pass
-
-        bbox = self.sample['bbox']  # batch['bbox'][0]
-        # Change to sam.img_encoder.img_size
-        img_width = img_height = self.predictor.model.image_encoder.img_size  # 1024
-        input_width = input_height = self.predictor.model.image_encoder.img_size  # 1024
-        if 'img_shape' in self.sample.keys():
-            img_height = self.sample['img_shape'][-2]
-            img_width = self.sample['img_shape'][-1]
-            input_height = self.sample['input_shape'][-2]
-            input_width = self.sample['input_shape'][-1]
-
-        img_clip_transform = transform_from_bounds(
-            bbox.minx, bbox.miny, bbox.maxx, bbox.maxy, img_width, img_height)
-
         input_point, input_label = canvas_points.get_points_and_labels(
-            img_clip_transform)
+            self.img_clip_transform)
 
-        input_box = canvas_rect.get_img_box(img_clip_transform)
-
-        img_features = self.sample['image']
-        self.predictor.set_image_feature(
-            img_features=img_features,
-            img_size=(img_height, img_width),
-            input_size=(input_height, input_width)
-        )
-
+        input_box = canvas_rect.get_img_box(self.img_clip_transform)
         # TODO: Points or rectangles can be negative or exceed 1024, should be regulated
         # also may consider remove those points after checking
         masks, scores, logits = self.predictor.predict(
@@ -161,8 +146,8 @@ class SAM_Model:
         shape_generator = get_shapes(
             mask.astype(np.uint8),
             mask=mask,
-            connectivity=8,  # change from default:4 to 8
-            transform=img_clip_transform
+            connectivity=4,  # change from default:4 to 8
+            transform=self.img_clip_transform
         )
         geojson = [{'properties': {'raster_val': value}, 'geometry': polygon}
                    for polygon, value in shape_generator]

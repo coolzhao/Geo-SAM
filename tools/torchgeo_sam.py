@@ -567,10 +567,8 @@ class SamTestFeatureGeoSampler(GeoSampler):
     def __init__(
         self,
         dataset: GeoDataset,
-        feature_size: float,
         roi: Optional[BoundingBox] = None,
         shuffle: bool = False,
-        units: Units = Units.PIXELS,
     ) -> None:
         """Initialize a new Sampler instance.
 
