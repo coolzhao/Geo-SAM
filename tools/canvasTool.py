@@ -151,7 +151,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
             execute_SAM: pyqtSignal,
             img_crs_manager: ImageCRSManager,
             execute_move: bool = False
-            ):
+    ):
 
         self.qgis_project = QgsProject.instance()
         self.canvas_rect = canvas_rect
@@ -193,8 +193,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
     def canvasMoveEvent(self, e):
         if not self.isEmittingPoint:
             return
-        if not self.execute_move:
-            return
+
         # remove the last rectangle if have added a rectangle when mouse move
         if self.have_added_for_moving:
             self.canvas_rect.popRect()
@@ -205,6 +204,8 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.canvas_rect.showRect(self.startPoint, self.endPoint)
 
         # execute SAM when mouse move
+        if not self.execute_move:
+            return
         if self.startPoint is None or self.endPoint is None:
             return None
         elif (self.startPoint.x() == self.endPoint.x() or
@@ -414,7 +415,7 @@ class ClickTool(QgsMapToolEmitPoint):
     def canvasMoveEvent(self, e: QgsMapMouseEvent) -> None:
         if not self.execute_move:
             return
-        
+
         # remove the last point if have added a point when mouse move
         if self.have_added_for_moving:
             self.canvas_points.popPoint()
