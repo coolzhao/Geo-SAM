@@ -158,13 +158,6 @@ class Geo_SAM(QObject):
             self.shortcut_undo_sam_pg = QShortcut(
                 QKeySequence(QKeySequence.Undo), self.wdg_sel)
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
-            # self.shortcut_show_hide_extent = QShortcut(
-            #     QKeySequence(" "), self.wdg_sel)
-            # self.shortcut_show_hide_extent.activated.connect(
-            #    self.show_sam_feature_extent)
-            # self.shortcut_show_hide_extent.activatedAmbiguously.connect(
-            #    self.hide_sam_feature_extent)
-
             # self.wdg_sel.setFloating(True)
 
             # default is fgpt, but do not change when reloading feature folder
@@ -180,18 +173,6 @@ class Geo_SAM(QObject):
 
         if not self.wdg_sel.isUserVisible():
             self.wdg_sel.setUserVisible(True)
-        # if self.wdg_sel.radioButton_enable.isChecked():
-        #     self.reset_prompt_type()
-
-        # QgsMessageLog.logMessage(
-        #     f"Geo-SAM widget name: {self.wdg_sel.objectName()}", 'Geo SAM', level=Qgis.Info)
-        # sam_tool_widget = self.iface.mainWindow().findChild(QDockWidget, 'GeoSAM')
-        # QgsMessageLog.logMessage(
-        #     f"Geo-SAM widget name found: {sam_tool_widget.objectName()}", 'Geo SAM', level=Qgis.Info)
-        # QgsMessageLog.logMessage(
-        #     f"Sender name {self.sender()}", 'Geo SAM', level=Qgis.Info)
-        # sam_tool_widget.pushButton_load_feature.click()
-        # self.wdg_sel.setToggleVisibilityAction()
 
     def destruct(self):
         '''Destruct actions when closed widget'''
@@ -262,6 +243,8 @@ class Geo_SAM(QObject):
             self.canvas_rect.clear()
         if hasattr(self, "canvas_extent") and clear_extent:
             self.canvas_extent.clear()
+        if hasattr(self, "polygon_temp"):
+            self.polygon_temp.rollback_changes()
 
     def _init_feature_related(self):
         '''Init or reload feature related objects'''
@@ -301,7 +284,10 @@ class Geo_SAM(QObject):
             self.execute_SAM,
         )
         self.tool_click_rect = RectangleMapTool(
-            self.canvas_rect, self.prompt_history, self.execute_SAM, self.img_crs_manager
+            self.canvas_rect,
+            self.prompt_history,
+            self.execute_SAM,
+            self.img_crs_manager
         )
 
     def loop_prompt_type(self):
@@ -407,6 +393,30 @@ class Geo_SAM(QObject):
 
         return True
 
+    def execute_segmentation_temp(self) -> bool:
+        '''Execute segmentation for temporary polygon when mouse move'''
+        # check last prompt inside feature extent
+        if len(self.prompt_history) > 0:
+            prompt_last = self.prompt_history[-1]
+            if prompt_last == 'bbox':
+                last_rect = self.canvas_rect.extent
+                last_prompt = QgsRectangle(
+                    last_rect[0], last_rect[2], last_rect[1], last_rect[3])
+            else:
+                last_point = self.canvas_points.points_img_crs[-1]
+                last_prompt = QgsRectangle(last_point, last_point)
+            if not last_prompt.intersects(self.sam_model.extent):
+                if not self.message_box_outside():
+                    self.undo_last_prompt()
+                return False
+
+        self.ensure_polygon_sam_exist()
+
+        # execute segmentation
+        if self.sam_model.sam_predict(
+                self.canvas_points, self.canvas_rect, self.polygon_temp, self.prompt_history):
+            return True
+
     def draw_foreground_point(self):
         '''draw foreground point in canvas'''
         self.canvas.setMapTool(self.tool_click_fg)
@@ -457,6 +467,8 @@ class Geo_SAM(QObject):
 
         self.polygon = SAM_PolygonFeature(
             self.img_crs_manager, file_path)
+        self.polygon_temp = SAM_PolygonFeature(
+            self.img_crs_manager, default_name='polygon_sam_temp')  # for drawing when mouse move
 
     def load_feature(self):
         '''load feature'''
@@ -474,19 +486,13 @@ class Geo_SAM(QObject):
             self.iface.messageBar().pushMessage("Feature folder not exist",
                                                 "choose a another folder", level=Qgis.Info)
 
-    def _clear_layers(self):
-        '''Clear all temporary layers (canvas and new sam result)'''
-        self.clear_canvas_layers_safely()
-        if hasattr(self, "polygon"):
-            self.polygon.rollback_changes()
-        self.prompt_history.clear()
-
     def clear_layers(self, clear_extent: bool = False):
         '''Clear all temporary layers (canvas and new sam result) and reset prompt'''
         self.clear_canvas_layers_safely(clear_extent=clear_extent)
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
-        # self.reset_prompt_type()
+        if hasattr(self, "polygon_temp"):
+            self.polygon_temp.rollback_changes()
         self.prompt_history.clear()
 
     def save_shp_file(self):

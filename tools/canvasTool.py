@@ -5,6 +5,7 @@ from PyQt5 import QtGui
 import numpy as np
 from pathlib import Path
 from rasterio.transform import rowcol, Affine
+from qgis._gui import QgsMapMouseEvent
 from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle, Qgis, QgsMessageLog
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker, QgsMapCanvas
 from qgis.core import (
@@ -143,12 +144,22 @@ class Canvas_Rectangle:
 class RectangleMapTool(QgsMapToolEmitPoint):
     '''A map tool to draw a rectangle on canvas'''
 
-    def __init__(self, canvas_rect: Canvas_Rectangle, prompt_history: List[Any], execute_SAM, img_crs_manager: ImageCRSManager):
+    def __init__(
+            self,
+            canvas_rect: Canvas_Rectangle,
+            prompt_history: List[Any],
+            execute_SAM: pyqtSignal,
+            img_crs_manager: ImageCRSManager,
+            execute_move: bool = False
+            ):
+
         self.qgis_project = QgsProject.instance()
         self.canvas_rect = canvas_rect
         self.prompt_history = prompt_history
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
+        self.execute_move = execute_move
+        self.have_added_for_moving = False
         QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
         self.setCursor(CursorRect)
 
@@ -157,6 +168,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
     def reset(self):
         self.startPoint = self.endPoint = None
         self.isEmittingPoint = False
+        self.have_added_for_moving = False
         self.canvas_rect.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
 
     def canvasPressEvent(self, e):
@@ -176,13 +188,32 @@ class RectangleMapTool(QgsMapToolEmitPoint):
             self.canvas_rect.addRect(self.startPoint, self.endPoint)
             self.prompt_history.append('bbox')
             self.execute_SAM.emit()
+            self.have_added_for_moving = False  # reset to False
 
     def canvasMoveEvent(self, e):
         if not self.isEmittingPoint:
             return
+        if not self.execute_move:
+            return
+        # remove the last rectangle if have added a rectangle when mouse move
+        if self.have_added_for_moving:
+            self.canvas_rect.popRect()
+            self.have_added_for_moving = False  # reset to False
 
+        # update the rectangle as the mouse moves
         self.endPoint = self.toMapCoordinates(e.pos())
         self.canvas_rect.showRect(self.startPoint, self.endPoint)
+
+        # execute SAM when mouse move
+        if self.startPoint is None or self.endPoint is None:
+            return None
+        elif (self.startPoint.x() == self.endPoint.x() or
+              self.startPoint.y() == self.endPoint.y()):
+            return None
+        else:
+            self.canvas_rect.addRect(self.startPoint, self.endPoint)
+            self.execute_SAM.emit()
+            self.have_added_for_moving = True
 
     def deactivate(self):
         QgsMapTool.deactivate(self)
@@ -251,7 +282,7 @@ class Canvas_Points:
     def project_crs(self):
         return QgsProject.instance().crs()
 
-    def addPoint(self, point: QgsPointXY, foreground: bool):
+    def addPoint(self, point: QgsPointXY, foreground: bool, show: bool = True):
         """
         Parameters:
         ----------
@@ -262,15 +293,16 @@ class Canvas_Points:
         """
         m = QgsVertexMarker(self.canvas)
         m.setCenter(point)
-        if foreground:
-            m.setColor(QColor(0, 0, 255))
-            m.setFillColor(QColor(0, 0, 255))
-        else:
-            m.setColor(QColor(255, 0, 0))
-            m.setFillColor(QColor(255, 0, 0))
-        # m.setIconSize(12)
-        m.setIconSize(round(UI_SCALE/3))
-        m.setIconType(QgsVertexMarker.ICON_CIRCLE)
+        if show:
+            if foreground:
+                m.setColor(QColor(0, 0, 255))
+                m.setFillColor(QColor(0, 0, 255))
+            else:
+                m.setColor(QColor(255, 0, 0))
+                m.setFillColor(QColor(255, 0, 0))
+            # m.setIconSize(12)
+            m.setIconSize(round(UI_SCALE/3))
+            m.setIconType(QgsVertexMarker.ICON_CIRCLE)
 
         # add to markers and labels
         self.markers.append(m)
@@ -342,6 +374,7 @@ class ClickTool(QgsMapToolEmitPoint):
         prompt_type: str,
         prompt_history: List,
         execute_SAM: pyqtSignal,
+        execute_move: bool = False
     ):
 
         self.canvas = canvas
@@ -353,21 +386,48 @@ class ClickTool(QgsMapToolEmitPoint):
             )
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
+        self.execute_move = execute_move
         QgsMapToolEmitPoint.__init__(self, self.canvas)
 
+        self.have_added_for_moving = False  # whether have added a point when mouse move
         if prompt_type == "fgpt":
             self.setCursor(CursorPointBlue)
         elif prompt_type == "bgpt":
             self.setCursor(CursorPointRed)
 
-    def canvasPressEvent(self, event):
-        point = self.toMapCoordinates(event.pos())
+    def canvasPressEvent(self, e: QgsMapMouseEvent):
+        # remove the last point if have added a point when mouse move
+        if self.have_added_for_moving:
+            self.canvas_points.popPoint()
+            # reset to False
+            self.have_added_for_moving = False
+
+        # add a point when mouse press
+        point = self.toMapCoordinates(e.pos())
         if self.prompt_type == "fgpt":
             self.canvas_points.addPoint(point, foreground=True)
         elif self.prompt_type == "bgpt":
             self.canvas_points.addPoint(point, foreground=False)
         self.prompt_history.append(self.prompt_type)
         self.execute_SAM.emit()
+
+    def canvasMoveEvent(self, e: QgsMapMouseEvent) -> None:
+        if not self.execute_move:
+            return
+        
+        # remove the last point if have added a point when mouse move
+        if self.have_added_for_moving:
+            self.canvas_points.popPoint()
+            self.have_added_for_moving = False
+
+        # add a point when mouse move
+        point = self.toMapCoordinates(e.pos())
+        if self.prompt_type == "fgpt":
+            self.canvas_points.addPoint(point, foreground=True, show=False)
+        elif self.prompt_type == "bgpt":
+            self.canvas_points.addPoint(point, foreground=False, show=False)
+        self.execute_SAM.emit()
+        self.have_added_for_moving = True
 
     def activate(self):
         QgsMapToolEmitPoint.activate(self)
@@ -391,10 +451,16 @@ class ClickTool(QgsMapToolEmitPoint):
 class SAM_PolygonFeature:
     '''A polygon feature for SAM output'''
 
-    def __init__(self, img_crs_manager: ImageCRSManager, shapefile=None):
+    def __init__(
+        self,
+        img_crs_manager: ImageCRSManager,
+        shapefile: str = None,
+        default_name: str = 'polygon_sam'
+    ):
         self.qgis_project = QgsProject.instance()
         self.img_crs_manager = img_crs_manager
         self.shapefile = shapefile
+        self.default_name = default_name
         self.init_layer()
 
     def init_layer(self):
@@ -408,7 +474,7 @@ class SAM_PolygonFeature:
         try:
             return self.layer.name()
         except:
-            return "polygon_sam"
+            return self.default_name
 
     @property
     def layer_id(self):
@@ -467,11 +533,11 @@ class SAM_PolygonFeature:
             iface.messageBar().pushMessage(
                 "Note:",
                 "Output Shapefile is not specified. "
-                "A temporal layer 'Polygon_sam' is created, "
+                "A temporal layer 'polygon_sam' is created, "
                 "remember to save it before quit.",
                 level=Qgis.Info,
                 duration=30)
-            self.layer = QgsVectorLayer('Polygon', 'polygon_sam', 'memory')
+            self.layer = QgsVectorLayer('Polygon', self.default_name, 'memory')
             # self.layer.setCrs(self.qgis_project.crs())
             self.layer.setCrs(self.img_crs_manager.img_crs)
             self.show_layer()
@@ -503,10 +569,24 @@ class SAM_PolygonFeature:
         # show the change
         self.layer.triggerRepaint()
 
-    def add_geojson_feature(self, geojson: Dict,
-                            prompt_history: List,
-                            t_area: float = 0):
-        '''Add a geojson feature to the layer'''
+    def add_geojson_feature(
+            self,
+            geojson: Dict,
+            prompt_history: List,
+            t_area: float = 0
+    ):
+        '''Add a geojson feature to the layer
+
+        Parameters:
+        ----------
+        geojson: Dict
+            features in geojson format
+        prompt_history: List
+            a list of prompts
+        t_area: float
+            the threshold of area, if the area of the feature is less than t_area, 
+            it will not be added to the layer
+        '''
         features = []
         num_polygons = self.layer.featureCount()
         group_uuid = str(uuid.uuid4())
