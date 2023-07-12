@@ -1,4 +1,4 @@
-import typing
+from typing import List
 import numpy as np
 from pathlib import Path
 import time
@@ -51,7 +51,11 @@ class SAM_Model:
         self.extent = QgsRectangle(
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
 
-    def sam_predict(self, canvas_points: Canvas_Points, canvas_rect: Canvas_Rectangle, sam_polygon: SAM_PolygonFeature) -> bool:
+    def sam_predict(self,
+                    canvas_points: Canvas_Points,
+                    canvas_rect: Canvas_Rectangle,
+                    sam_polygon: SAM_PolygonFeature,
+                    prompt_history: List) -> bool:
         extent_union = LayerExtent.union_extent(
             canvas_points.extent, canvas_rect.extent)
 
@@ -154,5 +158,5 @@ class SAM_Model:
 
         # add to layer
         sam_polygon.rollback_changes()
-        sam_polygon.add_geojson_feature(geojson)
+        sam_polygon.add_geojson_feature(geojson, prompt_history)
         return True

@@ -1,5 +1,6 @@
-from typing import List, Any
+from typing import List, Any, Dict
 import os
+import uuid
 from PyQt5 import QtGui
 import numpy as np
 from pathlib import Path
@@ -426,8 +427,14 @@ class SAM_PolygonFeature:
         # if file not exists, create a new one into disk
         if not os.path.exists(shapefile):
             fields = QgsFields()
-            fields.append(QgsField("id", QVariant.Int))
-            fields.append(QgsField("Area", QVariant.Double))
+            fields.extend(
+                [QgsField("Group_uuid", QVariant.String),
+                 QgsField("id", QVariant.Int),
+                 QgsField("Area", QVariant.Double),
+                 QgsField("N_FG", QVariant.Int),
+                 QgsField("N_BG", QVariant.Int),
+                 QgsField("BBox", QVariant.Bool)]
+            )
 
             save_options = QgsVectorFileWriter.SaveVectorOptions()
             save_options.driverName = "ESRI Shapefile"
@@ -472,8 +479,15 @@ class SAM_PolygonFeature:
         # TODO: if field exists, whether need to add it again?
         # Set the provider to accept the data source
         prov = self.layer.dataProvider()
-        prov.addAttributes([QgsField("id", QVariant.Int),
-                           QgsField("Area", QVariant.Double)])
+        prov.addAttributes(
+            [QgsField("Group_uuid", QVariant.String),
+             QgsField("id", QVariant.Int),
+             QgsField("Area", QVariant.Double),
+             QgsField("N_FG", QVariant.Int),
+             QgsField("N_BG", QVariant.Int),
+             QgsField("BBox", QVariant.Bool)
+             ]
+        )
         self.layer.updateFields()
 
         self.ensure_edit_mode()
@@ -489,10 +503,13 @@ class SAM_PolygonFeature:
         # show the change
         self.layer.triggerRepaint()
 
-    def add_geojson_feature(self, geojson):
+    def add_geojson_feature(self, geojson: Dict,
+                            prompt_history: List,
+                            t_area: float = 0):
         '''Add a geojson feature to the layer'''
         features = []
         num_polygons = self.layer.featureCount()
+        group_uuid = str(uuid.uuid4())
         for idx, geom in enumerate(geojson):
             points = []
             coordinates = geom['geometry']['coordinates'][0]
@@ -506,9 +523,18 @@ class SAM_PolygonFeature:
             # Add a new feature and assign the geometry
             feature = QgsFeature()
             feature.setGeometry(QgsGeometry.fromPolygonXY([points]))
-            feature.setAttributes(
-                [num_polygons+idx+1, feature.geometry().area()])
+            ft_area = feature.geometry().area()
+            if ft_area < t_area:
+                return None
 
+            feature.setAttributes(
+                [group_uuid,
+                 num_polygons+idx+1,
+                 ft_area,
+                 prompt_history.count('fgpt'),
+                 prompt_history.count('bgpt'),
+                 'bbox' in prompt_history]
+            )
             features.append(feature)
 
         self.ensure_edit_mode()

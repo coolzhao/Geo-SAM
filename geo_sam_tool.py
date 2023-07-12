@@ -401,7 +401,7 @@ class Geo_SAM(QObject):
 
         # execute segmentation
         if not self.sam_model.sam_predict(
-                self.canvas_points, self.canvas_rect, self.polygon):
+                self.canvas_points, self.canvas_rect, self.polygon, self.prompt_history):
             self.undo_last_prompt()
         self.topping_polygon_sam_layer()
 
