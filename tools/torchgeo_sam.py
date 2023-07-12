@@ -483,6 +483,8 @@ class SamTestRasterDataset(RasterDataset):
             dest = dest.astype(np.int64)
 
         tensor = torch.tensor(dest)  # .float()
+        if torch.isnan(tensor).any():
+            tensor = torch.nan_to_num(tensor, nan=0.0) # , posinf=0.0, neginf=0.0
         tensor = self.pad_patch(tensor, patch_size)
 
         sample = {"crs": self.crs, "bbox": bbox,

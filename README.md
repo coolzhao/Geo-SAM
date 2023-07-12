@@ -9,8 +9,9 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https:
     - [For Windows Users](#for-windows-users)
     - [For Mac or Linux Users](#for-mac-or-linux-users)
   - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
+    - [Download the Plugin](#download-the-plugin)
     - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
-    - [Activate Geo SAM Plugin](#activate-geo-sam-plugin)
+    - [Activate the Geo SAM Plugin](#activate-the-geo-sam-plugin)
 - [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
   - [Add Prompts](#add-prompts)
   - [Save Current Results](#save-current-results)
@@ -98,17 +99,30 @@ sudo apt-get update
 sudo apt-get install python3-pip
 ```
 
-For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you install the gpu-version pytorch. You can reach pytorch official website for more information.
+For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you install the gpu-version pytorch. You can reach [pytorch official website](https://pytorch.org/get-started/locally/) for more information.
 
 ### Install the Geo SAM Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/dev.zip), unzip it, and put the `Geo-SAM` folder (please remove the version suffix of the folder to avoid potential path issues, be aware of undesired nested folders after unzipping) into the QGIS plugin folder, then restart QGIS if it's open already.
+#### Download the Plugin
+
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/dev.zip), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
 
 #### Locate the QGIS Plugin folder
 
-From the `Settings` Menu, select `User Profiles`, then select `Open active profile folder.`  You'll be taken straight to the profile directory in Explorer or Finder. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder. Open the `plugins` folder, then put the entire `Geo-SAM` folder in it, then restart QGIS.
+In QGIS, Go to the menu `Settings` > `User Profiles` > `Open active profile folder.`  You'll be taken straight to the profile directory. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder (create the `plugins` folder if it does not exist). Put the entire `Geo-SAM` folder inside the `plugins` folder, then restart QGIS. The directory tree structure should be the same as the following.
 
-Below are some general paths of different systems for your reference.
+```txt
+python
+└── plugins
+    └── Geo-SAM
+        ├── checkpoint
+        ├── docs
+        ├── ...
+        ├── tools
+        └── ui
+```
+
+Below are some general paths of the plugin folder for your reference.
 
 ```bash
 # Windows
@@ -119,9 +133,9 @@ Below are some general paths of different systems for your reference.
 ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins
 ```
 
-#### Activate Geo SAM Plugin
+#### Activate the Geo SAM Plugin
 
-After restarting QGIS, you may go to the `Plugins` menu, select `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
+After restarting QGIS, go to the menu `Plugins` > `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
 
 <p align="center">
   <img src="assets/Active_geo_sam.png" width="600" title="Plugin menu">
@@ -141,7 +155,7 @@ You may also find a new toolbar, including two icons.
 
 ## Use the Geo SAM Segmentation Tool
 
-Click the segmentation tool icon to open the interactive segmentation widget. You will be shown a demo raster image with thaw slump and small pond landforms for you to try the tool. With a single click on the map, a segmentation result will be generated.
+Click the `Segmentation Tool` icon to open the interactive segmentation widget. You will be shown a demo raster image with thaw slump and small pond landforms for you to try the tool. With a single click on the map, a segmentation result will be generated.
 
 <!-- ![try geo sam](assets/try_geo_sam.png) -->
 
@@ -219,7 +233,7 @@ SAM model checkpoints should be downloaded in advance, and three versions (huge,
 
 After selecting the raster layer or image file you want to process, you should also choose the proper bands. The SAM natively supports only three-band RGB images, but we have adapted the tool to support one or two-band images so that you can try grayscale images or NDVI spectral index images.
 
-The values of the image input to the SAM should range from 0 to 255, and you may need to specify the value range (in `Advanced Parameters`) to be rescaled to [0, 255]. By default, the tool will help you to find the min and max values of the first selected band data of the image and rescale the value range of [min, max] to [0, 255].
+The values of the image input to the SAM should range from 0 to 255, and you may need to specify the value range (in `Advanced Parameters`) to be rescaled to [0, 255]. By default, the tool will help you to find the min and max values of the image data and rescale the value range of [min, max] to [0, 255].
 
 ### Patch Sampling
 

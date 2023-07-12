@@ -4,7 +4,7 @@ After selecting the raster layer or image file you want to process, you should a
 
 Since SAM only supports input images with size of (1024, 1204), small images will be resized to match the input size, while large images will be sampled into overlapped patches (patch_size=1024) in a grid-like fashion. The stride parameter will determine the overlap behavior, overlap = patch_size - stride.
 
-The values of the image input to the SAM should range from 0 to 255, and you may need to specify the value range to be rescaled to [0, 255]. By default, the tool will help you to find the min and max values of the first selected band data of the image and rescale the value range of [min, max] to [0, 255].
+The values of the image input to the SAM should range from 0 to 255, and you may need to specify the value range to be rescaled to [0, 255]. By default, the tool will help you to find the min and max values of the image data and rescale the value range of [min, max] to [0, 255].
 
 SAM model checkpoints should be downloaded in advance, and three versions (huge, large, base) are available. The large version "vit_l" is recommended to try first. You need to specify the model type that matches the checkpoint version.
 

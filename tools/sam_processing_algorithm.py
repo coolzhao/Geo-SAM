@@ -393,10 +393,15 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             start_time = time.time()
             # set sample size to limit statistic time
             sample_size = min(1e8, img_height_in_extent*img_width_in_extent)
-            band_stats = rlayer_data_provider.bandStatistics(
-                bandNo=self.selected_bands[0], stats=QgsRasterBandStats.All, extent=stat_extent, sampleSize=sample_size)
-            range_value[0] = band_stats.minimumValue
-            range_value[1] = band_stats.maximumValue
+            min_values = []
+            max_values = []
+            for band in self.selected_bands:
+                band_stats = rlayer_data_provider.bandStatistics(
+                    bandNo=band, stats=QgsRasterBandStats.All, extent=stat_extent, sampleSize=sample_size)
+                min_values.append(band_stats.minimumValue)
+                max_values.append(band_stats.maximumValue)
+            range_value[0] = min(min_values)
+            range_value[1] = max(max_values)
             end_time = time.time()
             elapsed_time = (end_time - start_time)
             feedback.pushInfo(
@@ -626,6 +631,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
     @torch.no_grad()
     def get_sam_feature(self, batch_input: Tensor, feedback: QgsProcessingFeedback) -> bool:
+        # TODO: if the input image are all zero(batch_input.any()), directly return features with all zero and give a message
+        # should know the shape of the feature in advance
         batch_input = batch_input.to(device=self.sam_model.device)
         batch_input = ((batch_input - self.sam_model.pixel_mean) /
                        self.sam_model.pixel_std)
