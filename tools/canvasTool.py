@@ -497,6 +497,7 @@ class SAM_PolygonFeature:
             fields = QgsFields()
             fields.extend(
                 [QgsField("Group_uuid", QVariant.String),
+                 QgsField("Group_Members", QVariant.Int),
                  QgsField("id", QVariant.Int),
                  QgsField("Area", QVariant.Double),
                  QgsField("N_FG", QVariant.Int),
@@ -549,6 +550,7 @@ class SAM_PolygonFeature:
         prov = self.layer.dataProvider()
         prov.addAttributes(
             [QgsField("Group_uuid", QVariant.String),
+             QgsField("Group_Members", QVariant.Int),
              QgsField("id", QVariant.Int),
              QgsField("Area", QVariant.Double),
              QgsField("N_FG", QVariant.Int),
@@ -610,6 +612,7 @@ class SAM_PolygonFeature:
 
             feature.setAttributes(
                 [group_uuid,
+                 0,
                  num_polygons+idx+1,
                  ft_area,
                  prompt_history.count('fgpt'),
@@ -617,7 +620,8 @@ class SAM_PolygonFeature:
                  'bbox' in prompt_history]
             )
             features.append(feature)
-
+        for feature in features:
+            feature[1] = len(features)
         self.ensure_edit_mode()
         self.layer.addFeatures(features)
         self.layer.updateExtents()
