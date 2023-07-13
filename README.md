@@ -88,7 +88,7 @@ Then install the libraries.
 
 ```bash
 # add ./ to avoid using your default Python in the system
-./pip3 install torch==1.13.1 torchvision==0.14.1
+./pip3 install torch torchvision
 ./pip3 install torchgeo
 ./pip3 install segment-anything
 ```
@@ -106,7 +106,7 @@ For Linux users, if your computer got available CUDA GPUs and with CUDA library 
 
 #### Download the Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/latest), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/dev.zip), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
 
 #### Locate the QGIS Plugin folder
 
@@ -117,6 +117,7 @@ python
 └── plugins
     └── Geo-SAM
         ├── checkpoint
+        ├── docs
         ├── ...
         ├── tools
         └── ui
