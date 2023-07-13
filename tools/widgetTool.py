@@ -1,7 +1,7 @@
 import os
 import time
 import json
-from typing import List
+from typing import List, Tuple
 from pathlib import Path
 from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication, QgsCoordinateReferenceSystem
 from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
@@ -20,7 +20,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 from PyQt5 import uic
-import processing
+from torchgeo.samplers import Units
+from torchgeo.datasets import BoundingBox
 
 from .geoTool import ImageCRSManager, LayerExtent
 from .SAMTool import SAM_Model
@@ -28,6 +29,8 @@ from .canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Recta
 from ..ui import UI_Selector, UI_EncoderCopilot
 from ..ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool, QIcon_EncoderCopilot
 from ..geo_sam_provider import GeoSamProvider
+from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
+from .messageTool import MessageTool
 
 
 class Selector(QObject):
@@ -46,6 +49,7 @@ class Selector(QObject):
         self.dockFirstOpen = True
         self.prompt_history: List[str] = []
         self.sam_feature_history: List[List[int]] = []
+        self.message_tool = MessageTool()
 
     def open_widget(self):
         '''Create widget selector'''
@@ -201,9 +205,12 @@ class Selector(QObject):
 
         # init feature related objects
         self.sam_model = SAM_Model(self.feature_dir, self.cwd)
-        self.iface.messageBar().pushMessage("Great",
-                                            (f"SAM Features with {self.sam_model.feature_size} patches in '{Path(self.feature_dir).name}' have been loaded, "
-                                             "you can start labeling now"), level=Qgis.Info, duration=10)
+        self.message_tool.MessageBar(
+            "Great",
+            f"SAM Features with {self.sam_model.feature_size} patches "
+            f"in '{Path(self.feature_dir).name}' have been loaded, "
+            "you can start labeling now"
+        )
 
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
@@ -292,8 +299,10 @@ class Selector(QObject):
             if hasattr(self, "sam_extent_canvas_crs"):
                 self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
             else:
-                self.iface.messageBar().pushMessage("Oops",
-                                                    ("No sam feature loaded"), level=Qgis.Info, duration=10)
+                self.message_tool.MessageBar(
+                    "Oops",
+                    "No sam feature loaded"
+                )
         else:
             self.canvas_extent.clear()
 
@@ -447,8 +456,10 @@ class Selector(QObject):
             self.enable_disable_edit_mode()
             self.show_hide_sam_feature_extent()
         else:
-            self.iface.messageBar().pushMessage("Feature folder not exist",
-                                                "choose a another folder", level=Qgis.Info)
+            self.message_tool.MessageBar(
+                'Oops',
+                "Feature folder not exist, please choose a another folder"
+            )
 
     def clear_layers(self, clear_extent: bool = False):
         '''Clear all temporary layers (canvas and new sam result) and reset prompt'''
@@ -524,6 +535,7 @@ class EncoderCopilot(QObject):
         self.canvas = iface.mapCanvas()
         self.toolPan = QgsMapToolPan(self.canvas)
         self.dockFirstOpen: bool = True
+        self.message_tool = MessageTool()
         # init crs
         self.project: QgsProject = QgsProject.instance()
         self.crs_project: QgsCoordinateReferenceSystem = self.project.crs()
@@ -537,10 +549,15 @@ class EncoderCopilot(QObject):
 
             ########## prompts table ##########
             self.wdg_copilot.mMapLayerComboBox.layerChanged.connect(
-                self.set_band)
+                self.init_bands)
             self.wdg_copilot.mExtentGroupBox.setMapCanvas(self.canvas)
             self.wdg_copilot.mExtentGroupBox.extentChanged.connect(
-                self.show_extent)
+                self.show_extents)
+            self.wdg_copilot.mBoxResolutionScale.valueChanged.connect(
+                self.show_extents)
+            self.wdg_copilot.mBoxOverlap.valueChanged.connect(
+                self.show_extents)
+
             self.wdg_copilot.pushButton_CopySetting.clicked.connect(
                 self.json_setting_to_clipboard)
             # If a signal is connected to several slots,
@@ -558,7 +575,7 @@ class EncoderCopilot(QObject):
         if not self.wdg_copilot.isUserVisible():
             self.wdg_copilot.setUserVisible(True)
 
-    def set_band(self):
+    def init_bands(self):
         '''init band field by raster layer band and set project crs to layer crs'''
         # set raster layer band to band field
         self.raster_layer = self.wdg_copilot.mMapLayerComboBox.currentLayer()
@@ -572,16 +589,23 @@ class EncoderCopilot(QObject):
 
         if self.crs_layer != self.crs_project:
             self.project.setCrs(self.crs_layer)
-            self.iface.messageBar().pushMessage(
+            self.message_tool.MessageBar(
                 "Note:",
                 "Project crs has been changed to the layer crs temporarily. "
                 "It will be reset to the original crs when this widget is closed.",
-                level=Qgis.Info,
-                duration=30)
+                duration=30
+            )
+
         if not hasattr(self, "canvas_extent"):
             self.canvas_extent = Canvas_Extent(self.canvas, self.crs_layer)
 
-    def get_resolutions(self):
+    def get_bands(self) -> List[int]:
+        bands = [self.wdg_copilot.mRasterBandComboBox_R.currentBand(),
+                 self.wdg_copilot.mRasterBandComboBox_G.currentBand(),
+                 self.wdg_copilot.mRasterBandComboBox_B.currentBand()]
+        return bands
+
+    def get_resolutions(self) -> Tuple[float, float]:
         '''Get x, y resolution from resolution group box'''
         scale = self.wdg_copilot.mBoxResolutionScale.value()
         resolution_layer = (
@@ -594,54 +618,53 @@ class EncoderCopilot(QObject):
         )
         return resolution_scaled
 
-    def get_stride(self):
+    def get_stride(self) -> int:
         '''Get stride from overlap group box'''
         overlaps = self.wdg_copilot.mBoxOverlap.value()
         stride = int((100 - overlaps)/100 * 1024)
         return stride
 
-    def get_extent_str(self):
-        '''Get extent string from extent group box'''
+    def get_extent(self) -> QgsRectangle:
         extent = self.wdg_copilot.mExtentGroupBox.outputExtent()
+        return extent
+
+    def get_extent_str(self) -> str:
+        '''Get extent string from extent group box'''
+        extent = self.get_extent()
         xMin, yMin, xMax, yMax = (extent.xMinimum(),
                                   extent.yMinimum(),
                                   extent.xMaximum(),
                                   extent.yMaximum())
         return f'{xMin}, {xMax}, {yMin}, {yMax}'
 
-    def check_extent_set(self):
+    def check_extent_set(self) -> bool:
         '''Check if extent has been set. If not, alert user to set extent'''
-        extent = self.get_extent_str().split('[')[0]
+        extent = self.get_extent_str()
         vals = extent.split(',')
         if (float(vals[0]) == float(vals[1])
                 or float(vals[2]) == float(vals[3])):
             # alert user to set extent
-            mb = QMessageBox()
-            mb.setText(
-                "Oops: Extent has not been set. Please set extent first.")
-            mb.setStandardButtons(QMessageBox.Ok)
-            mb.exec()
+            self.message_tool.MessageBoxOK(
+                "Oops: Extent has not been set. Please set extent first."
+            )
             return False
         else:
             return True
 
-    def check_raster_selected(self):
+    def check_raster_selected(self) -> bool:
         '''Check if raster layer has been selected. If not, alert user to select a raster layer'''
         if hasattr(self, "canvas_extent"):
             return True
         else:
             # alert user to select a raster layer
-            mb = QMessageBox()
-            mb.setText(
+            self.message_tool.MessageBoxOK(
                 "Oops: "
                 "Raster Layer has not been selected. "
                 "Please set Raster Layer and Bands first."
             )
-            mb.setStandardButtons(QMessageBox.Ok)
-            mb.exec()
             return False
 
-    def check_setting_available(self):
+    def check_setting_available(self) -> bool:
         '''Check if setting is available. If not, alert user to set setting'''
         if not self.check_raster_selected():
             return False
@@ -650,14 +673,12 @@ class EncoderCopilot(QObject):
         else:
             return True
 
-    def json_setting_to_clipboard(self):
+    def json_setting_to_clipboard(self) -> None:
         if not self.check_setting_available():
             return None
         stride = self.get_stride()
         resolution = self.get_resolutions()
-        bands = [self.wdg_copilot.mRasterBandComboBox_R.currentBand(),
-                 self.wdg_copilot.mRasterBandComboBox_G.currentBand(),
-                 self.wdg_copilot.mRasterBandComboBox_B.currentBand()]
+        bands = self.get_bands()
         crs = self.crs_layer.authid()
         extent = f'{self.get_extent_str()} [{crs}]'
         json_dict = {
@@ -676,19 +697,90 @@ class EncoderCopilot(QObject):
         json_str = json.dumps(json_dict, indent=4)
 
         QApplication.clipboard().setText(json_str)
-        self.iface.messageBar().pushMessage(
+        self.message_tool.MessageBar(
             "Note:",
-            "Settings have been copied to clipboard. "
+            "Setting has been copied to clipboard. "
             "You can paste it to Geo-SAM Image Encoder now.",
-            level=Qgis.Info,
-            duration=10
+            duration=30
         )
 
-    def show_extent(self):
+    def show_extents(self):
+        self.show_bbox_extent()
+        self.show_batch_extent()
+
+    def show_bbox_extent(self):
+        '''Show bbox extent in canvas'''
         if self.check_raster_selected():
             self.canvas_extent.clear()
-            extent = self.wdg_copilot.mExtentGroupBox.outputExtent()
+            extent = self.get_extent()
             self.canvas_extent.add_extent(extent)
+
+    def show_batch_extent(self):
+        '''Show all batch extents in canvas'''
+        if not self.check_setting_available():
+            return None
+
+        input_bands = [self.raster_layer.bandName(i_band)
+                       for i_band in self.get_bands()]
+
+        raster_file = Path(self.raster_layer.source())
+
+        SamTestRasterDataset.filename_glob = raster_file.name
+        SamTestRasterDataset.all_bands = [
+            self.raster_layer.bandName(i_band) for i_band in range(1, self.raster_layer.bandCount()+1)
+        ]
+        layer_ds = SamTestRasterDataset(
+            root=str(raster_file.parent),
+            crs=None,
+            res=self.get_resolutions()[0],
+            bands=input_bands,
+            cache=False
+        )
+        extent = self.get_extent()
+        extent_bbox = BoundingBox(
+            minx=extent.xMinimum(),
+            maxx=extent.xMaximum(),
+            miny=extent.yMinimum(),
+            maxy=extent.yMaximum(),
+            mint=layer_ds.index.bounds[4],
+            maxt=layer_ds.index.bounds[5]
+        )
+
+        ds_sampler = SamTestGridGeoSampler(
+            layer_ds,
+            size=1024,  # Currently, only 1024 considered (SAM default)
+            stride=self.get_stride(),
+            roi=extent_bbox,
+            units=Units.PIXELS  # Units.CRS or Units.PIXELS
+        )
+        if len(ds_sampler) == 0:
+            self.message_tool.MessageBar(
+                'Oops!!!',
+                'No available patch sample inside the chosen extent!!! '
+                'Please choose another extent.',
+                duration=30
+            )
+            return None
+
+        # # clear canvas extent
+        # if self.check_raster_selected():
+        #     self.canvas_extent.clear()
+
+        for i, patch in enumerate(ds_sampler):
+            extent = QgsRectangle(
+                patch['bbox'].minx,
+                patch['bbox'].miny,
+                patch['bbox'].maxx,
+                patch['bbox'].maxy
+            )
+            alpha = ((i+1) / len(ds_sampler) * 255)
+            if alpha == 255:
+                print(alpha)
+            self.canvas_extent.add_extent(
+                extent,
+                use_type='batch_extent',
+                alpha=((i+1) / len(ds_sampler) * 255)
+            )
 
     def reset_to_project_crs(self):
         self.project.setCrs(self.crs_project)

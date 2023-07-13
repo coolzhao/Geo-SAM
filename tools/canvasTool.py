@@ -22,12 +22,19 @@ from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect, UI_SCALE
 class Canvas_Rectangle:
     '''A class to manage Rectangle on canvas.'''
 
-    def __init__(self, canvas: QgsMapCanvas, img_crs_manager: ImageCRSManager, use_type='bbox'):
+    def __init__(
+        self,
+        canvas: QgsMapCanvas,
+        img_crs_manager: ImageCRSManager,
+        use_type: str = 'bbox',
+        alpha: int = 255
+    ):
         self.canvas = canvas
         self.qgis_project = QgsProject.instance()
         self.rect_list = []
         # self.box_geo = None
         self.img_crs_manager = img_crs_manager
+        self.alpha = alpha
         self.rubberBand = QgsRubberBand(
             self.canvas, QgsWkbTypes.PolygonGeometry)
 
@@ -35,6 +42,8 @@ class Canvas_Rectangle:
             self._init_bbox_layer()
         elif use_type == 'extent':
             self._init_extent_layer()
+        elif use_type == 'batch_extent':
+            self._init_batch_extent_layer()
 
     def _init_bbox_layer(self):
         '''Initialize the rectangle layer for bbox prompt'''
@@ -49,7 +58,29 @@ class Canvas_Rectangle:
         line_color = QColor(255, 0, 0)
         # line_color2 = QColor(255, 255, 255)
         line_color2 = None  # not set secondary color currently
+        line_width = 3
+        self.set_layer_style(fill_color, line_color, line_width, line_color2)
+
+    def _init_batch_extent_layer(self):
+        '''Initialize the rectangle layer for batch extent'''
+        color_random = np.random.randint(0, 255, size=3).tolist()
+        fill_color = QColor(0, 0, 0, 0)
+        line_color = QColor(
+            color_random[0],
+            color_random[1],
+            color_random[2],
+            self.alpha
+        )
+        # line_color2 = QColor(255, 255, 255)
         line_width = 2
+        line_color2 = None
+        if self.alpha > 200:
+            line_color2 = QColor(0, 0, 255)
+            line_width = 1
+        if self.alpha > 254:
+            line_color = QColor(255, 0, 0)
+            line_color2 = QColor(255, 0, 0)
+
         self.set_layer_style(fill_color, line_color, line_width, line_color2)
 
     def set_layer_style(self, fill_color, line_color, line_width, line_color_2=None):
@@ -235,12 +266,19 @@ class Canvas_Extent:
             canvas_rect.clear()
         self.canvas_rect_list = []
 
-    def add_extent(self, extent: QgsRectangle):
+    def add_extent(self, extent: QgsRectangle,
+                   use_type: str = 'extent',
+                   alpha: int = 255
+                   ):
         '''Add a extent on canvas'''
         xMin, yMin, xMax, yMax = extent.xMinimum(
         ), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()
         canvas_rect = Canvas_Rectangle(
-            self.canvas, self.img_crs_manager, use_type='extent')
+            self.canvas,
+            self.img_crs_manager,
+            use_type=use_type,
+            alpha=alpha
+        )
 
         point1 = QgsPointXY(xMin, yMax)  # left top
         point2 = QgsPointXY(xMin, yMin)  # left bottom
