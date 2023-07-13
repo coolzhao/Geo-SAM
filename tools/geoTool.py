@@ -15,7 +15,7 @@ class ImageCRSManager:
 
     def img_point_to_crs(
         self, point: QgsPointXY, dst_crs: QgsCoordinateReferenceSystem
-    ):
+    ) -> QgsRectangle:
         """transform point from this image crs to destination crs
 
         Parameters:
@@ -34,7 +34,7 @@ class ImageCRSManager:
 
     def point_to_img_crs(
         self, point: QgsPointXY, dst_crs: QgsCoordinateReferenceSystem
-    ):
+    ) -> QgsRectangle:
         """transform point from point crs to this image crs
 
         Parameters:
@@ -54,7 +54,7 @@ class ImageCRSManager:
 
     def extent_to_img_crs(
         self, extent: QgsRectangle, dst_crs: QgsCoordinateReferenceSystem
-    ):
+    ) -> QgsRectangle:
         """transform extent from point crs to this image crs
 
         Parameters:
@@ -71,7 +71,9 @@ class ImageCRSManager:
         extent_transformed = transform.transformBoundingBox(extent)
         return extent_transformed
 
-    def img_extent_to_crs(self, extent: QgsRectangle, dst_crs: QgsCoordinateReferenceSystem):
+    def img_extent_to_crs(
+        self, extent: QgsRectangle, dst_crs: QgsCoordinateReferenceSystem
+    ) -> QgsRectangle:
         '''transform extent from this image crs to destination crs
 
         Parameters:

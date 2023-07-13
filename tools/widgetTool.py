@@ -1,10 +1,12 @@
 import os
 import time
+import json
 from typing import List
 from pathlib import Path
-from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication
+from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication, QgsCoordinateReferenceSystem
 from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
 from qgis.core import QgsRasterLayer, QgsRectangle
+from qgis.utils import iface
 from qgis.PyQt.QtWidgets import QDockWidget
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtWidgets import (
@@ -514,46 +516,192 @@ class Selector(QObject):
 
 
 class EncoderCopilot(QObject):
-
+    # TODO: support encoding process in this widget
     def __init__(self, parent, iface: QgisInterface, cwd: str):
         super().__init__()
         self.parent = parent
         self.iface = iface
-        self.cwd = cwd
         self.canvas = iface.mapCanvas()
         self.toolPan = QgsMapToolPan(self.canvas)
-        self.dockFirstOpen = True
-        self.prompt_history: List[str] = []
-        self.sam_feature_history: List[List[int]] = []
+        self.dockFirstOpen: bool = True
+        # init crs
+        self.project: QgsProject = QgsProject.instance()
+        self.crs_project: QgsCoordinateReferenceSystem = self.project.crs()
+        self.crs_layer: QgsCoordinateReferenceSystem = self.crs_project
 
     def open_widget(self):
         '''Create widget selector'''
         self.parent.toolbar.setVisible(True)
         if self.dockFirstOpen:
             self.wdg_copilot = UI_EncoderCopilot
-            ########## prompts table ##########
 
+            ########## prompts table ##########
+            self.wdg_copilot.mMapLayerComboBox.layerChanged.connect(
+                self.set_band)
+            self.wdg_copilot.mExtentGroupBox.setMapCanvas(self.canvas)
+            self.wdg_copilot.mExtentGroupBox.extentChanged.connect(
+                self.show_extent)
+            self.wdg_copilot.pushButton_CopySetting.clicked.connect(
+                self.json_setting_to_clipboard)
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
             self.wdg_copilot.closed.connect(self.destruct)
             self.wdg_copilot.closed.connect(self.iface.actionPan().trigger)
-
-            # shortcuts
-            # self.wdg_copilot.pushButton_clear.setShortcut("C")
+            self.wdg_copilot.closed.connect(self.reset_to_project_crs)
 
             self.dockFirstOpen = False
             # add widget to QGIS
-            self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_copilot)
+            self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.wdg_copilot)
         else:
             pass
 
         if not self.wdg_copilot.isUserVisible():
             self.wdg_copilot.setUserVisible(True)
 
+    def set_band(self):
+        '''init band field by raster layer band and set project crs to layer crs'''
+        # set raster layer band to band field
+        self.raster_layer = self.wdg_copilot.mMapLayerComboBox.currentLayer()
+        self.wdg_copilot.mRasterBandComboBox_R.setLayer(self.raster_layer)
+        self.wdg_copilot.mRasterBandComboBox_G.setLayer(self.raster_layer)
+        self.wdg_copilot.mRasterBandComboBox_B.setLayer(self.raster_layer)
+
+        # set crs to layer crs
+        self.crs_project = self.project.crs()
+        self.crs_layer = self.raster_layer.crs()
+
+        if self.crs_layer != self.crs_project:
+            self.project.setCrs(self.crs_layer)
+            self.iface.messageBar().pushMessage(
+                "Note:",
+                "Project crs has been changed to the layer crs temporarily. "
+                "It will be reset to the original crs when this widget is closed.",
+                level=Qgis.Info,
+                duration=30)
+        if not hasattr(self, "canvas_extent"):
+            self.canvas_extent = Canvas_Extent(self.canvas, self.crs_layer)
+
+    def get_resolutions(self):
+        '''Get x, y resolution from resolution group box'''
+        scale = self.wdg_copilot.mBoxResolutionScale.value()
+        resolution_layer = (
+            self.raster_layer.rasterUnitsPerPixelX(),
+            self.raster_layer.rasterUnitsPerPixelY()
+        )
+        resolution_scaled = (
+            resolution_layer[0] * scale,
+            resolution_layer[1] * scale
+        )
+        return resolution_scaled
+
+    def get_stride(self):
+        '''Get stride from overlap group box'''
+        overlaps = self.wdg_copilot.mBoxOverlap.value()
+        stride = int((100 - overlaps)/100 * 1024)
+        return stride
+
+    def get_extent_str(self):
+        '''Get extent string from extent group box'''
+        extent = self.wdg_copilot.mExtentGroupBox.outputExtent()
+        xMin, yMin, xMax, yMax = (extent.xMinimum(),
+                                  extent.yMinimum(),
+                                  extent.xMaximum(),
+                                  extent.yMaximum())
+        return f'{xMin}, {xMax}, {yMin}, {yMax}'
+
+    def check_extent_set(self):
+        '''Check if extent has been set. If not, alert user to set extent'''
+        extent = self.get_extent_str().split('[')[0]
+        vals = extent.split(',')
+        if (float(vals[0]) == float(vals[1])
+                or float(vals[2]) == float(vals[3])):
+            # alert user to set extent
+            mb = QMessageBox()
+            mb.setText(
+                "Oops: Extent has not been set. Please set extent first.")
+            mb.setStandardButtons(QMessageBox.Ok)
+            mb.exec()
+            return False
+        else:
+            return True
+
+    def check_raster_selected(self):
+        '''Check if raster layer has been selected. If not, alert user to select a raster layer'''
+        if hasattr(self, "canvas_extent"):
+            return True
+        else:
+            # alert user to select a raster layer
+            mb = QMessageBox()
+            mb.setText(
+                "Oops: "
+                "Raster Layer has not been selected. "
+                "Please set Raster Layer and Bands first."
+            )
+            mb.setStandardButtons(QMessageBox.Ok)
+            mb.exec()
+            return False
+
+    def check_setting_available(self):
+        '''Check if setting is available. If not, alert user to set setting'''
+        if not self.check_raster_selected():
+            return False
+        elif not self.check_extent_set():
+            return False
+        else:
+            return True
+
+    def json_setting_to_clipboard(self):
+        if not self.check_setting_available():
+            return None
+        stride = self.get_stride()
+        resolution = self.get_resolutions()
+        bands = [self.wdg_copilot.mRasterBandComboBox_R.currentBand(),
+                 self.wdg_copilot.mRasterBandComboBox_G.currentBand(),
+                 self.wdg_copilot.mRasterBandComboBox_B.currentBand()]
+        crs = self.crs_layer.authid()
+        extent = f'{self.get_extent_str()} [{crs}]'
+        json_dict = {
+            "inputs":
+                {"BANDS": bands,
+                 "CRS": crs,
+                 "EXTENT": extent,
+                 "INPUT": self.raster_layer.source(),
+                 # TODO: show image with range interactively
+                 "RANGE": "None,None",
+                 # TODO: support different resolution for x and y
+                 "RESOLUTION": resolution[0],
+                 "STRIDE": stride
+                 }
+        }
+        json_str = json.dumps(json_dict, indent=4)
+
+        QApplication.clipboard().setText(json_str)
+        self.iface.messageBar().pushMessage(
+            "Note:",
+            "Settings have been copied to clipboard. "
+            "You can paste it to Geo-SAM Image Encoder now.",
+            level=Qgis.Info,
+            duration=10
+        )
+
+    def show_extent(self):
+        if self.check_raster_selected():
+            self.canvas_extent.clear()
+            extent = self.wdg_copilot.mExtentGroupBox.outputExtent()
+            self.canvas_extent.add_extent(extent)
+
+    def reset_to_project_crs(self):
+        self.project.setCrs(self.crs_project)
+
+    def reset_canvas(self):
+        self.reset_to_project_crs()
+        if hasattr(self, "canvas_extent"):
+            self.canvas_extent.clear()
+
     def destruct(self):
         '''Destruct actions when closed widget'''
-        pass
+        self.reset_canvas()
 
     def unload(self):
         '''Unload actions when plugin is closed'''
-        pass
+        self.reset_canvas()
