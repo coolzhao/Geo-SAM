@@ -8,7 +8,7 @@ except:
 
 cwd = os.path.abspath(os.path.dirname(__file__))
 selector_path = os.path.join(cwd, "Selector.ui")
-encoder_path = os.path.join(cwd, "Encoder.ui")
+encoder_path = os.path.join(cwd, "EncoderCopilot.ui")
 
 UI_Selector: QgsDockWidget = uic.loadUi(selector_path)
-UI_Encoder: QgsDockWidget = uic.loadUi(encoder_path)
+UI_EncoderCopilot: QgsDockWidget = uic.loadUi(encoder_path)
