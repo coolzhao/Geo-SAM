@@ -23,8 +23,8 @@ import processing
 from .geoTool import ImageCRSManager, LayerExtent
 from .SAMTool import SAM_Model
 from .canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
-from ..ui import UI_Selector
-from ..ui.icons import QIcon_GeoSAMTool, QIcon_GeoSAMEncoder
+from ..ui import UI_Selector, UI_EncoderCopilot
+from ..ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool, QIcon_EncoderCopilot
 from ..geo_sam_provider import GeoSamProvider
 
 
@@ -75,7 +75,7 @@ class Selector(QObject):
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
                 self.enable_disable_edit_mode)
-            
+
             self.wdg_sel.radioButton_exe_move.setChecked(False)
             self.wdg_sel.radioButton_exe_move.toggled.connect(
                 self.execute_sam_move_mode)
@@ -93,7 +93,8 @@ class Selector(QObject):
             self.wdg_sel.pushButton_rect.setCheckable(True)
 
             ######### Setting table #########
-            self.wdg_sel.Box_min_area.valueChanged.connect(self.filter_feature_by_area)
+            self.wdg_sel.Box_min_area.valueChanged.connect(
+                self.filter_feature_by_area)
             self.wdg_sel.radioButton_show_extent.setChecked(True)
             self.wdg_sel.radioButton_show_extent.toggled.connect(
                 self.show_hide_sam_feature_extent)
@@ -107,7 +108,7 @@ class Selector(QObject):
             self.wdg_sel.pushButton_clear.setShortcut("C")
             self.wdg_sel.pushButton_undo.setShortcut("Z")
             self.wdg_sel.pushButton_save.setShortcut("S")
-            self.wdg_sel.radioButton_exe_move.setShortcut("M")      
+            self.wdg_sel.radioButton_exe_move.setShortcut("M")
 
             self.shortcut_tab = QShortcut(
                 QKeySequence(Qt.Key_Tab), self.wdg_sel)
@@ -510,3 +511,49 @@ class Selector(QObject):
             return False
         elif return_value == QMessageBox.Cancel:
             return True
+
+
+class EncoderCopilot(QObject):
+
+    def __init__(self, parent, iface: QgisInterface, cwd: str):
+        super().__init__()
+        self.parent = parent
+        self.iface = iface
+        self.cwd = cwd
+        self.canvas = iface.mapCanvas()
+        self.toolPan = QgsMapToolPan(self.canvas)
+        self.dockFirstOpen = True
+        self.prompt_history: List[str] = []
+        self.sam_feature_history: List[List[int]] = []
+
+    def open_widget(self):
+        '''Create widget selector'''
+        self.parent.toolbar.setVisible(True)
+        if self.dockFirstOpen:
+            self.wdg_copilot = UI_EncoderCopilot
+            ########## prompts table ##########
+
+            # If a signal is connected to several slots,
+            # the slots are activated in the same order in which the connections were made, when the signal is emitted.
+            self.wdg_copilot.closed.connect(self.destruct)
+            self.wdg_copilot.closed.connect(self.iface.actionPan().trigger)
+
+            # shortcuts
+            # self.wdg_copilot.pushButton_clear.setShortcut("C")
+
+            self.dockFirstOpen = False
+            # add widget to QGIS
+            self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_copilot)
+        else:
+            pass
+
+        if not self.wdg_copilot.isUserVisible():
+            self.wdg_copilot.setUserVisible(True)
+
+    def destruct(self):
+        '''Destruct actions when closed widget'''
+        pass
+
+    def unload(self):
+        '''Unload actions when plugin is closed'''
+        pass
