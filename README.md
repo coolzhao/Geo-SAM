@@ -2,32 +2,33 @@
 
 By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
-- [Introduction](#introduction)
-- [Installation](#installation)
-  - [Install QGIS](#install-qgis)
-  - [Install Library Dependencies](#install-library-dependencies)
-    - [For Windows Users](#for-windows-users)
-    - [For Mac or Linux Users](#for-mac-or-linux-users)
-  - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
-    - [Download the Plugin](#download-the-plugin)
-    - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
-    - [Activate the Geo SAM Plugin](#activate-the-geo-sam-plugin)
-- [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
-  - [Add Prompts](#add-prompts)
-  - [Save Current Results](#save-current-results)
-  - [Undo/Clear Prompts](#undoclear-prompts)
-  - [Enable/Disable the Tool](#enabledisable-the-tool)
-  - [Load Image Features](#load-image-features)
-  - [Shortcuts](#shortcuts)
-  - [Tips for Using the Segmentation Tool](#tips-for-using-the-segmentation-tool)
-- [Use the Geo SAM Encoding Tool](#use-the-geo-sam-encoding-tool)
-  - [Download SAM Checkpoints](#download-sam-checkpoints)
-  - [Select Bands and Value Range for Processing](#select-bands-and-value-range-for-processing)
-  - [Patch Sampling](#patch-sampling)
-  - [Demo Animation](#demo-animation)
-  - [Tips for Making the Encoding Process Faster](#tips-for-making-the-encoding-process-faster)
-- [Future Works](#future-works)
-- [Acknowledgement](#acknowledgement)
+- [Geo SAM](#geo-sam)
+  - [Introduction](#introduction)
+  - [Installation](#installation)
+    - [Install QGIS](#install-qgis)
+    - [Install Library Dependencies](#install-library-dependencies)
+      - [For Windows Users](#for-windows-users)
+      - [For Mac or Linux Users](#for-mac-or-linux-users)
+    - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
+      - [Download the Plugin](#download-the-plugin)
+      - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
+      - [Activate the Geo SAM Plugin](#activate-the-geo-sam-plugin)
+  - [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
+    - [Add Prompts](#add-prompts)
+    - [Save Current Results](#save-current-results)
+    - [Undo/Clear Prompts](#undoclear-prompts)
+    - [Enable/Disable the Tool](#enabledisable-the-tool)
+    - [Load Image Features](#load-image-features)
+    - [Shortcuts](#shortcuts)
+    - [Tips for Using the Segmentation Tool](#tips-for-using-the-segmentation-tool)
+  - [Use the Geo SAM Encoding Tool](#use-the-geo-sam-encoding-tool)
+    - [Download SAM Checkpoints](#download-sam-checkpoints)
+    - [Select Bands and Value Range for Processing](#select-bands-and-value-range-for-processing)
+    - [Patch Sampling](#patch-sampling)
+    - [Demo Animation](#demo-animation)
+    - [Tips for Making the Encoding Process Faster](#tips-for-making-the-encoding-process-faster)
+  - [Future Works](#future-works)
+  - [Acknowledgement](#acknowledgement)
 
 ## Introduction
 
@@ -87,7 +88,7 @@ Then install the libraries.
 
 ```bash
 # add ./ to avoid using your default Python in the system
-./pip3 install torch torchvision
+./pip3 install torch==1.13.1 torchvision==0.14.1
 ./pip3 install torchgeo
 ./pip3 install segment-anything
 ```
@@ -105,7 +106,7 @@ For Linux users, if your computer got available CUDA GPUs and with CUDA library 
 
 #### Download the Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/dev.zip), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/latest), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
 
 #### Locate the QGIS Plugin folder
 
@@ -116,7 +117,6 @@ python
 └── plugins
     └── Geo-SAM
         ├── checkpoint
-        ├── docs
         ├── ...
         ├── tools
         └── ui
@@ -204,7 +204,7 @@ Then, press the `Load` button to load the selected image features. Remember to a
 ### Shortcuts
 
 - `Tab`: loop between 3 prompt types (the cursor will also change to the corresponding types)
-- `M`: Taggle to enable executing SAM while moving mouse
+- `M`: Toggle to enable executing SAM while moving mouse
 - `C`: clear all prompts in canvas [same as `Clear` button]
 - `Z`: undo the last prompt in canvas [same as `Undo` button]
 - `S`: save SAM output features into polygon [same as `Save` button]
