@@ -20,12 +20,12 @@ from PyQt5.QtGui import QKeySequence, QIcon, QColor
 from PyQt5 import uic
 import processing
 
-from .tools.widgetTool import Selector
+from .tools.widgetTool import Selector, EncoderCopilot
 from .tools.geoTool import ImageCRSManager, LayerExtent
 from .tools.SAMTool import SAM_Model
 from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
 from .ui import UI_Selector
-from .ui.icons import QIcon_GeoSAMTool, QIcon_GeoSAMEncoder
+from .ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool, QIcon_EncoderCopilot
 from .geo_sam_provider import GeoSamProvider
 
 
@@ -63,10 +63,17 @@ class Geo_SAM(QObject):
         )
 
         self.actionSamEncoder = QAction(
-            QIcon_GeoSAMEncoder,
+            QIcon_EncoderTool,
             "Geo SAM Encoding Tool",
             self.iface.mainWindow()
         )
+
+        self.actionSamEncoderCopilot = QAction(
+            QIcon_EncoderCopilot,
+            "Geo SAM Encoding Copilot",
+            self.iface.mainWindow()
+        )
+
         self.actionSamTool.setObjectName("mActionGeoSamTool")
         self.actionSamTool.setToolTip(
             "Geo SAM Segmentation Tool: Use it to label landforms")
@@ -76,13 +83,25 @@ class Geo_SAM(QObject):
         self.actionSamEncoder.setToolTip(
             "Geo SAM Encoding Tool: Use it to encode/preprocess image before labeling")
         self.actionSamEncoder.triggered.connect(self.encodeImage)
+
+        self.actionSamEncoderCopilot.setObjectName(
+            "mActionGeoSamEncoderCopilot")
+        self.actionSamEncoderCopilot.setToolTip(
+            "Geo SAM Encoding Copilot: Assist you in optimizing your Encoder Settings")
+        self.actionSamEncoderCopilot.triggered.connect(
+            self.create_widget_encoder_copilot)
+
         # QgsMessageLog.logMessage(
         #     f"Geo-SAM action name {self.action.objectName()}", 'Geo SAM', level=Qgis.Info)
         self.iface.addPluginToMenu('Geo SAM Tools', self.actionSamTool)
         self.iface.addPluginToMenu('Geo SAM Tools', self.actionSamEncoder)
+        self.iface.addPluginToMenu(
+            'Geo SAM Tools', self.actionSamEncoderCopilot)
+
         # self.iface.addToolBarIcon(self.action)
         self.toolbar.addAction(self.actionSamTool)
         self.toolbar.addAction(self.actionSamEncoder)
+        self.toolbar.addAction(self.actionSamEncoderCopilot)
         self.toolbar.setVisible(True)
         # Not working
         # start_time = time.time()
@@ -98,7 +117,13 @@ class Geo_SAM(QObject):
         #         break
 
     def create_widget_selector(self):
+        '''Create widget for selecting landform by prompts'''
         self.wdg_sel = Selector(self, self.iface, self.cwd)
+        self.wdg_sel.open_widget()
+
+    def create_widget_encoder_copilot(self):
+        '''Create widget for co-piloting encoder settings'''
+        self.wdg_sel = EncoderCopilot(self, self.iface, self.cwd)
         self.wdg_sel.open_widget()
 
     def unload(self):

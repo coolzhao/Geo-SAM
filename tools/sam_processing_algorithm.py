@@ -49,7 +49,7 @@ import hashlib
 from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
-from ..ui.icons import QIcon_GeoSAMEncoder
+from ..ui.icons import QIcon_EncoderTool
 from ..docs import encoder_help
 
 
@@ -816,4 +816,4 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # return self.tr("Generate image features using SAM image encoder.")
 
     def icon(self):
-        return QIcon_GeoSAMEncoder
+        return QIcon_EncoderTool
