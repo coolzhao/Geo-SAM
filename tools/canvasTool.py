@@ -16,6 +16,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QKeySequence, QIcon, QColor, QCursor, QBitmap, QPixmap
 from qgis.utils import iface
 from .geoTool import ImageCRSManager, LayerExtent
+from .ulid import GroupId
 from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect, UI_SCALE
 
 
@@ -534,7 +535,7 @@ class SAM_PolygonFeature:
         if not os.path.exists(shapefile):
             fields = QgsFields()
             fields.extend(
-                [QgsField("Group_uuid", QVariant.String),
+                [QgsField("group_ulid", QVariant.String),
                  QgsField("Group_Members", QVariant.Int),
                  QgsField("id", QVariant.Int),
                  QgsField("Area", QVariant.Double),
@@ -587,7 +588,7 @@ class SAM_PolygonFeature:
         # Set the provider to accept the data source
         prov = self.layer.dataProvider()
         prov.addAttributes(
-            [QgsField("Group_uuid", QVariant.String),
+            [QgsField("group_ulid", QVariant.String),
              QgsField("Group_Members", QVariant.Int),
              QgsField("id", QVariant.Int),
              QgsField("Area", QVariant.Double),
@@ -627,7 +628,8 @@ class SAM_PolygonFeature:
         '''
         features = []
         num_polygons = self.layer.featureCount()
-        group_uuid = str(uuid.uuid4())
+ 
+        group_ulid = GroupId().ulid
         for idx, geom in enumerate(geojson):
             points = []
             coordinates = geom['geometry']['coordinates'][0]
@@ -649,7 +651,7 @@ class SAM_PolygonFeature:
                 continue
 
             feature.setAttributes(
-                [group_uuid,
+                [group_ulid,
                  0,
                  num_polygons+idx+1,
                  ft_area,
