@@ -106,7 +106,7 @@ For Linux users, if your computer got available CUDA GPUs and with CUDA library 
 
 #### Download the Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/dev.zip), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/latest), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
 
 #### Locate the QGIS Plugin folder
 
