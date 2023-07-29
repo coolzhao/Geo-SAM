@@ -205,6 +205,7 @@ Then, press the `Load` button to load the selected image features. Remember to a
 ### Shortcuts
 
 - `Tab`: loop between 3 prompt types (the cursor will also change to the corresponding types)
+- `M`: Toggle to enable executing SAM while moving mouse
 - `C`: clear all prompts in canvas [same as `Clear` button]
 - `Z`: undo the last prompt in canvas [same as `Undo` button]
 - `S`: save SAM output features into polygon [same as `Save` button]
