@@ -52,6 +52,10 @@ from pyproj.database import query_utm_crs_info
 from ..ui.icons import QIcon_GeoSAMEncoder
 from ..docs import encoder_help
 
+# 0 for meters, 6 for degrees, 9 for unknown
+UNIT_METERS = 0
+UNIT_DEGREES = 6
+
 
 class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     """
@@ -312,7 +316,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         #         self.tr("Only support CRS with the units as meters")
         #     )
 
-        if rlayer.crs().mapUnits() == Qgis.DistanceUnit.Degrees:
+        if rlayer.crs().mapUnits() == UNIT_DEGREES: # Qgis.DistanceUnit.Degrees:
             layer_units = 'degrees'
         else:
             layer_units = 'meters'
@@ -322,8 +326,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             target_units = layer_units
         else:
             # when given res in meters by users, convert crs to utm if the original crs unit is degree
-            if crs.mapUnits() != Qgis.DistanceUnit.Meters:
-                if rlayer.crs().mapUnits() == Qgis.DistanceUnit.Degrees:
+            if crs.mapUnits() != UNIT_METERS: # Qgis.DistanceUnit.Meters:
+                if rlayer.crs().mapUnits() == UNIT_DEGREES: # Qgis.DistanceUnit.Degrees:
                     # estimate utm crs based on layer extent
                     crs = self.estimate_utm_crs(rlayer.extent())
                 else:
