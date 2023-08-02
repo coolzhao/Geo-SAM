@@ -1,22 +1,15 @@
 import os
-import time
 import json
-from typing import List, Tuple
+from typing import List, Tuple, Any, Dict
 from pathlib import Path
-from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication, QgsCoordinateReferenceSystem
+from qgis.core import QgsProject, QgsCoordinateReferenceSystem
 from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
-from qgis.core import QgsRasterLayer, QgsRectangle
-from qgis.utils import iface
-from qgis.PyQt.QtWidgets import QDockWidget
+from qgis.core import QgsRasterLayer, QgsRectangle, QgsRasterBandStats
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtWidgets import (
-    QFileDialog,
-    QAction,
-    QFileDialog,
     QApplication,
     QShortcut,
-    QToolBar,
-    QMessageBox,
+    QFileDialog,
 )
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 from PyQt5 import uic
@@ -27,10 +20,13 @@ from .geoTool import ImageCRSManager, LayerExtent
 from .SAMTool import SAM_Model
 from .canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
 from ..ui import UI_Selector, UI_EncoderCopilot
-from ..ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool, QIcon_EncoderCopilot
-from ..geo_sam_provider import GeoSamProvider
 from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
 from .messageTool import MessageTool
+
+SAM_Model_Types_Full: List[str] = ["vit_h (huge)",
+                                   "vit_l (large)",
+                                   "vit_b (base)"]
+SAM_Model_Types = [i.split(' ')[0].strip() for i in SAM_Model_Types_Full]
 
 
 class Selector(QObject):
@@ -49,7 +45,6 @@ class Selector(QObject):
         self.dockFirstOpen = True
         self.prompt_history: List[str] = []
         self.sam_feature_history: List[List[int]] = []
-        self.message_tool = MessageTool()
 
     def open_widget(self):
         '''Create widget selector'''
@@ -205,7 +200,7 @@ class Selector(QObject):
 
         # init feature related objects
         self.sam_model = SAM_Model(self.feature_dir, self.cwd)
-        self.message_tool.MessageBar(
+        MessageTool.MessageBar(
             "Great",
             f"SAM Features with {self.sam_model.feature_size} patches "
             f"in '{Path(self.feature_dir).name}' have been loaded, "
@@ -299,7 +294,7 @@ class Selector(QObject):
             if hasattr(self, "sam_extent_canvas_crs"):
                 self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
             else:
-                self.message_tool.MessageBar(
+                MessageTool.MessageBar(
                     "Oops",
                     "No sam feature loaded"
                 )
@@ -456,7 +451,7 @@ class Selector(QObject):
             self.enable_disable_edit_mode()
             self.show_hide_sam_feature_extent()
         else:
-            self.message_tool.MessageBar(
+            MessageTool.MessageBar(
                 'Oops',
                 "Feature folder not exist, please choose a another folder"
             )
@@ -514,16 +509,7 @@ class Selector(QObject):
             self.canvas.refresh()
 
     def message_box_outside(self):
-        mb = QMessageBox()
-        mb.setText(
-            'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
-        mb.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
-        return_value = mb.exec()
-        # TODO: Clear last point falls outside the boundary
-        if return_value == QMessageBox.Ok:
-            return False
-        elif return_value == QMessageBox.Cancel:
-            return True
+        return MessageTool.MessageBoxOK('Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
 
 
 class EncoderCopilot(QObject):
@@ -535,11 +521,13 @@ class EncoderCopilot(QObject):
         self.canvas = iface.mapCanvas()
         self.toolPan = QgsMapToolPan(self.canvas)
         self.dockFirstOpen: bool = True
-        self.message_tool = MessageTool()
+
         # init crs
         self.project: QgsProject = QgsProject.instance()
         self.crs_project: QgsCoordinateReferenceSystem = self.project.crs()
         self.crs_layer: QgsCoordinateReferenceSystem = self.crs_project
+        # init raster layer
+        self.raster_layer: QgsRasterLayer = None
 
     def open_widget(self):
         '''Create widget selector'''
@@ -547,41 +535,65 @@ class EncoderCopilot(QObject):
         if self.dockFirstOpen:
             self.wdg_copilot = UI_EncoderCopilot
 
-            ########## prompts table ##########
-            self.wdg_copilot.mMapLayerComboBox.layerChanged.connect(
-                self.init_bands)
-            self.wdg_copilot.mExtentGroupBox.setMapCanvas(self.canvas)
-            self.wdg_copilot.mExtentGroupBox.extentChanged.connect(
+            ########## connect functions to widget items ##########
+            # upper part
+            self.wdg_copilot.MapLayerComboBox.layerChanged.connect(
+                self.parse_raster_info)
+            self.wdg_copilot.ExtentGroupBox.setMapCanvas(self.canvas)
+            self.wdg_copilot.ExtentGroupBox.extentChanged.connect(
                 self.show_extents)
-            self.wdg_copilot.mBoxResolutionScale.valueChanged.connect(
+            self.wdg_copilot.BoxResolutionScale.valueChanged.connect(
                 self.show_extents)
-            self.wdg_copilot.mBoxOverlap.valueChanged.connect(
+            self.wdg_copilot.BoxOverlap.valueChanged.connect(
                 self.show_extents)
-
             self.wdg_copilot.pushButton_CopySetting.clicked.connect(
                 self.json_setting_to_clipboard)
+            self.wdg_copilot.pushButton_ExportSetting.clicked.connect(
+                self.json_setting_to_file)
+
+            # bottom part
+            self.wdg_copilot.CheckpointFileWidget.fileChanged.connect(
+                self.parse_model_type)
+
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
             self.wdg_copilot.closed.connect(self.destruct)
             self.wdg_copilot.closed.connect(self.iface.actionPan().trigger)
             self.wdg_copilot.closed.connect(self.reset_to_project_crs)
 
+            ########## set default values ##########
+            # collapse group boxes
+            self.wdg_copilot.AdvancedParameterGroupBox.setCollapsed(True)
+            # checkpoint
+            self.wdg_copilot.CheckpointFileWidget.setFilter("*.pth")
+            self.wdg_copilot.CheckpointFileWidget.setStorageMode(
+                QgsFileWidget.GetFile)
+            self.wdg_copilot.CheckpointFileWidget.setConfirmOverwrite(False)
+
+            # model types
+            if self.wdg_copilot.SAMModelComboBox.count() == 0:
+                self.wdg_copilot.SAMModelComboBox.addItems(
+                    SAM_Model_Types_Full)
+
             self.dockFirstOpen = False
             # add widget to QGIS
-            self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.wdg_copilot)
+            # self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.wdg_copilot)
         else:
             pass
 
         if not self.wdg_copilot.isUserVisible():
             self.wdg_copilot.setUserVisible(True)
 
-    def init_bands(self):
-        '''init band field by raster layer band and set project crs to layer crs'''
+    def parse_raster_info(self):
+        '''Parse raster info and set to widget items'''
         # set raster layer band to band field
-        self.raster_layer = self.wdg_copilot.mMapLayerComboBox.currentLayer()
-        self.wdg_copilot.mRasterBandComboBox_R.setLayer(self.raster_layer)
-        self.wdg_copilot.mRasterBandComboBox_G.setLayer(self.raster_layer)
-        self.wdg_copilot.mRasterBandComboBox_B.setLayer(self.raster_layer)
+        # TODO: support multi-threading
+        if not self.valid_raster_layer():
+            self.clear_bands()
+            return None
+        self.wdg_copilot.RasterBandComboBox_R.setLayer(self.raster_layer)
+        self.wdg_copilot.RasterBandComboBox_G.setLayer(self.raster_layer)
+        self.wdg_copilot.RasterBandComboBox_B.setLayer(self.raster_layer)
 
         # set crs to layer crs
         self.crs_project = self.project.crs()
@@ -589,25 +601,48 @@ class EncoderCopilot(QObject):
 
         if self.crs_layer != self.crs_project:
             self.project.setCrs(self.crs_layer)
-            self.message_tool.MessageBar(
+            MessageTool.MessageBar(
                 "Note:",
                 "Project crs has been changed to the layer crs temporarily. "
                 "It will be reset to the original crs when this widget is closed.",
                 duration=30
             )
 
+        # set data value range
+        stats = self.raster_layer.dataProvider().bandStatistics(1, QgsRasterBandStats.All)
+        self.wdg_copilot.MinValueBox.setValue(stats.minimumValue)
+        self.wdg_copilot.MaxValueBox.setValue(stats.maximumValue)
+
         if not hasattr(self, "canvas_extent"):
             self.canvas_extent = Canvas_Extent(self.canvas, self.crs_layer)
 
+    def clear_bands(self):
+        self.wdg_copilot.RasterBandComboBox_R.setBand(-1)
+        self.wdg_copilot.RasterBandComboBox_G.setBand(-1)
+        self.wdg_copilot.RasterBandComboBox_B.setBand(-1)
+
+    def valid_raster_layer(self) -> bool:
+        '''Check if raster layer is valid. If not, alert user to select a valid raster layer'''
+        layer = self.wdg_copilot.MapLayerComboBox.currentLayer()
+        if isinstance(layer, QgsRasterLayer):
+            self.raster_layer = self.wdg_copilot.MapLayerComboBox.currentLayer()
+            return True
+        else:
+            MessageTool.MessageBoxOK(
+                "Oops: Invalid Raster Layer. Please select a valid raster layer!"
+            )
+            self.raster_layer = None
+            return False
+
     def get_bands(self) -> List[int]:
-        bands = [self.wdg_copilot.mRasterBandComboBox_R.currentBand(),
-                 self.wdg_copilot.mRasterBandComboBox_G.currentBand(),
-                 self.wdg_copilot.mRasterBandComboBox_B.currentBand()]
+        bands = [self.wdg_copilot.RasterBandComboBox_R.currentBand(),
+                 self.wdg_copilot.RasterBandComboBox_G.currentBand(),
+                 self.wdg_copilot.RasterBandComboBox_B.currentBand()]
         return bands
 
     def get_resolutions(self) -> Tuple[float, float]:
         '''Get x, y resolution from resolution group box'''
-        scale = self.wdg_copilot.mBoxResolutionScale.value()
+        scale = self.wdg_copilot.BoxResolutionScale.value()
         resolution_layer = (
             self.raster_layer.rasterUnitsPerPixelX(),
             self.raster_layer.rasterUnitsPerPixelY()
@@ -620,12 +655,12 @@ class EncoderCopilot(QObject):
 
     def get_stride(self) -> int:
         '''Get stride from overlap group box'''
-        overlaps = self.wdg_copilot.mBoxOverlap.value()
+        overlaps = self.wdg_copilot.BoxOverlap.value()
         stride = int((100 - overlaps)/100 * 1024)
         return stride
 
     def get_extent(self) -> QgsRectangle:
-        extent = self.wdg_copilot.mExtentGroupBox.outputExtent()
+        extent = self.wdg_copilot.ExtentGroupBox.outputExtent()
         return extent
 
     def get_extent_str(self) -> str:
@@ -637,6 +672,36 @@ class EncoderCopilot(QObject):
                                   extent.yMaximum())
         return f'{xMin}, {xMax}, {yMin}, {yMax}'
 
+    def get_checkpoint_path(self) -> str:
+        '''Get checkpoint path from file widget'''
+        checkpoint_path = self.wdg_copilot.CheckpointFileWidget.filePath()
+        return checkpoint_path
+
+    def parse_model_type(self) -> None:
+        checkpoint_path = Path(self.get_checkpoint_path())
+        for model_type in SAM_Model_Types:
+            if model_type in checkpoint_path.name:
+                self.wdg_copilot.SAMModelComboBox.setCurrentIndex(
+                    SAM_Model_Types.index(model_type))
+                break
+
+    def get_model_type(self) -> int:
+        '''Get SAM model type from combo box'''
+        model_type = self.wdg_copilot.SAMModelComboBox.currentIndex()
+        return model_type
+
+    def get_max_value(self) -> float:
+        return self.wdg_copilot.MaxValueBox.value()
+
+    def get_min_value(self) -> float:
+        return self.wdg_copilot.MinValueBox.value()
+
+    def get_GPU_ID(self) -> int:
+        return self.wdg_copilot.DeviceIDBox.value()
+
+    def get_batch_size(self) -> int:
+        return self.wdg_copilot.BatchSizeBox.value()
+
     def check_extent_set(self) -> bool:
         '''Check if extent has been set. If not, alert user to set extent'''
         extent = self.get_extent_str()
@@ -644,7 +709,7 @@ class EncoderCopilot(QObject):
         if (float(vals[0]) == float(vals[1])
                 or float(vals[2]) == float(vals[3])):
             # alert user to set extent
-            self.message_tool.MessageBoxOK(
+            MessageTool.MessageBoxOK(
                 "Oops: Extent has not been set. Please set extent first."
             )
             return False
@@ -653,14 +718,14 @@ class EncoderCopilot(QObject):
 
     def check_raster_selected(self) -> bool:
         '''Check if raster layer has been selected. If not, alert user to select a raster layer'''
-        if hasattr(self, "canvas_extent"):
+        if self.raster_layer is not None:
             return True
         else:
             # alert user to select a raster layer
-            self.message_tool.MessageBoxOK(
+            MessageTool.MessageBoxOK(
                 "Oops: "
-                "Raster Layer has not been selected. "
-                "Please set Raster Layer and Bands first."
+                "Raster Layer has not been selected/detected. "
+                "Please set/reset Raster Layer first!"
             )
             return False
 
@@ -673,7 +738,8 @@ class EncoderCopilot(QObject):
         else:
             return True
 
-    def json_setting_to_clipboard(self) -> None:
+    def retrieve_setting(self) -> str:
+        '''Retrieve setting from widget items'''
         if not self.check_setting_available():
             return None
         stride = self.get_stride()
@@ -681,28 +747,80 @@ class EncoderCopilot(QObject):
         bands = self.get_bands()
         crs = self.crs_layer.authid()
         extent = f'{self.get_extent_str()} [{crs}]'
+        checkpoint_path = self.get_checkpoint_path()
+        model_type = self.get_model_type()
+        max_value = self.get_max_value()
+        min_value = self.get_min_value()
+        batch_size = self.get_batch_size()
+        gpu_id = self.get_GPU_ID()
+
         json_dict = {
             "inputs":
-                {"BANDS": bands,
+                {"INPUT": self.raster_layer.source(),
+                 "BANDS": bands,
+                 # TODO: show image with range interactively
+                 "RANGE": f"{min_value},{max_value}",
                  "CRS": crs,
                  "EXTENT": extent,
-                 "INPUT": self.raster_layer.source(),
-                 # TODO: show image with range interactively
-                 "RANGE": "None,None",
-                 # TODO: support different resolution for x and y
                  "RESOLUTION": resolution[0],
-                 "STRIDE": stride
+                 "STRIDE": stride,
+                 "CKPT": checkpoint_path,
+                 "MODEL_TYPE": model_type,
+                 "BATCH_SIZE": batch_size,
+                 "CUDA_ID": gpu_id,
                  }
         }
         json_str = json.dumps(json_dict, indent=4)
+        return json_str
+
+    def json_setting_to_clipboard(self) -> None:
+        '''Copy setting to clipboard'''
+        json_str = self.retrieve_setting()
+        if json_str is None:
+            return None
 
         QApplication.clipboard().setText(json_str)
-        self.message_tool.MessageBar(
+        MessageTool.MessageBar(
             "Note:",
             "Setting has been copied to clipboard. "
-            "You can paste it to Geo-SAM Image Encoder now.",
+            "You can paste it to Geo-SAM Image Encoder or a json file now.",
             duration=30
         )
+
+    def json_setting_to_file(self) -> None:
+        json_str = self.retrieve_setting()
+        if json_str is None:
+            return None
+
+        file_dialog = QFileDialog()
+        file_dialog.setDefaultSuffix('json')
+        file_dialog.setFileMode(QFileDialog.AnyFile)
+
+        fileName, _ = file_dialog.getSaveFileName(
+            None, "QFileDialog.getOpenFileName()",
+            "",
+            "Json Files (*.json)")
+        fileName = Path(fileName)
+        try:
+            if not fileName.parent.is_dir():
+                MessageTool.MessageBoxOK(
+                    "Oops: "
+                    "Failed to save setting to file. "
+                    "Please choose a valid directory first."
+                )
+                return None
+            else:
+                if fileName.suffix != '.json':
+                    fileName.with_suffix('.json')
+
+                with open(fileName, 'w') as f:
+                    f.write(json_str)
+        except Exception as e:
+            MessageTool.MessageLog(
+                f"Failed to save setting to file. Error: {e}",
+                level='critical'
+            )
+            return None
 
     def show_extents(self):
         self.show_bbox_extent()
@@ -710,7 +828,7 @@ class EncoderCopilot(QObject):
 
     def show_bbox_extent(self):
         '''Show bbox extent in canvas'''
-        if self.check_raster_selected():
+        if hasattr(self, "canvas_extent"):
             self.canvas_extent.clear()
             extent = self.get_extent()
             self.canvas_extent.add_extent(extent)
@@ -754,17 +872,13 @@ class EncoderCopilot(QObject):
             units=Units.PIXELS  # Units.CRS or Units.PIXELS
         )
         if len(ds_sampler) == 0:
-            self.message_tool.MessageBar(
+            MessageTool.MessageBar(
                 'Oops!!!',
                 'No available patch sample inside the chosen extent!!! '
                 'Please choose another extent.',
                 duration=30
             )
             return None
-
-        # # clear canvas extent
-        # if self.check_raster_selected():
-        #     self.canvas_extent.clear()
 
         for i, patch in enumerate(ds_sampler):
             extent = QgsRectangle(
