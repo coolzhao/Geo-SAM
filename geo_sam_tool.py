@@ -1,30 +1,14 @@
-import os
-import time
 from typing import List
-from pathlib import Path
-from qgis.core import QgsProject, Qgis, QgsMessageLog, QgsApplication
-from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
-from qgis.core import QgsRasterLayer, QgsRectangle
-from qgis.PyQt.QtWidgets import QDockWidget
-from PyQt5.QtCore import Qt, pyqtSignal, QObject
+from qgis.core import QgsApplication
+from qgis.gui import QgsMapToolPan, QgisInterface
+from PyQt5.QtCore import pyqtSignal, QObject
 from PyQt5.QtWidgets import (
-    QFileDialog,
     QAction,
-    QFileDialog,
-    QApplication,
-    QShortcut,
     QToolBar,
-    QMessageBox,
 )
-from PyQt5.QtGui import QKeySequence, QIcon, QColor
-from PyQt5 import uic
 import processing
 
 from .tools.widgetTool import Selector, EncoderCopilot
-from .tools.geoTool import ImageCRSManager, LayerExtent
-from .tools.SAMTool import SAM_Model
-from .tools.canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
-from .ui import UI_Selector
 from .ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool, QIcon_EncoderCopilot
 from .geo_sam_provider import GeoSamProvider
 
@@ -91,8 +75,6 @@ class Geo_SAM(QObject):
         self.actionSamEncoderCopilot.triggered.connect(
             self.create_widget_encoder_copilot)
 
-        # QgsMessageLog.logMessage(
-        #     f"Geo-SAM action name {self.action.objectName()}", 'Geo SAM', level=Qgis.Info)
         self.iface.addPluginToMenu('Geo SAM Tools', self.actionSamTool)
         self.iface.addPluginToMenu('Geo SAM Tools', self.actionSamEncoder)
         self.iface.addPluginToMenu(
