@@ -2,33 +2,33 @@
 
 By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
-- [Geo SAM](#geo-sam)
-  - [Introduction](#introduction)
-  - [Installation](#installation)
-    - [Install QGIS](#install-qgis)
-    - [Install Library Dependencies](#install-library-dependencies)
-      - [For Windows Users](#for-windows-users)
-      - [For Mac or Linux Users](#for-mac-or-linux-users)
-    - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
-      - [Download the Plugin](#download-the-plugin)
-      - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
-      - [Activate the Geo SAM Plugin](#activate-the-geo-sam-plugin)
-  - [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
-    - [Add Prompts](#add-prompts)
-    - [Save Current Results](#save-current-results)
-    - [Undo/Clear Prompts](#undoclear-prompts)
-    - [Enable/Disable the Tool](#enabledisable-the-tool)
-    - [Load Image Features](#load-image-features)
-    - [Shortcuts](#shortcuts)
-    - [Tips for Using the Segmentation Tool](#tips-for-using-the-segmentation-tool)
-  - [Use the Geo SAM Encoding Tool](#use-the-geo-sam-encoding-tool)
-    - [Download SAM Checkpoints](#download-sam-checkpoints)
-    - [Select Bands and Value Range for Processing](#select-bands-and-value-range-for-processing)
-    - [Patch Sampling](#patch-sampling)
-    - [Demo Animation](#demo-animation)
-    - [Tips for Making the Encoding Process Faster](#tips-for-making-the-encoding-process-faster)
-  - [Future Works](#future-works)
-  - [Acknowledgement](#acknowledgement)
+- [Introduction](#introduction)
+- [Installation](#installation)
+  - [Install QGIS](#install-qgis)
+  - [Install Library Dependencies](#install-library-dependencies)
+    - [For Windows Users](#for-windows-users)
+    - [For Mac or Linux Users](#for-mac-or-linux-users)
+  - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
+    - [Download the Plugin](#download-the-plugin)
+    - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
+    - [Activate the Geo SAM Plugin](#activate-the-geo-sam-plugin)
+- [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
+  - [Add Prompts](#add-prompts)
+  - [Save Current Results](#save-current-results)
+  - [Undo/Clear Prompts](#undoclear-prompts)
+  - [Enable/Disable the Tool](#enabledisable-the-tool)
+  - [Load Image Features](#load-image-features)
+  - [Shortcuts](#shortcuts)
+  - [Tips for Using the Segmentation Tool](#tips-for-using-the-segmentation-tool)
+- [Use the Geo SAM Encoding Tool](#use-the-geo-sam-encoding-tool)
+  - [Download SAM Checkpoints](#download-sam-checkpoints)
+  - [Select Bands and Value Range for Processing](#select-bands-and-value-range-for-processing)
+  - [Patch Sampling](#patch-sampling)
+  - [Demo Animation](#demo-animation)
+  - [Tips for Making the Encoding Process Faster](#tips-for-making-the-encoding-process-faster)
+- [Future Works](#future-works)
+- [Citation](#citation)
+- [Acknowledgement](#acknowledgement)
 
 ## Introduction
 
@@ -40,7 +40,7 @@ The Geo SAM plugin includes two separate tools, the encoding tool, and the segme
 
 ### Install QGIS
 
-You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html) since the plugin has only been tested on versions newer than QGIS 3.30.
+You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html) since the plugin has mainly been tested on versions newer than QGIS 3.30 (QGIS 3.28 LTR should also work fine).
 
 ### Install Library Dependencies
 
@@ -106,7 +106,7 @@ For Linux users, if your computer got available CUDA GPUs and with CUDA library 
 
 #### Download the Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/archive/refs/heads/dev.zip), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
+Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/latest), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
 
 #### Locate the QGIS Plugin folder
 
@@ -263,6 +263,23 @@ After processing the image, by default, the generated features will automaticall
 ## Future Works
 
 - Existing polygon refinement
+
+## Citation
+
+> Zhao, Zhuoyi, Fan, Chengyan, & Liu, Lin. (2023). Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation (1.1.0). Zenodo. https://doi.org/10.5281/zenodo.8191039
+
+```bibtex
+@software{zhao_zhuoyi_2023_8191039,
+  author       = {Zhao, Zhuoyi and Fan, Chengyan and Liu, Lin},
+  title        = {{Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation}},
+  month        = jul,
+  year         = 2023,
+  publisher    = {Zenodo},
+  version      = {1.1.0},
+  doi          = {10.5281/zenodo.8191039},
+  url          = {https://doi.org/10.5281/zenodo.8191039}
+}
+```
 
 ## Acknowledgement
 
