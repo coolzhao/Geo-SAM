@@ -487,6 +487,58 @@ class ClickTool(QgsMapToolEmitPoint):
         pass
 
 
+class Canvas_SAM_Polygon:
+    '''A class to manage Rectangle on canvas.'''
+
+    def __init__(
+        self,
+        canvas: QgsMapCanvas,
+    ):
+        self.canvas = canvas
+        self.geometry_list: List[QgsGeometry] = []
+        self.rubber_band_list: List[QgsRubberBand] = []
+
+    def new_rubber_band(self):
+        rubber_band = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+        self.set_layer_style(rubber_band,
+                             QColor(0, 255, 0, 10),
+                             Qt.green,
+                             1)
+        return rubber_band
+
+    def set_layer_style(self, rubber_band, fill_color, line_color, line_width, line_color_2=None):
+        '''Set the style of the rectangle layer'''
+        if fill_color is not None:
+            rubber_band.setFillColor(fill_color)
+        if line_color is not None:
+            rubber_band.setStrokeColor(line_color)
+        if line_color_2 is not None:
+            rubber_band.setSecondaryStrokeColor(line_color_2)
+        if line_width is not None:
+            rubber_band.setWidth(line_width)
+
+    def clear(self):
+        '''Clear the rectangle on canvas'''
+        while True:
+            if len(self.rubber_band_list) > 0:
+                self.popPolygon()
+            else:
+                break
+
+    def addPolygon(self, geometry: QgsGeometry):
+        rubber_band = self.new_rubber_band()
+        rubber_band.setToGeometry(geometry, None)
+        self.rubber_band_list.append(rubber_band)
+        self.geometry_list.append(geometry)
+
+    def popPolygon(self):
+        if len(self.rubber_band_list) > 0:
+            rubber_band = self.rubber_band_list.pop()
+            self.canvas.scene().removeItem(rubber_band)
+            self.canvas.refresh()
+            self.geometry_list.pop()
+
+
 class SAM_PolygonFeature:
     '''A polygon feature for SAM output'''
 
@@ -500,8 +552,10 @@ class SAM_PolygonFeature:
         self.img_crs_manager = img_crs_manager
         self.shapefile = shapefile
         self.default_name = default_name
+        self.canvas_polygon = Canvas_SAM_Polygon(iface.mapCanvas())
         # the threshold of area
         self.t_area: float = 0
+        self.geojson: Dict = {}
 
         self.init_layer()
 
@@ -613,9 +667,43 @@ class SAM_PolygonFeature:
         # show the change
         self.layer.triggerRepaint()
 
-    def add_geojson_feature(
+    def add_geojson_feature_to_canvas(
             self,
             geojson: Dict,
+    ):
+        '''Add a geojson feature to the layer
+
+        Parameters:
+        ----------
+        geojson: Dict
+            features in geojson format
+        prompt_history: List
+            a list of prompts
+        '''
+        self.geojson = geojson
+        for geom in geojson:
+            points = []
+            coordinates = geom['geometry']['coordinates'][0]
+            for coord in coordinates:
+                # transform pointXY from img_crs to polygon layer crs, if not match
+                point = QgsPointXY(*coord)
+                point = self.img_crs_manager.img_point_to_crs(
+                    point, self.layer.crs())
+                points.append(point)
+
+            geometry = QgsGeometry.fromPolygonXY([points])
+            ft_area = geometry.area()
+            # ft_area = feature.geometry().area()
+
+            # if the area of the feature is less than t_area,
+            # it will not be added to the layer
+            if ft_area < self.t_area:
+                continue
+            # add geometry to canvas_polygon
+            self.canvas_polygon.addPolygon(geometry)
+
+    def add_feature_to_layer(
+            self,
             prompt_history: List,
     ):
         '''Add a geojson feature to the layer
@@ -631,7 +719,7 @@ class SAM_PolygonFeature:
         num_polygons = self.layer.featureCount()
 
         group_ulid = GroupId().ulid
-        for idx, geom in enumerate(geojson):
+        for idx, geom in enumerate(self.geojson):
             points = []
             coordinates = geom['geometry']['coordinates'][0]
             for coord in coordinates:
@@ -641,16 +729,20 @@ class SAM_PolygonFeature:
                     point, self.layer.crs())
                 points.append(point)
 
-            # Add a new feature and assign the geometry
-            feature = QgsFeature()
-            feature.setGeometry(QgsGeometry.fromPolygonXY([points]))
-            ft_area = feature.geometry().area()
+            geometry = QgsGeometry.fromPolygonXY([points])
+            ft_area = geometry.area()
+            # ft_area = feature.geometry().area()
 
             # if the area of the feature is less than t_area,
             # it will not be added to the layer
             if ft_area < self.t_area:
                 continue
+            # add geometry to canvas_polygon
+            self.canvas_polygon.addPolygon(geometry)
 
+            # add geometry to shapefile
+            feature = QgsFeature()
+            feature.setGeometry(geometry)
             feature.setAttributes(
                 [group_ulid,
                  0,
@@ -661,11 +753,13 @@ class SAM_PolygonFeature:
                  'bbox' in prompt_history]
             )
             features.append(feature)
+
         for feature in features:
             feature[1] = len(features)
         self.ensure_edit_mode()
         self.layer.addFeatures(features)
         self.layer.updateExtents()
+        self.layer.triggerRepaint()
 
     def ensure_edit_mode(self):
         '''Ensure the layer is in edit mode'''
@@ -676,6 +770,7 @@ class SAM_PolygonFeature:
         '''Roll back the changes'''
         try:
             self.layer.rollBack()
+            self.canvas_polygon.clear()
         except:
             return None
         # except RuntimeError as inst:

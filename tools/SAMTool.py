@@ -15,6 +15,7 @@ from .canvasTool import SAM_PolygonFeature, Canvas_Rectangle, Canvas_Points
 from torchgeo.datasets import BoundingBox
 from .messageTool import MessageTool
 
+
 class SAM_Model:
     def __init__(self, feature_dir, cwd):
         self.feature_dir = feature_dir
@@ -72,7 +73,7 @@ class SAM_Model:
         if len(test_sampler) == 0:
             # TODO: Clear last point falls outside the boundary
             return MessageTool.MessageBoxOK(
-                 'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
+                'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
 
         for query in test_sampler:
             # different query than last time, update feature
@@ -120,7 +121,8 @@ class SAM_Model:
         # get the execution time of sam predictor, ms
         elapsed_time = (end_time - start_time) * 1000
 
-        MessageTool.MessageLog(f"SAM predict executed with {elapsed_time:.3f} ms")
+        MessageTool.MessageLog(
+            f"SAM predict executed with {elapsed_time:.3f} ms")
 
         # shape (1, 1024, 1024)
         mask = masks[0, ...]
@@ -139,7 +141,9 @@ class SAM_Model:
         geojson = [{'properties': {'raster_val': value}, 'geometry': polygon}
                    for polygon, value in shape_generator]
 
-        # add to layer
-        sam_polygon.rollback_changes()
-        sam_polygon.add_geojson_feature(geojson, prompt_history)
+        sam_polygon.canvas_polygon.clear()
+        sam_polygon.add_geojson_feature_to_canvas(geojson)
+        # # add to layer
+        # sam_polygon.rollback_changes()
+        # sam_polygon.add_geojson_feature(geojson, prompt_history)
         return True

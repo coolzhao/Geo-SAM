@@ -460,7 +460,8 @@ class Selector(QObject):
         '''Clear all temporary layers (canvas and new sam result) and reset prompt'''
         self.clear_canvas_layers_safely(clear_extent=clear_extent)
         if hasattr(self, "polygon"):
-            self.polygon.rollback_changes()
+            # self.polygon.rollback_changes()
+            self.polygon.canvas_polygon.clear()
         # if hasattr(self, "polygon_temp"):
         #     self.polygon_temp.rollback_changes()
         self.prompt_history.clear()
@@ -470,6 +471,7 @@ class Selector(QObject):
         self.clear_canvas_layers_safely()
         self.prompt_history.clear()
         if hasattr(self, "polygon"):
+            self.polygon.add_feature_to_layer(self.prompt_history)
             self.polygon.commit_changes()
 
             # add last id of new features to history
