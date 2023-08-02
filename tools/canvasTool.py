@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 from rasterio.transform import rowcol, Affine
 from qgis._gui import QgsMapMouseEvent
-from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle, Qgis, QgsMessageLog
+from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle, Qgis
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker, QgsMapCanvas
 from qgis.core import (
     QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFields, QgsFillSymbol, QgsApplication,
@@ -18,6 +18,7 @@ from qgis.utils import iface
 from .geoTool import ImageCRSManager, LayerExtent
 from .ulid import GroupId
 from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect, UI_SCALE
+from .messageTool import MessageTool
 
 
 class Canvas_Rectangle:
@@ -572,13 +573,13 @@ class SAM_PolygonFeature:
             self.layer = layer_list[0]
             self.layer.commitChanges()
         else:
-            iface.messageBar().pushMessage(
+            MessageTool.MessageBar(
                 "Note:",
                 "Output Shapefile is not specified. "
                 "A temporal layer 'polygon_sam' is created, "
                 "remember to save it before quit.",
-                level=Qgis.Info,
-                duration=30)
+                duration=30
+            )
             self.layer = QgsVectorLayer('Polygon', self.default_name, 'memory')
             # self.layer.setCrs(self.qgis_project.crs())
             self.layer.setCrs(self.img_crs_manager.img_crs)
@@ -628,7 +629,7 @@ class SAM_PolygonFeature:
         '''
         features = []
         num_polygons = self.layer.featureCount()
- 
+
         group_ulid = GroupId().ulid
         for idx, geom in enumerate(geojson):
             points = []

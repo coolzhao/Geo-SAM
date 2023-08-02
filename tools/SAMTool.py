@@ -7,16 +7,13 @@ import numpy as np
 import rasterio
 from rasterio.transform import from_bounds as transform_from_bounds
 from rasterio.features import shapes as get_shapes
-from PyQt5.QtWidgets import QMessageBox
-from qgis.core import QgsRectangle, QgsMessageLog, Qgis
-from torch.utils.data import DataLoader
+from qgis.core import QgsRectangle
 from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
 from .sam_ext import build_sam_no_encoder, SamPredictorNoImgEncoder
-from .geoTool import LayerExtent, ImageCRSManager
+from .geoTool import LayerExtent
 from .canvasTool import SAM_PolygonFeature, Canvas_Rectangle, Canvas_Points
-from torchgeo.datasets import BoundingBox, stack_samples
-from torchgeo.samplers import Units
-
+from torchgeo.datasets import BoundingBox
+from .messageTool import MessageTool
 
 class SAM_Model:
     def __init__(self, feature_dir, cwd):
@@ -73,22 +70,14 @@ class SAM_Model:
             self.test_features, roi=prompts_roi)
 
         if len(test_sampler) == 0:
-            mb = QMessageBox()
-            mb.setText(
-                'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
-            mb.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
-            return_value = mb.exec()
             # TODO: Clear last point falls outside the boundary
-            if return_value == QMessageBox.Ok:
-                return False
-            elif return_value == QMessageBox.Cancel:
-                return True
+            return MessageTool.MessageBoxOK(
+                 'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
 
         for query in test_sampler:
             # different query than last time, update feature
             if query['path'] == self.sample_path:
-                QgsMessageLog.logMessage(
-                    f"Same feature as last time", 'Geo SAM', level=Qgis.Info)
+                MessageTool.MessageLog('Same feature as last time')
                 break
 
             self.sample = self.test_features[query]
@@ -112,9 +101,7 @@ class SAM_Model:
                 img_size=(img_height, img_width),
                 input_size=(input_height, input_width)
             )
-
-            QgsMessageLog.logMessage(
-                f"Load new feature", 'Geo SAM', level=Qgis.Info)
+            MessageTool.MessageLog("Load new feature")
             break
 
         input_point, input_label = canvas_points.get_points_and_labels(
@@ -133,11 +120,7 @@ class SAM_Model:
         # get the execution time of sam predictor, ms
         elapsed_time = (end_time - start_time) * 1000
 
-        QgsMessageLog.logMessage(
-            f"SAM predict executed with {elapsed_time:.3f} ms", 'Geo SAM', level=Qgis.Info)
-
-        # QgsMessageLog.logMessage(
-        #     f"SAM feature shape {masks.shape}", 'Geo SAM', level=Qgis.Info)
+        MessageTool.MessageLog(f"SAM predict executed with {elapsed_time:.3f} ms")
 
         # shape (1, 1024, 1024)
         mask = masks[0, ...]

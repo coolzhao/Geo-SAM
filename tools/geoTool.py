@@ -1,8 +1,13 @@
 import os
 import typing
 import numpy as np
-from qgis.core import (QgsProject, QgsCoordinateReferenceSystem, Qgis, QgsMessageLog,
-                       QgsCoordinateTransform, QgsPointXY,  QgsRectangle, QgsVectorLayer)
+from qgis.core import (QgsProject,
+                       QgsCoordinateReferenceSystem,
+                       QgsCoordinateTransform,
+                       QgsPointXY,
+                       QgsRectangle,
+                       QgsVectorLayer)
+from .messageTool import MessageTool
 
 
 class ImageCRSManager:
@@ -118,8 +123,12 @@ class LayerExtent:
                     layer_ext = img_crs_manager.extent_to_img_crs(
                         layer_ext, layer.crs())
                 except Exception as e:
-                    QgsMessageLog.logMessage(
-                        f">>> Error in extent: {layer_ext} \n type:{type(layer_ext)} \n: {e}", level=Qgis.Critical)
+                    MessageTool.MessageLog(
+                        f">>> Error in extent: {layer_ext} \n type:{type(layer_ext)} \n: {e}",
+                        level='critical',
+                        notify_user=False
+                    )
+
                     return None
 
             return cls.from_qgis_extent(layer_ext)

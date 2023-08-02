@@ -24,7 +24,7 @@ from torchgeo.samplers import Units, GeoSampler, PreChippedGeoSampler, GridGeoSa
 from torchgeo.samplers.constants import Units
 from torchgeo.samplers.utils import _to_tuple, get_random_bounding_box, tile_to_chips
 import matplotlib.pyplot as plt
-from qgis.core import QgsMessageLog, Qgis
+from .messageTool import MessageTool
 
 from rtree.index import Index, Property
 
@@ -232,12 +232,13 @@ class SamTestFeatureDataset(RasterDataset):
                 # print(coords[0].dtype)
                 index_set = True
                 # print('index loaded from: ', os.path.basename(csv_filepath))
-                QgsMessageLog.logMessage(
-                    f"Index loaded from: {os.path.basename(csv_filepath)}", 'Geo SAM', level=Qgis.Info)
+                MessageTool.MessageLog(
+                    f"Index loaded from: {os.path.basename(csv_filepath)}")
             else:
                 # print('index file does not match the raster list, it will be recreated.')
-                QgsMessageLog.logMessage(
-                    f"Index file does not match the raster list, will be recreated.", 'Geo SAM', level=Qgis.Info)
+                MessageTool.MessageLog(
+                    f"Index file does not match the raster list, will be recreated.")
+
         if not index_set:
             self.index_df = pd.DataFrame(columns=['id',
                                                   'minx', 'maxx', 'miny', 'maxy', 'mint', 'maxt',
@@ -300,8 +301,7 @@ class SamTestFeatureDataset(RasterDataset):
                 index_set = True
                 self.index_df.to_csv(csv_filepath)
                 # print('index file: ', os.path.basename(csv_filepath), ' saved')
-                QgsMessageLog.logMessage(
-                    f"Index file: {os.path.basename(csv_filepath)} saved", 'Geo SAM', level=Qgis.Info)
+                MessageTool.MessageLog(f"Index file: {os.path.basename(csv_filepath)} saved")
 
         if i == 0:
             msg = f"No {self.__class__.__name__} data was found in `root='{self.root}'`"
@@ -620,8 +620,8 @@ class SamTestFeatureGeoSampler(GeoSampler):
                 # self.index.insert(hit.id, tuple(bbox), hit.object)
 
         # print('intersected features: ', idx)
-        QgsMessageLog.logMessage(
-            f"Prompt intersected with {idx} feature patches", 'Geo SAM', level=Qgis.Info)
+        MessageTool.MessageLog(f"Prompt intersected with {idx} feature patches")
+
         # print('selected hit: ', self.q_path)
         if self.q_bbox is None:
             self.length = 0
