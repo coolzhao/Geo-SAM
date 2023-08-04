@@ -23,7 +23,7 @@
    </size>
   </property>
   <property name="features">
-   <set>QDockWidget::DockWidgetClosable|QDockWidget::DockWidgetMovable</set>
+   <set>QDockWidget::AllDockWidgetFeatures</set>
   </property>
   <property name="windowTitle">
    <string>Geo-SAM Tool</string>
@@ -502,7 +502,7 @@
         <property name="maximumSize">
          <size>
           <width>16777215</width>
-          <height>400</height>
+          <height>16777215</height>
          </size>
         </property>
         <property name="title">

@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QShortcut,
     QFileDialog,
+    QDockWidget,
 )
 from PyQt5.QtGui import QKeySequence, QIcon, QColor
 from PyQt5 import uic
@@ -29,11 +30,12 @@ SAM_Model_Types_Full: List[str] = ["vit_h (huge)",
 SAM_Model_Types = [i.split(' ')[0].strip() for i in SAM_Model_Types_Full]
 
 
-class Selector(QObject):
+class Selector(QDockWidget):
     execute_SAM = pyqtSignal()
 
     def __init__(self, parent, iface: QgisInterface, cwd: str):
-        super().__init__()
+        # super().__init__()
+        QDockWidget.__init__(self)
         self.parent = parent
         self.iface = iface
         self.cwd = cwd
@@ -45,6 +47,7 @@ class Selector(QObject):
         self.dockFirstOpen = True
         self.prompt_history: List[str] = []
         self.sam_feature_history: List[List[int]] = []
+        self.move_mode: bool = False
 
     def open_widget(self):
         '''Create widget selector'''
@@ -57,7 +60,7 @@ class Selector(QObject):
                 self.execute_SAM.connect(self.execute_segmentation)
 
             self.wdg_sel = UI_Selector
-            ########## prompts table ##########
+            ########## connect function to widget items ##########
             self.wdg_sel.pushButton_fg.clicked.connect(
                 self.draw_foreground_point)
             self.wdg_sel.pushButton_bg.clicked.connect(
@@ -81,6 +84,12 @@ class Selector(QObject):
             self.wdg_sel.radioButton_exe_move.toggled.connect(
                 self.execute_sam_move_mode)
 
+            self.wdg_sel.Box_min_area.valueChanged.connect(
+                self.filter_feature_by_area)
+            self.wdg_sel.radioButton_show_extent.toggled.connect(
+                self.show_hide_sam_feature_extent)
+
+            ######### Setting default parameters for items #########
             # set filter for file dialog
             self.wdg_sel.QgsFile_shapefile.setFilter("*.shp")
             self.wdg_sel.QgsFile_shapefile.setStorageMode(
@@ -93,37 +102,55 @@ class Selector(QObject):
             self.wdg_sel.pushButton_bg.setCheckable(True)
             self.wdg_sel.pushButton_rect.setCheckable(True)
 
-            ######### Setting table #########
-            self.wdg_sel.Box_min_area.valueChanged.connect(
-                self.filter_feature_by_area)
+            # set show extent checked
             self.wdg_sel.radioButton_show_extent.setChecked(True)
-            self.wdg_sel.radioButton_show_extent.toggled.connect(
-                self.show_hide_sam_feature_extent)
 
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
             self.wdg_sel.closed.connect(self.destruct)
             self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
 
-            # shortcuts
-            self.wdg_sel.pushButton_clear.setShortcut("C")
-            self.wdg_sel.pushButton_undo.setShortcut("Z")
-            self.wdg_sel.pushButton_save.setShortcut("S")
-            self.wdg_sel.radioButton_exe_move.setShortcut("M")
-
+            ########### shortcuts ############ 
+            ## create shortcuts           
+            self.shortcut_clear = QShortcut(
+                QKeySequence(Qt.Key_C), self.wdg_sel)
+            self.shortcut_undo = QShortcut(
+                QKeySequence(Qt.Key_Z), self.wdg_sel)
+            self.shortcut_save = QShortcut(
+                QKeySequence(Qt.Key_S), self.wdg_sel)
+            self.shortcut_move_mode = QShortcut(
+                QKeySequence(Qt.Key_M), self.wdg_sel)
             self.shortcut_tab = QShortcut(
                 QKeySequence(Qt.Key_Tab), self.wdg_sel)
-            self.shortcut_tab.activated.connect(self.loop_prompt_type)
             self.shortcut_undo_sam_pg = QShortcut(
                 QKeySequence(QKeySequence.Undo), self.wdg_sel)
+            
+            ## connect shortcuts
+            self.shortcut_clear.activated.connect(self.clear_layers)
+            self.shortcut_undo.activated.connect(self.undo_last_prompt)
+            self.shortcut_save.activated.connect(self.save_shp_file)
+            self.shortcut_move_mode.activated.connect(self.execute_sam_move_mode)
+            self.shortcut_tab.activated.connect(self.loop_prompt_type)
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
-            # self.wdg_sel.setFloating(True)
+
+            ## set context
+            self.shortcut_clear.setContext(Qt.ApplicationShortcut)
+            self.shortcut_undo.setContext(Qt.ApplicationShortcut)
+            self.shortcut_save.setContext(Qt.ApplicationShortcut)
+            self.shortcut_move_mode.setContext(Qt.ApplicationShortcut)
+            self.shortcut_tab.setContext(Qt.ApplicationShortcut)
+            self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
+
+            ########## set dock ##########
+            self.wdg_sel.setFloating(True)
+            self.wdg_sel.setFocusPolicy(Qt.StrongFocus)
 
             # default is fgpt, but do not change when reloading feature folder
             # self.reset_prompt_type()
             self.dockFirstOpen = False
             # add widget to QGIS
             self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
+
         else:
             self.clear_layers(clear_extent=True)
 
@@ -303,10 +330,12 @@ class Selector(QObject):
 
     def execute_sam_move_mode(self):
         if self.wdg_sel.radioButton_exe_move.isChecked():
+            self.move_mode = True
             self.tool_click_fg.move_mode = True
             self.tool_click_bg.move_mode = True
             self.tool_click_rect.move_mode = True
         else:
+            self.move_mode = False
             self.tool_click_fg.move_mode = False
             self.tool_click_bg.move_mode = False
             self.tool_click_rect.move_mode = False
@@ -324,7 +353,7 @@ class Selector(QObject):
 
     def execute_segmentation(self) -> bool:
         # check last prompt inside feature extent
-        if len(self.prompt_history) > 0:
+        if len(self.prompt_history) > 0 and not self.move_mode:
             prompt_last = self.prompt_history[-1]
             if prompt_last == 'bbox':
                 last_rect = self.canvas_rect.extent
@@ -338,21 +367,22 @@ class Selector(QObject):
                     self.undo_last_prompt()
                 return False
 
+            self.ensure_polygon_sam_exist()
+
+            # add last id to history
+            features = list(self.polygon.layer.getFeatures())
+            if len(list(features)) == 0:
+                last_id = 1
+            else:
+                last_id = features[-1].id() + 1
+
+            if (len(self.sam_feature_history) >= 1 and
+                    len(self.sam_feature_history[-1]) == 1):
+                self.sam_feature_history[-1][0] = last_id
+            else:
+                self.sam_feature_history.append([last_id])
+
         self.ensure_polygon_sam_exist()
-
-        # add last id to history
-        features = list(self.polygon.layer.getFeatures())
-        if len(list(features)) == 0:
-            last_id = 1
-        else:
-            last_id = features[-1].id() + 1
-
-        if (len(self.sam_feature_history) >= 1 and
-                len(self.sam_feature_history[-1]) == 1):
-            self.sam_feature_history[-1][0] = last_id
-        else:
-            self.sam_feature_history.append([last_id])
-
         # execute segmentation
         if not self.sam_model.sam_predict(
                 self.canvas_points, self.canvas_rect, self.polygon, self.prompt_history):
@@ -473,6 +503,7 @@ class Selector(QObject):
         if hasattr(self, "polygon"):
             self.polygon.add_feature_to_layer(self.prompt_history)
             self.polygon.commit_changes()
+            self.polygon.canvas_polygon.clear()
 
             # add last id of new features to history
             features = list(self.polygon.layer.getFeatures())
