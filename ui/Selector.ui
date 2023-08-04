@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>752</width>
-    <height>244</height>
+    <width>754</width>
+    <height>248</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -45,7 +45,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -224,7 +224,7 @@
                <property name="alignment">
                 <set>Qt::AlignHCenter|Qt::AlignTop</set>
                </property>
-               <layout class="QGridLayout" name="gridLayout_6" columnstretch="3,0">
+               <layout class="QGridLayout" name="gridLayout_6" columnstretch="1,1">
                 <property name="leftMargin">
                  <number>9</number>
                 </property>
@@ -547,25 +547,6 @@
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_6">
         <item>
-         <widget class="QGroupBox" name="groupBox_4">
-          <property name="title">
-           <string>Default Minimum Area</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_12">
-           <item row="0" column="0">
-            <widget class="QDoubleSpinBox" name="Box_min_area_default">
-             <property name="decimals">
-              <number>10</number>
-             </property>
-             <property name="maximum">
-              <double>10000000000000000000000.000000000000000</double>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item>
          <widget class="QGroupBox" name="groupBox_5">
           <property name="title">
            <string>Colors</string>
@@ -675,17 +656,17 @@
          </widget>
         </item>
         <item>
-         <widget class="QGroupBox" name="groupBox_10">
+         <widget class="QGroupBox" name="groupBox_4">
           <property name="title">
-           <string>Show Boundary</string>
+           <string>Others</string>
           </property>
-          <layout class="QGridLayout" name="gridLayout_13">
-           <item row="0" column="1">
-            <widget class="QGroupBox" name="groupBox_11">
+          <layout class="QVBoxLayout" name="verticalLayout_2">
+           <item>
+            <widget class="QGroupBox" name="groupBox_10">
              <property name="title">
-              <string>Features</string>
+              <string>Show Boundary</string>
              </property>
-             <layout class="QGridLayout" name="gridLayout_9">
+             <layout class="QGridLayout" name="gridLayout_13">
               <item row="0" column="0">
                <widget class="QRadioButton" name="radioButton_show_extent">
                 <property name="sizePolicy">
@@ -714,22 +695,19 @@
              </layout>
             </widget>
            </item>
-           <item row="1" column="1">
-            <widget class="QGroupBox" name="groupBox_12">
+           <item>
+            <widget class="QGroupBox" name="groupBox_11">
              <property name="title">
-              <string>Prompts</string>
+              <string>Default Minimum Area</string>
              </property>
-             <layout class="QGridLayout" name="gridLayout_20">
+             <layout class="QGridLayout" name="gridLayout_12">
               <item row="0" column="0">
-               <widget class="QRadioButton" name="radioButton_show_prompt">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
+               <widget class="QDoubleSpinBox" name="Box_min_area_default">
+                <property name="decimals">
+                 <number>10</number>
                 </property>
-                <property name="text">
-                 <string>Show</string>
+                <property name="maximum">
+                 <double>10000000000000000000000.000000000000000</double>
                 </property>
                </widget>
               </item>

@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QDockWidget,
 )
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QKeySequence, QColor
 from torchgeo.samplers import Units
 from torchgeo.datasets import BoundingBox
 
@@ -61,6 +61,32 @@ class Selector(QDockWidget):
                 self.execute_SAM.connect(self.execute_segmentation)
 
             self.wdg_sel = UI_Selector
+
+            ######### Setting default parameters for items #########
+            self.wdg_sel.MapLayerComboBox.setFilters(
+                QgsMapLayerProxyModel.PolygonLayer
+                | QgsMapLayerProxyModel.VectorLayer
+            )
+            self.wdg_sel.MapLayerComboBox.setAllowEmptyLayer(True)
+            self.wdg_sel.MapLayerComboBox.setLayer(None)
+
+            self.wdg_sel.QgsFile_feature.setStorageMode(
+                QgsFileWidget.GetDirectory)
+
+            # set button checkable
+            self.wdg_sel.pushButton_fg.setCheckable(True)
+            self.wdg_sel.pushButton_bg.setCheckable(True)
+            self.wdg_sel.pushButton_rect.setCheckable(True)
+
+            # set show extent checked
+            self.wdg_sel.radioButton_show_extent.setChecked(True)
+
+            # set default color
+            self.wdg_sel.ColorButton_bgpt.setColor(Qt.red)
+            self.wdg_sel.ColorButton_fgpt.setColor(Qt.blue)
+            self.wdg_sel.ColorButton_bbox.setColor(Qt.blue)
+            self.wdg_sel.ColorButton_extent.setColor(Qt.red)
+
             ########## connect function to widget items ##########
             self.wdg_sel.pushButton_fg.clicked.connect(
                 self.draw_foreground_point)
@@ -73,6 +99,8 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_undo.clicked.connect(self.undo_last_prompt)
             self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
 
+            self.wdg_sel.MapLayerComboBox.layerChanged.connect(
+                self.set_vector_layer)
             self.wdg_sel.pushButton_load_file.clicked.connect(
                 self.load_vector_file)
 
@@ -86,37 +114,23 @@ class Selector(QDockWidget):
             self.wdg_sel.radioButton_exe_hover.toggled.connect(
                 self.toggle_sam_hover_mode)
 
+            # threshold of area
             self.wdg_sel.Box_min_area.valueChanged.connect(
                 self.filter_feature_by_area)
             self.wdg_sel.Box_min_area_default.valueChanged.connect(
                 self.load_default_t_area)
+            # toggle show extent
             self.wdg_sel.radioButton_show_extent.toggled.connect(
-                self.show_hide_sam_feature_extent)
+                self.toggle_encoding_extent)
 
-            ######### Setting default parameters for items #########
-            # set filter for file dialog
-            # self.wdg_sel.QgsFile_shapefile.setFilter("*.shp")
-            # self.wdg_sel.QgsFile_shapefile.setStorageMode(
-            #     QgsFileWidget.SaveFile)
-            self.wdg_sel.MapLayerComboBox.setFilters(
-                QgsMapLayerProxyModel.PolygonLayer
-                | QgsMapLayerProxyModel.VectorLayer
-            )
-            self.wdg_sel.MapLayerComboBox.setAllowEmptyLayer(True)
-            self.wdg_sel.MapLayerComboBox.setLayer(None)
-            self.wdg_sel.MapLayerComboBox.layerChanged.connect(
-                self.set_vector_layer)
-
-            self.wdg_sel.QgsFile_feature.setStorageMode(
-                QgsFileWidget.GetDirectory)
-
-            # set button checkable
-            self.wdg_sel.pushButton_fg.setCheckable(True)
-            self.wdg_sel.pushButton_bg.setCheckable(True)
-            self.wdg_sel.pushButton_rect.setCheckable(True)
-
-            # set show extent checked
-            self.wdg_sel.radioButton_show_extent.setChecked(True)
+            self.wdg_sel.ColorButton_bgpt.colorChanged.connect(
+                self.reset_background_color)
+            self.wdg_sel.ColorButton_fgpt.colorChanged.connect(
+                self.reset_foreground_color)
+            self.wdg_sel.ColorButton_bbox.colorChanged.connect(
+                self.reset_rectangular_color)
+            self.wdg_sel.ColorButton_extent.colorChanged.connect(
+                self.reset_extent_color)
 
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
@@ -168,7 +182,7 @@ class Selector(QDockWidget):
             self.clear_layers(clear_extent=True)
 
         self.toggle_edit_mode()
-        self.show_hide_sam_feature_extent()
+        self.toggle_encoding_extent()
 
         if not self.wdg_sel.isUserVisible():
             self.wdg_sel.setUserVisible(True)
@@ -337,7 +351,7 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_save.setEnabled(True)
             self.reset_prompt_type()
 
-    def show_hide_sam_feature_extent(self):
+    def toggle_encoding_extent(self):
         '''Show or hide extent of SAM encoded feature'''
         if self.wdg_sel.radioButton_show_extent.isChecked():
             if hasattr(self, "sam_extent_canvas_crs"):
@@ -561,7 +575,7 @@ class Selector(QDockWidget):
             self.clear_layers(clear_extent=True)
             self._init_feature_related()
             self.toggle_edit_mode()
-            self.show_hide_sam_feature_extent()
+            self.toggle_encoding_extent()
         else:
             MessageTool.MessageBar(
                 'Oops',
@@ -629,6 +643,41 @@ class Selector(QDockWidget):
             return True
         else:
             return MessageTool.MessageBoxOK('Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
+
+    def reset_background_color(self):
+        '''Reset background color'''
+        self.canvas_points.background_color = self.wdg_sel.ColorButton_bgpt.color()
+        self.canvas_points.flush_points_color()
+
+    def reset_foreground_color(self):
+        '''Reset foreground color'''
+        self.canvas_points.foreground_color = self.wdg_sel.ColorButton_fgpt.color()
+        self.canvas_points.flush_points_color()
+
+    def reset_rectangular_color(self):
+        '''Reset rectangular color'''
+        color = self.wdg_sel.ColorButton_bbox.color()
+        color_fill = list(color.getRgb())
+        color_fill[-1] = 10
+        color_fill = QColor(*color_fill)
+        self.canvas_rect.set_line_color(color)
+        self.canvas_rect.set_fill_color(color_fill)
+
+        if self.wdg_sel.radioButton_show_extent.isChecked():
+            self.canvas_extent.clear()
+            if hasattr(self, "sam_extent_canvas_crs"):
+                self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
+
+    def reset_extent_color(self):
+        '''Reset extent color'''
+        self.canvas_extent.set_color(
+            self.wdg_sel.ColorButton_extent.color()
+        )
+
+        if self.wdg_sel.radioButton_show_extent.isChecked():
+            self.canvas_extent.clear()
+            if hasattr(self, "sam_extent_canvas_crs"):
+                self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
 
 
 class EncoderCopilot(QDockWidget):

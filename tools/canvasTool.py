@@ -1,19 +1,17 @@
 from typing import List, Any, Dict
 import os
-import uuid
-from PyQt5 import QtGui
 import numpy as np
 from pathlib import Path
 from rasterio.transform import rowcol, Affine
 from qgis._gui import QgsMapMouseEvent
-from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle, Qgis
-from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsMapToolPan, QgsVertexMarker, QgsMapCanvas
+from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle
+from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsVertexMarker, QgsMapCanvas
 from qgis.core import (
-    QgsPointXY, QgsWkbTypes, QgsMarkerSymbol,  QgsField, QgsFields, QgsFillSymbol, QgsApplication,
+    QgsPointXY, QgsWkbTypes, QgsField, QgsFields, QgsFillSymbol, 
     QgsGeometry, QgsFeature, QgsVectorLayer)
 from qgis.PyQt.QtCore import QVariant
-from PyQt5.QtCore import Qt, pyqtSignal, QSize
-from PyQt5.QtGui import QKeySequence, QIcon, QColor, QCursor, QBitmap, QPixmap
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QColor
 from qgis.utils import iface
 from .geoTool import ImageCRSManager, LayerExtent
 from .ulid import GroupId
@@ -54,6 +52,15 @@ class Canvas_Rectangle:
         self.rubberBand = QgsRubberBand(
             self.canvas, QgsWkbTypes.PolygonGeometry)
 
+        self.colors_bbox = {
+            'fill_color': QColor(0, 0, 255, 10),
+            'line_color': Qt.blue
+        }
+        self.colors_extent = {
+            'fill_color': QColor(0, 0, 0, 0),
+            'line_color': QColor(255, 0, 0)
+        }
+
         if use_type == 'bbox':
             self._init_bbox_layer()
         elif use_type == 'extent':
@@ -61,21 +68,34 @@ class Canvas_Rectangle:
         elif use_type == 'batch_extent':
             self._init_batch_extent_layer()
 
+    def flush_rect_color(self):
+        '''Flush the color of rectangle'''
+        if len(self.rect_list) == 0:
+            return None
+        else:
+            startPoint, endPoint = self.rect_list[-1]
+            self.showRect(startPoint, endPoint)
+
     def _init_bbox_layer(self):
         '''Initialize the rectangle layer for bbox prompt'''
-        fill_color = QColor(0, 0, 255, 10)
-        line_color = Qt.blue
         line_width = 1
-        self.set_layer_style(fill_color, line_color, line_width)
+        self.set_layer_style(
+            self.colors_bbox["fill_color"],
+            self.colors_bbox["line_color"],
+            line_width
+        )
 
     def _init_extent_layer(self):
         '''Initialize the rectangle layer for extent of features'''
-        fill_color = QColor(0, 0, 0, 0)
-        line_color = QColor(255, 0, 0)
         # line_color2 = QColor(255, 255, 255)
         line_color2 = None  # not set secondary color currently
         line_width = 3
-        self.set_layer_style(fill_color, line_color, line_width, line_color2)
+        self.set_layer_style(
+            self.colors_extent["fill_color"],
+            self.colors_extent["line_color"],
+            line_width,
+            line_color2
+        )
 
     def _init_batch_extent_layer(self):
         '''Initialize the rectangle layer for batch extent'''
@@ -99,16 +119,28 @@ class Canvas_Rectangle:
 
         self.set_layer_style(fill_color, line_color, line_width, line_color2)
 
-    def set_layer_style(self, fill_color, line_color, line_width, line_color_2=None):
-        '''Set the style of the rectangle layer'''
+    def set_fill_color(self, fill_color: QColor):
         if fill_color is not None:
             self.rubberBand.setFillColor(fill_color)
+
+    def set_line_color(self, line_color: QColor):
         if line_color is not None:
             self.rubberBand.setStrokeColor(line_color)
-        if line_color_2 is not None:
-            self.rubberBand.setSecondaryStrokeColor(line_color_2)
+
+    def set_line_width(self, line_width: int):
         if line_width is not None:
             self.rubberBand.setWidth(line_width)
+
+    def set_line_color_2(self, line_color_2: QColor):
+        if line_color_2 is not None:
+            self.rubberBand.setSecondaryStrokeColor(line_color_2)
+
+    def set_layer_style(self, fill_color, line_color, line_width, line_color_2=None):
+        '''Set the style of the rectangle layer'''
+        self.set_fill_color(fill_color)
+        self.set_line_color(line_color)
+        self.set_line_color_2(line_color_2)
+        self.set_line_width(line_width)
 
     def clear(self):
         '''Clear the rectangle on canvas'''
@@ -274,14 +306,18 @@ class Canvas_Extent:
     def __init__(self, canvas: QgsMapCanvas, img_crs_manager: ImageCRSManager) -> None:
         self.canvas = canvas
         self.img_crs_manager = img_crs_manager
-
         self.canvas_rect_list: List[Canvas_Rectangle] = []
+        self.color = None
 
     def clear(self):
         '''Clear all extents on canvas'''
         for canvas_rect in self.canvas_rect_list:
             canvas_rect.clear()
         self.canvas_rect_list = []
+
+    def set_color(self, color: QColor):
+        '''Set the color of the extent'''
+        self.color = color
 
     def add_extent(self, extent: QgsRectangle,
                    use_type: str = 'extent',
@@ -296,6 +332,8 @@ class Canvas_Extent:
             use_type=use_type,
             alpha=alpha
         )
+        if self.color is not None:
+            canvas_rect.set_line_color(self.color)
 
         point1 = QgsPointXY(xMin, yMax)  # left top
         point2 = QgsPointXY(xMin, yMin)  # left bottom
@@ -332,6 +370,8 @@ class Canvas_Points:
         self.markers: List[QgsVertexMarker] = []
         self.points_img_crs: List[QgsPointXY] = []
         self.labels: List[bool] = []
+        self.foreground_color = QColor(0, 0, 255)
+        self.background_color = QColor(255, 0, 0)
 
     @property
     def project_crs(self):
@@ -350,11 +390,11 @@ class Canvas_Points:
         m.setCenter(point)
         if show:
             if foreground:
-                m.setColor(QColor(0, 0, 255))
-                m.setFillColor(QColor(0, 0, 255))
+                m.setColor(self.foreground_color)
+                m.setFillColor(self.foreground_color)
             else:
-                m.setColor(QColor(255, 0, 0))
-                m.setFillColor(QColor(255, 0, 0))
+                m.setColor(self.background_color)
+                m.setFillColor(self.background_color)
             # m.setIconSize(12)
             m.setIconSize(round(UI_SCALE/3))
             m.setIconType(QgsVertexMarker.ICON_CIRCLE)
@@ -367,6 +407,16 @@ class Canvas_Points:
         self.labels.append(foreground)
 
         self._update_extent()
+
+    def flush_points_color(self):
+        '''Flush the color of points'''
+        for i, m in enumerate(self.markers):
+            if self.labels[i]:
+                m.setColor(self.foreground_color)
+                m.setFillColor(self.foreground_color)
+            else:
+                m.setColor(self.background_color)
+                m.setFillColor(self.background_color)
 
     def popPoint(self):
         """remove the last marker"""
