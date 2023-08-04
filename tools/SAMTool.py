@@ -53,7 +53,9 @@ class SAM_Model:
                     canvas_points: Canvas_Points,
                     canvas_rect: Canvas_Rectangle,
                     sam_polygon: SAM_PolygonFeature,
-                    prompt_history: List) -> bool:
+                    prompt_history: List,
+                    hover_mode: bool = False,
+                    ) -> bool:
         extent_union = LayerExtent.union_extent(
             canvas_points.extent, canvas_rect.extent)
 
@@ -70,10 +72,15 @@ class SAM_Model:
         test_sampler = SamTestFeatureGeoSampler(
             self.test_features, roi=prompts_roi)
 
+        # if hover mode, check if the hover location is outside the image
         if len(test_sampler) == 0:
-            # TODO: Clear last point falls outside the boundary
-            return MessageTool.MessageBoxOK(
-                'Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
+            if hover_mode:
+                MessageTool.MessageLog(
+                    "Hover location outside the boundary of the image",
+                    'warning',
+                    notify_user=False
+                )
+                return True
 
         for query in test_sampler:
             # different query than last time, update feature

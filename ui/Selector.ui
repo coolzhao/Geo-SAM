@@ -475,11 +475,11 @@
                 <string>execute SAM with move mode (M)</string>
                </property>
                <property name="title">
-                <string>Move mode</string>
+                <string>Hover mode</string>
                </property>
                <layout class="QGridLayout" name="gridLayout_11">
                 <item row="0" column="0">
-                 <widget class="QRadioButton" name="radioButton_exe_move">
+                 <widget class="QRadioButton" name="radioButton_exe_hover">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                     <horstretch>0</horstretch>
@@ -487,7 +487,7 @@
                    </sizepolicy>
                   </property>
                   <property name="toolTip">
-                   <string>Execute SAM while moving mouse (M)</string>
+                   <string>Execute SAM while moving mouse (H)</string>
                   </property>
                   <property name="text">
                    <string>Enable</string>

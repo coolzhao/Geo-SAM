@@ -204,7 +204,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.prompt_history = prompt_history
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
-        self.move_mode: bool = False
+        self.hover_mode: bool = False
         self.have_added_for_moving = False
         QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
         self.setCursor(CursorRect)
@@ -236,21 +236,22 @@ class RectangleMapTool(QgsMapToolEmitPoint):
             self.execute_SAM.emit()
             self.have_added_for_moving = False  # reset to False
 
-    def canvasMoveEvent(self, e):
-        if not self.isEmittingPoint:
-            return
-
+    def clear_hover_prompt(self):
         # remove the last rectangle if have added a rectangle when mouse move
         if self.have_added_for_moving:
             self.canvas_rect.popRect()
             self.have_added_for_moving = False  # reset to False
+
+    def canvasMoveEvent(self, e):
+        if not self.isEmittingPoint:
+            return
 
         # update the rectangle as the mouse moves
         self.endPoint = self.toMapCoordinates(e.pos())
         self.canvas_rect.showRect(self.startPoint, self.endPoint)
 
         # execute SAM when mouse move
-        if not self.move_mode:
+        if not self.hover_mode:
             return
         if self.startPoint is None or self.endPoint is None:
             return None
@@ -439,7 +440,7 @@ class ClickTool(QgsMapToolEmitPoint):
             )
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
-        self.move_mode: bool = False
+        self.hover_mode: bool = False
         QgsMapToolEmitPoint.__init__(self, self.canvas)
 
         self.have_added_for_moving = False  # whether have added a point when mouse move
@@ -448,12 +449,14 @@ class ClickTool(QgsMapToolEmitPoint):
         elif prompt_type == "bgpt":
             self.setCursor(CursorPointRed)
 
-    def canvasPressEvent(self, e: QgsMapMouseEvent):
-        # remove the last point if have added a point when mouse move
+    def clear_hover_prompt(self):
+        # remove the last rectangle if have added a rectangle when mouse move
         if self.have_added_for_moving:
             self.canvas_points.popPoint()
-            # reset to False
-            self.have_added_for_moving = False
+            self.have_added_for_moving = False  # reset to False
+
+    def canvasPressEvent(self, e: QgsMapMouseEvent):
+        self.clear_hover_prompt()
 
         # add a point when mouse press
         point = self.toMapCoordinates(e.pos())
@@ -465,13 +468,10 @@ class ClickTool(QgsMapToolEmitPoint):
         self.execute_SAM.emit()
 
     def canvasMoveEvent(self, e: QgsMapMouseEvent) -> None:
-        if not self.move_mode:
+        if not self.hover_mode:
             return
 
-        # remove the last point if have added a point when mouse move
-        if self.have_added_for_moving:
-            self.canvas_points.popPoint()
-            self.have_added_for_moving = False
+        self.clear_hover_prompt()
 
         # add a point when mouse move
         point = self.toMapCoordinates(e.pos())
@@ -828,4 +828,3 @@ class SAM_PolygonFeature:
     def commit_changes(self):
         '''Commit the changes'''
         self.layer.commitChanges()
-

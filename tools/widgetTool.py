@@ -46,7 +46,7 @@ class Selector(QDockWidget):
         self.dockFirstOpen = True
         self.prompt_history: List[str] = []
         self.sam_feature_history: List[List[int]] = []
-        self.move_mode: bool = False
+        self.hover_mode: bool = False
 
     def open_widget(self):
         '''Create widget selector'''
@@ -80,9 +80,9 @@ class Selector(QDockWidget):
             self.wdg_sel.radioButton_enable.toggled.connect(
                 self.toggle_edit_mode)
 
-            self.wdg_sel.radioButton_exe_move.setChecked(False)
-            self.wdg_sel.radioButton_exe_move.toggled.connect(
-                self.toggle_sam_move_mode)
+            self.wdg_sel.radioButton_exe_hover.setChecked(False)
+            self.wdg_sel.radioButton_exe_hover.toggled.connect(
+                self.toggle_sam_hover_mode)
 
             self.wdg_sel.Box_min_area.valueChanged.connect(
                 self.filter_feature_by_area)
@@ -127,8 +127,8 @@ class Selector(QDockWidget):
                 QKeySequence(Qt.Key_Z), self.wdg_sel)
             self.shortcut_save = QShortcut(
                 QKeySequence(Qt.Key_S), self.wdg_sel)
-            self.shortcut_move_mode = QShortcut(
-                QKeySequence(Qt.Key_M), self.wdg_sel)
+            self.shortcut_hover_mode = QShortcut(
+                QKeySequence(Qt.Key_H), self.wdg_sel)
             self.shortcut_tab = QShortcut(
                 QKeySequence(Qt.Key_Tab), self.wdg_sel)
             self.shortcut_undo_sam_pg = QShortcut(
@@ -138,7 +138,7 @@ class Selector(QDockWidget):
             self.shortcut_clear.activated.connect(self.clear_layers)
             self.shortcut_undo.activated.connect(self.undo_last_prompt)
             self.shortcut_save.activated.connect(self.save_shp_file)
-            self.shortcut_move_mode.activated.connect(self.toggle_move_mode)
+            self.shortcut_hover_mode.activated.connect(self.toggle_hover_mode)
             self.shortcut_tab.activated.connect(self.loop_prompt_type)
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
 
@@ -147,7 +147,7 @@ class Selector(QDockWidget):
             self.shortcut_clear.setContext(Qt.ApplicationShortcut)
             self.shortcut_undo.setContext(Qt.ApplicationShortcut)
             self.shortcut_save.setContext(Qt.ApplicationShortcut)
-            self.shortcut_move_mode.setContext(Qt.ApplicationShortcut)
+            self.shortcut_hover_mode.setContext(Qt.ApplicationShortcut)
             self.shortcut_tab.setContext(Qt.ApplicationShortcut)
             self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
 
@@ -173,6 +173,7 @@ class Selector(QDockWidget):
     def destruct(self):
         '''Destruct actions when closed widget'''
         self.clear_layers(clear_extent=True)
+        self.wdg_sel.MapLayerComboBox.layerChanged.disconnect()
 
     def unload(self):
         '''Unload actions when plugin is closed'''
@@ -182,6 +183,7 @@ class Selector(QDockWidget):
             self.shortcut_tab.disconnect()
         if hasattr(self, "shortcut_undo_sam_pg"):
             self.shortcut_undo_sam_pg.disconnect()
+        self.wdg_sel.MapLayerComboBox.layerChanged.disconnect()
 
         self.iface.removeDockWidget(self.wdg_sel)
 
@@ -338,27 +340,33 @@ class Selector(QDockWidget):
         else:
             self.canvas_extent.clear()
 
-    def toggle_move_mode(self):
+    def toggle_hover_mode(self):
         '''Toggle move mode in widget selector. For shortcut only'''
-        if self.wdg_sel.radioButton_exe_move.isChecked():
-            self.wdg_sel.radioButton_exe_move.setChecked(False)
+        if self.wdg_sel.radioButton_exe_hover.isChecked():
+            self.wdg_sel.radioButton_exe_hover.setChecked(False)
         else:
-            self.wdg_sel.radioButton_exe_move.setChecked(True)
+            self.wdg_sel.radioButton_exe_hover.setChecked(True)
         # toggle move mode in sam model
-        self.toggle_sam_move_mode()
+        self.toggle_sam_hover_mode()
 
-    def toggle_sam_move_mode(self):
+    def toggle_sam_hover_mode(self):
         '''Toggle move mode in sam model'''
-        if self.wdg_sel.radioButton_exe_move.isChecked():
-            self.move_mode = True
-            self.tool_click_fg.move_mode = True
-            self.tool_click_bg.move_mode = True
-            self.tool_click_rect.move_mode = True
+        if self.wdg_sel.radioButton_exe_hover.isChecked():
+            self.hover_mode = True
+            self.tool_click_fg.hover_mode = True
+            self.tool_click_bg.hover_mode = True
+            self.tool_click_rect.hover_mode = True
         else:
-            self.move_mode = False
-            self.tool_click_fg.move_mode = False
-            self.tool_click_bg.move_mode = False
-            self.tool_click_rect.move_mode = False
+            self.hover_mode = False
+            self.tool_click_fg.hover_mode = False
+            self.tool_click_bg.hover_mode = False
+            self.tool_click_rect.hover_mode = False
+            # clear hover prompts
+            self.tool_click_fg.clear_hover_prompt()
+            self.tool_click_bg.clear_hover_prompt()
+            self.tool_click_rect.clear_hover_prompt()
+
+            self.execute_SAM.emit()
 
     def filter_feature_by_area(self):
         t_area = self.wdg_sel.Box_min_area.value()
@@ -373,7 +381,7 @@ class Selector(QDockWidget):
 
     def execute_segmentation(self) -> bool:
         # check last prompt inside feature extent
-        if len(self.prompt_history) > 0 and not self.move_mode:
+        if len(self.prompt_history) > 0 and not self.hover_mode:
             prompt_last = self.prompt_history[-1]
             if prompt_last == 'bbox':
                 last_rect = self.canvas_rect.extent
@@ -383,8 +391,8 @@ class Selector(QDockWidget):
                 last_point = self.canvas_points.points_img_crs[-1]
                 last_prompt = QgsRectangle(last_point, last_point)
             if not last_prompt.intersects(self.sam_model.extent):
-                if not self.message_box_outside():
-                    self.undo_last_prompt()
+                self.message_box_outside()
+                self.undo_last_prompt()
                 return False
 
             self.ensure_polygon_sam_exist()
@@ -405,7 +413,7 @@ class Selector(QDockWidget):
         self.ensure_polygon_sam_exist()
         # execute segmentation
         if not self.sam_model.sam_predict(
-                self.canvas_points, self.canvas_rect, self.polygon, self.prompt_history):
+                self.canvas_points, self.canvas_rect, self.polygon, self.prompt_history, self.hover_mode):
             self.undo_last_prompt()
         self.topping_polygon_sam_layer()
 
@@ -452,6 +460,7 @@ class Selector(QDockWidget):
 
     def set_vector_layer(self):
         '''set sam output vector layer'''
+
         new_layer = self.wdg_sel.MapLayerComboBox.currentLayer()
 
         # parse whether the new selected layer is same as current layer
@@ -472,7 +481,6 @@ class Selector(QDockWidget):
         self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
 
     def load_vector_file(self) -> None:
-
         file_dialog = QFileDialog()
         file_dialog.setDefaultSuffix('shp')
         file_dialog.setFileMode(QFileDialog.AnyFile)
@@ -514,7 +522,8 @@ class Selector(QDockWidget):
             else:
                 self.polygon = SAM_PolygonFeature(
                     self.img_crs_manager, shapefile=file_path)
-
+                if not hasattr(self.polygon, "layer"):
+                    return None
             # clear layer history
             self.sam_feature_history = []
             self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
@@ -589,7 +598,10 @@ class Selector(QDockWidget):
             self.canvas.refresh()
 
     def message_box_outside(self):
-        return MessageTool.MessageBoxOK('Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
+        if self.hover_mode:
+            return True
+        else:
+            return MessageTool.MessageBoxOK('Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
 
 
 class EncoderCopilot(QDockWidget):

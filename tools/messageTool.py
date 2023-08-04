@@ -23,6 +23,10 @@ class MessageTool:
             The text of the message.
         title : str, optional
             The title of the message box, by default 'Warning'.
+        
+        Returns:
+        -------
+        int if the button clicked, or None if the message box was closed.
         '''
         mb = QMessageBox()
         mb.setText(
