@@ -568,8 +568,6 @@ class SAM_PolygonFeature:
         self.shapefile = shapefile
         self.default_name = default_name
         self.canvas_polygon = Canvas_SAM_Polygon(iface.mapCanvas())
-        # the threshold of area
-        self.t_area: float = 0
         self.geojson: Dict = {}
         if layer is not None:
             self.reset_layer(layer)
@@ -711,6 +709,8 @@ class SAM_PolygonFeature:
     def add_geojson_feature_to_canvas(
             self,
             geojson: Dict,
+            t_area: float,
+            overwrite_geojson: bool = False
     ):
         '''Add a geojson feature to the layer
 
@@ -718,10 +718,14 @@ class SAM_PolygonFeature:
         ----------
         geojson: Dict
             features in geojson format
-        prompt_history: List
-            a list of prompts
+        t_area: float
+            the threshold of area
+        overwrite_geojson: bool
+            whether overwrite the geojson of this class. 
+            False for showing geometry greater than t_area.
         '''
-        self.geojson = geojson
+        if overwrite_geojson:
+            self.geojson = geojson
         for geom in geojson:
             points = []
             coordinates = geom['geometry']['coordinates'][0]
@@ -733,12 +737,12 @@ class SAM_PolygonFeature:
                 points.append(point)
 
             geometry = QgsGeometry.fromPolygonXY([points])
-            ft_area = geometry.area()
-            # ft_area = feature.geometry().area()
+            geometry_area = geometry.area()
+            # geometry_area = feature.geometry().area()
 
             # if the area of the feature is less than t_area,
             # it will not be added to the layer
-            if ft_area < self.t_area:
+            if geometry_area < t_area:
                 continue
             # add geometry to canvas_polygon
             self.canvas_polygon.addPolygon(geometry)
@@ -746,6 +750,7 @@ class SAM_PolygonFeature:
     def add_feature_to_layer(
             self,
             prompt_history: List,
+            t_area: float
     ):
         '''Add a geojson feature to the layer
 
@@ -753,8 +758,8 @@ class SAM_PolygonFeature:
         ----------
         geojson: Dict
             features in geojson format
-        prompt_history: List
-            a list of prompts
+        t_area: float
+            the threshold of area
         '''
         features = []
         num_polygons = self.layer.featureCount()
@@ -771,12 +776,12 @@ class SAM_PolygonFeature:
                 points.append(point)
 
             geometry = QgsGeometry.fromPolygonXY([points])
-            ft_area = geometry.area()
-            # ft_area = feature.geometry().area()
+            geometry_area = geometry.area()
+            # geometry_area = feature.geometry().area()
 
             # if the area of the feature is less than t_area,
             # it will not be added to the layer
-            if ft_area < self.t_area:
+            if geometry_area < t_area:
                 continue
             # add geometry to canvas_polygon
             self.canvas_polygon.addPolygon(geometry)
@@ -788,7 +793,7 @@ class SAM_PolygonFeature:
                 [group_ulid,
                  0,
                  num_polygons+idx+1,
-                 ft_area,
+                 geometry_area,
                  prompt_history.count('fgpt'),
                  prompt_history.count('bgpt'),
                  'bbox' in prompt_history]

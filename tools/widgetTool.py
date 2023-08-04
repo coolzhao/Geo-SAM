@@ -47,6 +47,8 @@ class Selector(QDockWidget):
         self.prompt_history: List[str] = []
         self.sam_feature_history: List[List[int]] = []
         self.hover_mode: bool = False
+        self.t_area: float = 0.0
+        self.t_area_default: float = 0.0
 
     def open_widget(self):
         '''Create widget selector'''
@@ -86,6 +88,8 @@ class Selector(QDockWidget):
 
             self.wdg_sel.Box_min_area.valueChanged.connect(
                 self.filter_feature_by_area)
+            self.wdg_sel.Box_min_area_default.valueChanged.connect(
+                self.load_default_t_area)
             self.wdg_sel.radioButton_show_extent.toggled.connect(
                 self.show_hide_sam_feature_extent)
 
@@ -160,7 +164,6 @@ class Selector(QDockWidget):
             self.dockFirstOpen = False
             # add widget to QGIS
             self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
-
         else:
             self.clear_layers(clear_extent=True)
 
@@ -173,18 +176,25 @@ class Selector(QDockWidget):
     def destruct(self):
         '''Destruct actions when closed widget'''
         self.clear_layers(clear_extent=True)
-        self.wdg_sel.MapLayerComboBox.layerChanged.disconnect()
-
-    def unload(self):
-        '''Unload actions when plugin is closed'''
-        self.clear_layers(clear_extent=True)
 
         if hasattr(self, "shortcut_tab"):
             self.shortcut_tab.disconnect()
         if hasattr(self, "shortcut_undo_sam_pg"):
             self.shortcut_undo_sam_pg.disconnect()
-        self.wdg_sel.MapLayerComboBox.layerChanged.disconnect()
+        if hasattr(self, "shortcut_clear"):
+            self.shortcut_clear.activated.disconnect()
+        if hasattr(self, "shortcut_undo"):
+            self.shortcut_undo.activated.disconnect()
+        if hasattr(self, "shortcut_save"):
+            self.shortcut_save.activated.disconnect()
+        if hasattr(self, "shortcut_hover_mode"):
+            self.shortcut_hover_mode.activated.disconnect()
+        if hasattr(self, "wdg_sel"):
+            self.wdg_sel.MapLayerComboBox.layerChanged.disconnect()
 
+    def unload(self):
+        '''Unload actions when plugin is closed'''
+        self.destruct()
         self.iface.removeDockWidget(self.wdg_sel)
 
     def load_demo_img(self):
@@ -370,7 +380,17 @@ class Selector(QDockWidget):
 
     def filter_feature_by_area(self):
         t_area = self.wdg_sel.Box_min_area.value()
-        self.polygon.t_area = t_area
+        if not hasattr(self, "polygon"):
+            return None
+
+        self.polygon.canvas_polygon.clear()
+        self.polygon.add_geojson_feature_to_canvas(
+            self.polygon.geojson, t_area)
+        self.t_area = t_area
+
+    def load_default_t_area(self):
+        self.t_area_default = self.wdg_sel.Box_min_area_default.value()
+        self.wdg_sel.Box_min_area.setValue(self.t_area_default)
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):
@@ -413,7 +433,13 @@ class Selector(QDockWidget):
         self.ensure_polygon_sam_exist()
         # execute segmentation
         if not self.sam_model.sam_predict(
-                self.canvas_points, self.canvas_rect, self.polygon, self.prompt_history, self.hover_mode):
+                self.canvas_points,
+                self.canvas_rect,
+                self.polygon,
+                self.prompt_history,
+                self.hover_mode,
+                self.t_area
+        ):
             self.undo_last_prompt()
         self.topping_polygon_sam_layer()
 
@@ -557,7 +583,7 @@ class Selector(QDockWidget):
         self.clear_canvas_layers_safely()
         self.prompt_history.clear()
         if hasattr(self, "polygon"):
-            self.polygon.add_feature_to_layer(self.prompt_history)
+            self.polygon.add_feature_to_layer(self.prompt_history, self.t_area)
             self.polygon.commit_changes()
             self.polygon.canvas_polygon.clear()
 
@@ -568,6 +594,7 @@ class Selector(QDockWidget):
             last_id = features[-1].id()
             if self.sam_feature_history[-1][0] <= last_id:
                 self.sam_feature_history[-1].append(last_id)
+            self.wdg_sel.Box_min_area.setValue(self.t_area_default)
 
     def reset_prompt_type(self):
         '''reset prompt type'''

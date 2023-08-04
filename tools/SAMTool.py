@@ -55,6 +55,7 @@ class SAM_Model:
                     sam_polygon: SAM_PolygonFeature,
                     prompt_history: List,
                     hover_mode: bool = False,
+                    t_area: float = 0.0
                     ) -> bool:
         extent_union = LayerExtent.union_extent(
             canvas_points.extent, canvas_rect.extent)
@@ -149,7 +150,11 @@ class SAM_Model:
                    for polygon, value in shape_generator]
 
         sam_polygon.canvas_polygon.clear()
-        sam_polygon.add_geojson_feature_to_canvas(geojson)
+        sam_polygon.add_geojson_feature_to_canvas(
+            geojson,
+            t_area,
+            overwrite_geojson=True
+        )
         # # add to layer
         # sam_polygon.rollback_changes()
         # sam_polygon.add_geojson_feature(geojson, prompt_history)
