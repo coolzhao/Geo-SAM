@@ -20,6 +20,20 @@ from .ulid import GroupId
 from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect, UI_SCALE
 from .messageTool import MessageTool
 
+SAM_Feature_Fields = [
+    QgsField("group_ulid", QVariant.String),
+    QgsField("N_GM", QVariant.Int),
+    QgsField("id", QVariant.Int),
+    QgsField("Area", QVariant.Double),
+    QgsField("N_FG", QVariant.Int),
+    QgsField("N_BG", QVariant.Int),
+    QgsField("BBox", QVariant.Bool)
+]
+SAM_Feature_QgsFields = QgsFields()
+new_fields = QgsFields()
+for field in SAM_Feature_Fields:
+    SAM_Feature_QgsFields.append(field)
+
 
 class Canvas_Rectangle:
     '''A class to manage Rectangle on canvas.'''
@@ -546,6 +560,7 @@ class SAM_PolygonFeature:
         self,
         img_crs_manager: ImageCRSManager,
         shapefile: str = None,
+        layer: QgsVectorLayer = None,
         default_name: str = 'polygon_sam'
     ):
         self.qgis_project = QgsProject.instance()
@@ -556,8 +571,10 @@ class SAM_PolygonFeature:
         # the threshold of area
         self.t_area: float = 0
         self.geojson: Dict = {}
-
-        self.init_layer()
+        if layer is not None:
+            self.reset_layer(layer)
+        else:
+            self.init_layer()
 
     def init_layer(self):
         if self.shapefile:
@@ -579,6 +596,46 @@ class SAM_PolygonFeature:
         except:
             return None
 
+    def layer_fields_correct(self, layer: QgsVectorLayer):
+        fields = layer.fields().names()
+        MessageTool.MessageLog(
+            f"New layer fields: {fields}")
+        MessageTool.MessageLog(
+            f"old feature fields: {SAM_Feature_QgsFields.names()}")
+
+        if len(set(SAM_Feature_QgsFields.names()) - set(fields)) > 0:
+            MessageTool.MessageBoxOK(
+                'The fields of this vector do not match the SAM feature fields.'
+                " Please select a correct existed file or a new file to create it."
+            )
+            return False
+        else:
+            return True
+
+    def reset_layer(self, layer: QgsVectorLayer) -> bool:
+        '''Reset the layer to a new layer
+
+        Parameters:
+        ----------
+        layer: QgsVectorLayer
+            the new layer to reset
+
+        Returns:
+        -------
+        bool: whether reset successfully
+        '''
+        if layer:
+            if not self.layer_fields_correct(layer):
+                return False
+            self.layer = layer
+        else:
+            self._init_layer()
+
+        self.geojson = {}
+        self.show_layer()
+        self.ensure_edit_mode()
+        return True
+
     def _load_shapefile(self, shapefile):
         '''Load the shapefile to the layer.'''
         if isinstance(shapefile, Path):
@@ -588,17 +645,6 @@ class SAM_PolygonFeature:
 
         # if file not exists, create a new one into disk
         if not os.path.exists(shapefile):
-            fields = QgsFields()
-            fields.extend(
-                [QgsField("group_ulid", QVariant.String),
-                 QgsField("Group_Members", QVariant.Int),
-                 QgsField("id", QVariant.Int),
-                 QgsField("Area", QVariant.Double),
-                 QgsField("N_FG", QVariant.Int),
-                 QgsField("N_BG", QVariant.Int),
-                 QgsField("BBox", QVariant.Bool)]
-            )
-
             save_options = QgsVectorFileWriter.SaveVectorOptions()
             save_options.driverName = "ESRI Shapefile"
             save_options.fileEncoding = "UTF-8"
@@ -606,7 +652,7 @@ class SAM_PolygonFeature:
 
             writer = QgsVectorFileWriter.create(
                 shapefile,
-                fields,
+                SAM_Feature_QgsFields,
                 QgsWkbTypes.Polygon,
                 self.img_crs_manager.img_crs,
                 transform_context,
@@ -616,7 +662,11 @@ class SAM_PolygonFeature:
             # delete the writer to flush features to disk
             del writer
 
-        self.layer = QgsVectorLayer(shapefile, Path(shapefile).stem, "ogr")
+        layer = QgsVectorLayer(shapefile, Path(shapefile).stem, "ogr")
+        if not self.layer_fields_correct(layer):
+            return False
+
+        self.layer = layer
         self.show_layer()
         self.ensure_edit_mode()
 
@@ -642,16 +692,7 @@ class SAM_PolygonFeature:
         # TODO: if field exists, whether need to add it again?
         # Set the provider to accept the data source
         prov = self.layer.dataProvider()
-        prov.addAttributes(
-            [QgsField("group_ulid", QVariant.String),
-             QgsField("Group_Members", QVariant.Int),
-             QgsField("id", QVariant.Int),
-             QgsField("Area", QVariant.Double),
-             QgsField("N_FG", QVariant.Int),
-             QgsField("N_BG", QVariant.Int),
-             QgsField("BBox", QVariant.Bool)
-             ]
-        )
+        prov.addAttributes(SAM_Feature_Fields)
         self.layer.updateFields()
 
         self.ensure_edit_mode()
@@ -788,7 +829,3 @@ class SAM_PolygonFeature:
         '''Commit the changes'''
         self.layer.commitChanges()
 
-    def ensure_exist(self):
-        layer_list = QgsProject.instance().mapLayersByName(self.layer_name)
-        if not layer_list:
-            self.init_layer()

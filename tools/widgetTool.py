@@ -2,22 +2,21 @@ import os
 import json
 from typing import List, Tuple, Any, Dict
 from pathlib import Path
-from qgis.core import QgsProject, QgsCoordinateReferenceSystem
+from qgis.core import QgsProject, QgsCoordinateReferenceSystem, QgsMapLayerProxyModel
 from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
 from qgis.core import QgsRasterLayer, QgsRectangle, QgsRasterBandStats
-from PyQt5.QtCore import Qt, pyqtSignal, QObject
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
     QShortcut,
     QFileDialog,
     QDockWidget,
 )
-from PyQt5.QtGui import QKeySequence, QIcon, QColor
-from PyQt5 import uic
+from PyQt5.QtGui import QKeySequence
 from torchgeo.samplers import Units
 from torchgeo.datasets import BoundingBox
 
-from .geoTool import ImageCRSManager, LayerExtent
+from .geoTool import ImageCRSManager
 from .SAMTool import SAM_Model
 from .canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
 from ..ui import UI_Selector, UI_EncoderCopilot
@@ -73,7 +72,8 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
 
             self.wdg_sel.pushButton_load_file.clicked.connect(
-                self.load_shp_file)
+                self.load_vector_file)
+
             self.wdg_sel.pushButton_load_feature.clicked.connect(
                 self.load_feature)
             self.wdg_sel.radioButton_enable.setChecked(True)
@@ -91,9 +91,18 @@ class Selector(QDockWidget):
 
             ######### Setting default parameters for items #########
             # set filter for file dialog
-            self.wdg_sel.QgsFile_shapefile.setFilter("*.shp")
-            self.wdg_sel.QgsFile_shapefile.setStorageMode(
-                QgsFileWidget.SaveFile)
+            # self.wdg_sel.QgsFile_shapefile.setFilter("*.shp")
+            # self.wdg_sel.QgsFile_shapefile.setStorageMode(
+            #     QgsFileWidget.SaveFile)
+            self.wdg_sel.MapLayerComboBox.setFilters(
+                QgsMapLayerProxyModel.PolygonLayer
+                | QgsMapLayerProxyModel.VectorLayer
+            )
+            self.wdg_sel.MapLayerComboBox.setAllowEmptyLayer(True)
+            self.wdg_sel.MapLayerComboBox.setLayer(None)
+            self.wdg_sel.MapLayerComboBox.layerChanged.connect(
+                self.set_vector_layer)
+
             self.wdg_sel.QgsFile_feature.setStorageMode(
                 QgsFileWidget.GetDirectory)
 
@@ -133,7 +142,8 @@ class Selector(QDockWidget):
             self.shortcut_tab.activated.connect(self.loop_prompt_type)
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
 
-            # set context
+            # set context for shortcuts to application
+            # this will make shortcuts work even if the widget is not focused
             self.shortcut_clear.setContext(Qt.ApplicationShortcut)
             self.shortcut_undo.setContext(Qt.ApplicationShortcut)
             self.shortcut_save.setContext(Qt.ApplicationShortcut)
@@ -359,7 +369,7 @@ class Selector(QDockWidget):
             layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
             if layer:
                 return None
-        self.load_shp_file()
+        self.set_vector_layer()
 
     def execute_segmentation(self) -> bool:
         # check last prompt inside feature extent
@@ -401,30 +411,6 @@ class Selector(QDockWidget):
 
         return True
 
-    # def execute_segmentation_temp(self) -> bool:
-    #     '''Execute segmentation for temporary polygon when mouse move'''
-    #     # check last prompt inside feature extent
-    #     if len(self.prompt_history) > 0:
-    #         prompt_last = self.prompt_history[-1]
-    #         if prompt_last == 'bbox':
-    #             last_rect = self.canvas_rect.extent
-    #             last_prompt = QgsRectangle(
-    #                 last_rect[0], last_rect[2], last_rect[1], last_rect[3])
-    #         else:
-    #             last_point = self.canvas_points.points_img_crs[-1]
-    #             last_prompt = QgsRectangle(last_point, last_point)
-    #         if not last_prompt.intersects(self.sam_model.extent):
-    #             if not self.message_box_outside():
-    #                 self.undo_last_prompt()
-    #             return False
-
-    #     self.ensure_polygon_sam_exist()
-
-    #     # execute segmentation
-    #     if self.sam_model.sam_predict(
-    #             self.canvas_points, self.canvas_rect, self.polygon_temp, self.prompt_history):
-    #         return True
-
     def draw_foreground_point(self):
         '''draw foreground point in canvas'''
         self.canvas.setMapTool(self.tool_click_fg)
@@ -464,19 +450,74 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_bg.toggle()
         self.prompt_type = 'bbox'
 
-    def load_shp_file(self):
-        '''load shapefile'''
-        file_path = self.wdg_sel.QgsFile_shapefile.filePath()
-        self.sam_feature_history = []
-        if hasattr(self, "polygon"):
-            layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
-            if layer and layer.source() == file_path:
-                return None
+    def set_vector_layer(self):
+        '''set sam output vector layer'''
+        new_layer = self.wdg_sel.MapLayerComboBox.currentLayer()
 
-        self.polygon = SAM_PolygonFeature(
-            self.img_crs_manager, file_path)
-        # self.polygon_temp = SAM_PolygonFeature(
-        #     self.img_crs_manager, default_name='polygon_sam_temp')  # for drawing when mouse move
+        # parse whether the new selected layer is same as current layer
+        if hasattr(self, "polygon"):
+            old_layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
+            if (old_layer and new_layer and
+                    old_layer.id() == new_layer.id()):
+                return None
+            else:
+                if not self.polygon.reset_layer(new_layer):
+                    self.MapLayerComboBox.setLayer(None)
+        else:
+            self.polygon = SAM_PolygonFeature(
+                self.img_crs_manager, layer=new_layer)
+
+        # clear layer history
+        self.sam_feature_history = []
+        self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+
+    def load_vector_file(self) -> None:
+
+        file_dialog = QFileDialog()
+        file_dialog.setDefaultSuffix('shp')
+        file_dialog.setFileMode(QFileDialog.AnyFile)
+
+        file_path, _ = file_dialog.getSaveFileName(
+            None, "QFileDialog.getOpenFileName()",
+            "",
+            "Shapefile (*.shp)",
+            options=QFileDialog.DontConfirmOverwrite
+        )
+
+        if file_path is None or file_path == '':
+            return None
+
+        file_path = Path(file_path)
+        if not file_path.parent.is_dir():
+            MessageTool.MessageBoxOK(
+                "Oops: "
+                "Failed to open file, please choose a existing folder"
+            )
+            return None
+        else:
+            if file_path.suffix.lower() != '.shp':
+                file_path.with_suffix('.shp')
+
+            layer_list = QgsProject.instance().mapLayersByName(file_path.stem)
+            if len(layer_list) > 0:
+                self.polygon = SAM_PolygonFeature(
+                    self.img_crs_manager, layer=layer_list[0])
+                if not hasattr(self.polygon, "layer"):
+                    return None
+                MessageTool.MessageBar(
+                    "Attention",
+                    f"Layer '{file_path.name}' has already been in the project, "
+                    "you can start labeling now"
+                )
+                self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+
+            else:
+                self.polygon = SAM_PolygonFeature(
+                    self.img_crs_manager, shapefile=file_path)
+
+            # clear layer history
+            self.sam_feature_history = []
+            self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
 
     def load_feature(self):
         '''load feature'''
@@ -484,10 +525,6 @@ class Selector(QDockWidget):
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
             self.clear_layers(clear_extent=True)
             self._init_feature_related()
-            # self.load_shp_file()
-            # self.draw_foreground_point()
-            # if self.wdg_sel.radioButton_enable.isChecked():
-            #     self.reset_prompt_type()  # do not change tool
             self.toggle_edit_mode()
             self.show_hide_sam_feature_extent()
         else:
@@ -555,10 +592,10 @@ class Selector(QDockWidget):
         return MessageTool.MessageBoxOK('Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
 
 
-class EncoderCopilot(QObject):
+class EncoderCopilot(QDockWidget):
     # TODO: support encoding process in this widget
     def __init__(self, parent, iface: QgisInterface, cwd: str):
-        super().__init__()
+        QDockWidget.__init__(self)
         self.parent = parent
         self.iface = iface
         self.canvas = iface.mapCanvas()
@@ -839,13 +876,13 @@ class EncoderCopilot(QObject):
         file_dialog.setDefaultSuffix('json')
         file_dialog.setFileMode(QFileDialog.AnyFile)
 
-        fileName, _ = file_dialog.getSaveFileName(
+        file_path, _ = file_dialog.getSaveFileName(
             None, "QFileDialog.getOpenFileName()",
             "",
             "Json Files (*.json)")
-        fileName = Path(fileName)
+        file_path = Path(file_path)
         try:
-            if not fileName.parent.is_dir():
+            if not file_path.parent.is_dir():
                 MessageTool.MessageBoxOK(
                     "Oops: "
                     "Failed to save setting to file. "
@@ -853,10 +890,10 @@ class EncoderCopilot(QObject):
                 )
                 return None
             else:
-                if fileName.suffix != '.json':
-                    fileName.with_suffix('.json')
+                if file_path.suffix != '.json':
+                    file_path.with_suffix('.json')
 
-                with open(fileName, 'w') as f:
+                with open(file_path, 'w') as f:
                     f.write(json_str)
         except Exception as e:
             MessageTool.MessageLog(
