@@ -78,11 +78,11 @@ class Selector(QDockWidget):
                 self.load_feature)
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(
-                self.enable_disable_edit_mode)
+                self.toggle_edit_mode)
 
             self.wdg_sel.radioButton_exe_move.setChecked(False)
             self.wdg_sel.radioButton_exe_move.toggled.connect(
-                self.execute_sam_move_mode)
+                self.toggle_sam_move_mode)
 
             self.wdg_sel.Box_min_area.valueChanged.connect(
                 self.filter_feature_by_area)
@@ -110,8 +110,8 @@ class Selector(QDockWidget):
             self.wdg_sel.closed.connect(self.destruct)
             self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
 
-            ########### shortcuts ############ 
-            ## create shortcuts           
+            ########### shortcuts ############
+            # create shortcuts
             self.shortcut_clear = QShortcut(
                 QKeySequence(Qt.Key_C), self.wdg_sel)
             self.shortcut_undo = QShortcut(
@@ -124,16 +124,16 @@ class Selector(QDockWidget):
                 QKeySequence(Qt.Key_Tab), self.wdg_sel)
             self.shortcut_undo_sam_pg = QShortcut(
                 QKeySequence(QKeySequence.Undo), self.wdg_sel)
-            
-            ## connect shortcuts
+
+            # connect shortcuts
             self.shortcut_clear.activated.connect(self.clear_layers)
             self.shortcut_undo.activated.connect(self.undo_last_prompt)
             self.shortcut_save.activated.connect(self.save_shp_file)
-            self.shortcut_move_mode.activated.connect(self.execute_sam_move_mode)
+            self.shortcut_move_mode.activated.connect(self.toggle_move_mode)
             self.shortcut_tab.activated.connect(self.loop_prompt_type)
             self.shortcut_undo_sam_pg.activated.connect(self.undo_sam_polygon)
 
-            ## set context
+            # set context
             self.shortcut_clear.setContext(Qt.ApplicationShortcut)
             self.shortcut_undo.setContext(Qt.ApplicationShortcut)
             self.shortcut_save.setContext(Qt.ApplicationShortcut)
@@ -154,7 +154,7 @@ class Selector(QDockWidget):
         else:
             self.clear_layers(clear_extent=True)
 
-        self.enable_disable_edit_mode()
+        self.toggle_edit_mode()
         self.show_hide_sam_feature_extent()
 
         if not self.wdg_sel.isUserVisible():
@@ -288,7 +288,7 @@ class Selector(QDockWidget):
                 self.canvas_points.popPoint()
             self.execute_SAM.emit()
 
-    def enable_disable_edit_mode(self):
+    def toggle_edit_mode(self):
         '''Enable or disable the widget selector'''
         # radioButton = self.sender()
         radioButton = self.wdg_sel.radioButton_enable
@@ -328,7 +328,17 @@ class Selector(QDockWidget):
         else:
             self.canvas_extent.clear()
 
-    def execute_sam_move_mode(self):
+    def toggle_move_mode(self):
+        '''Toggle move mode in widget selector. For shortcut only'''
+        if self.wdg_sel.radioButton_exe_move.isChecked():
+            self.wdg_sel.radioButton_exe_move.setChecked(False)
+        else:
+            self.wdg_sel.radioButton_exe_move.setChecked(True)
+        # toggle move mode in sam model
+        self.toggle_sam_move_mode()
+
+    def toggle_sam_move_mode(self):
+        '''Toggle move mode in sam model'''
         if self.wdg_sel.radioButton_exe_move.isChecked():
             self.move_mode = True
             self.tool_click_fg.move_mode = True
@@ -478,7 +488,7 @@ class Selector(QDockWidget):
             # self.draw_foreground_point()
             # if self.wdg_sel.radioButton_enable.isChecked():
             #     self.reset_prompt_type()  # do not change tool
-            self.enable_disable_edit_mode()
+            self.toggle_edit_mode()
             self.show_hide_sam_feature_extent()
         else:
             MessageTool.MessageBar(
