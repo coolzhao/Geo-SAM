@@ -34,12 +34,12 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https:
 
 Geo SAM is a QGIS plugin that aims to help people segment, delineate or label landforms efficiently when using large-size geospatial raster images. [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with the superpower, but the model size is huge, and using it to process images can take a long time, even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model. The interactive segmentation process can be run in real-time on a laptop by only using a CPU, making it a convenient and efficient tool for dealing with satellite images.
 
-The Geo SAM plugin includes two separate tools, the encoding tool, and the segmentation tool. The encoding tool is designed to generate and save the image features using the SAM image encoder, and the encoding process only needs to run once per image. The segmentation tool is for interactively segmenting landforms, and it can only be used to segment preprocessed images (whose features have been generated in advance using the encoding tool, as the included demo image).
+The Geo SAM plugin includes two separate tools, the encoding tool and the segmentation tool. The encoding tool is designed to generate and save the image features using the SAM image encoder, and the encoding process only needs to run once per image. The segmentation tool is for interactively segmenting landforms, and it can only be used to segment preprocessed images (whose features have been generated in advance using the encoding tool, as the included demo image).
 
 Notes:
 
 - SAM natively supports only three-band images, but we have adapted Geo SAM to support one or two-band images so that you can try grayscale images, spectral index images (like NDVI, NDWI), or even SAR images.
-- SAM is designed to segment one object once with a serial of prompts, so you should save the current results before got to the next one when using the Geo SAM tool.
+- SAM is designed to segment one object once with a series of prompts, so you should save the current results before getting to the next one when using the Geo SAM tool.
 
 ## Installation
 
