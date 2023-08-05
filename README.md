@@ -2,40 +2,44 @@
 
 By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
-- [Geo SAM](#geo-sam)
-  - [Introduction](#introduction)
-  - [Installation](#installation)
-    - [Install QGIS](#install-qgis)
-    - [Install Library Dependencies](#install-library-dependencies)
-      - [For Windows Users](#for-windows-users)
-      - [For Mac or Linux Users](#for-mac-or-linux-users)
-    - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
-      - [Download the Plugin](#download-the-plugin)
-      - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
-      - [Activate the Geo SAM Plugin](#activate-the-geo-sam-plugin)
-  - [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
-    - [Add Prompts](#add-prompts)
-    - [Save Current Results](#save-current-results)
-    - [Undo/Clear Prompts](#undoclear-prompts)
-    - [Enable/Disable the Tool](#enabledisable-the-tool)
-    - [Load Image Features](#load-image-features)
-    - [Shortcuts](#shortcuts)
-    - [Tips for Using the Segmentation Tool](#tips-for-using-the-segmentation-tool)
-  - [Use the Geo SAM Encoding Tool](#use-the-geo-sam-encoding-tool)
-    - [Download SAM Checkpoints](#download-sam-checkpoints)
-    - [Select Bands and Value Range for Processing](#select-bands-and-value-range-for-processing)
-    - [Patch Sampling](#patch-sampling)
-    - [Demo Animation](#demo-animation)
-    - [Tips for Making the Encoding Process Faster](#tips-for-making-the-encoding-process-faster)
-  - [Future Works](#future-works)
-  - [Citation](#citation)
-  - [Acknowledgement](#acknowledgement)
+- [Introduction](#introduction)
+- [Installation](#installation)
+  - [Install QGIS](#install-qgis)
+  - [Install Library Dependencies](#install-library-dependencies)
+    - [For Windows Users](#for-windows-users)
+    - [For Mac or Linux Users](#for-mac-or-linux-users)
+  - [Install the Geo SAM Plugin](#install-the-geo-sam-plugin)
+    - [Download the Plugin](#download-the-plugin)
+    - [Locate the QGIS Plugin folder](#locate-the-qgis-plugin-folder)
+    - [Activate the Geo SAM Plugin](#activate-the-geo-sam-plugin)
+- [Use the Geo SAM Segmentation Tool](#use-the-geo-sam-segmentation-tool)
+  - [Add Prompts](#add-prompts)
+  - [Save Current Results](#save-current-results)
+  - [Undo/Clear Prompts](#undoclear-prompts)
+  - [Enable/Disable the Tool](#enabledisable-the-tool)
+  - [Load Image Features](#load-image-features)
+  - [Shortcuts](#shortcuts)
+  - [Tips for Using the Segmentation Tool](#tips-for-using-the-segmentation-tool)
+- [Use the Geo SAM Encoding Tool](#use-the-geo-sam-encoding-tool)
+  - [Download SAM Checkpoints](#download-sam-checkpoints)
+  - [Select Bands and Value Range for Processing](#select-bands-and-value-range-for-processing)
+  - [Patch Sampling](#patch-sampling)
+  - [Demo Animation](#demo-animation)
+  - [Tips for Making the Encoding Process Faster](#tips-for-making-the-encoding-process-faster)
+- [Future Works](#future-works)
+- [Citation](#citation)
+- [Acknowledgement](#acknowledgement)
 
 ## Introduction
 
 Geo SAM is a QGIS plugin that aims to help people segment, delineate or label landforms efficiently when using large-size geospatial raster images. [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with the superpower, but the model size is huge, and using it to process images can take a long time, even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model. The interactive segmentation process can be run in real-time on a laptop by only using a CPU, making it a convenient and efficient tool for dealing with satellite images.
 
 The Geo SAM plugin includes two separate tools, the encoding tool, and the segmentation tool. The encoding tool is designed to generate and save the image features using the SAM image encoder, and the encoding process only needs to run once per image. The segmentation tool is for interactively segmenting landforms, and it can only be used to segment preprocessed images (whose features have been generated in advance using the encoding tool, as the included demo image).
+
+Notes:
+
+- SAM natively supports only three-band images, but we have adapted Geo SAM to support one or two-band images so that you can try grayscale images, spectral index images (like NDVI, NDWI), or even SAR images.
+- SAM is designed to segment one object once with a serial of prompts, so you should save the current results before got to the next one when using the Geo SAM tool.
 
 ## Installation
 
@@ -206,7 +210,6 @@ Then, press the `Load` button to load the selected image features. Remember to a
 ### Shortcuts
 
 - `Tab`: loop between 3 prompt types (the cursor will also change to the corresponding types)
-- `H`: Toggle to enable executing SAM with `Hover mode`
 - `C`: clear all prompts in canvas [same as `Clear` button]
 - `Z`: undo the last prompt in canvas [same as `Undo` button]
 - `S`: save SAM output features into polygon [same as `Save` button]
