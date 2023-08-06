@@ -399,8 +399,8 @@ class SamTestRasterDataset(RasterDataset):
     date_format = ""
     is_image = True
     separate_files = False
-    all_bands = ['Red', 'Green', 'Blue', 'Alpha']
-    rgb_bands = ['Red', 'Green', 'Blue']
+    all_bands: List[str] = []
+    rgb_bands: List[str] = []
 
     def __init__(self, root: str = "data",
                  crs: Optional[CRS] = None,
