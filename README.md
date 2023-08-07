@@ -94,7 +94,7 @@ Then install the libraries.
 ```bash
 # !important, add ./ to avoid using your default Python in the system
 ./pip3 install torch torchvision
-version: or./pip3 install segment-anything
+./pip3 install segment-anything
 ```
 
 For Linux users, if `pip3` is not found in `/usr/bin`, try the following commands:
