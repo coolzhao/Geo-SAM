@@ -7,12 +7,12 @@ Usage
 =====
 using settings.json:
 
-    sam_image_encoder.py -s <settings.json> -f <feature_dir>
+    image_encoder.py -s <settings.json> -f <feature_dir>
  
  
 or directly using parameters:
  
-    sam_image_encoder.py -i <image_path> -c <checkpoint_path> -f <feature_dir>
+    image_encoder.py -i <image_path> -c <checkpoint_path> -f <feature_dir>
     
 All Parameters:
 -------------------
@@ -53,7 +53,7 @@ from tqdm import tqdm
 from segment_anything import sam_model_registry
 from segment_anything.modeling import Sam
 import torch
-from torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
+from geosam.torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
 from torchgeo.samplers import Units
 from torchgeo.datasets import BoundingBox, stack_samples
 from torch.utils.data import DataLoader
@@ -83,64 +83,294 @@ Parameter_Mapping = {
     "CUDA_ID": "gpu_id"
 }
 
+Init_Settings = [
+    'checkpoint_path',
+    'model_type',
+    'batch_size',
+    'gpu_id'
+]
+Encode_Settings = [
+    'image_path',
+    'feature_dir',
+    'bands',
+    'stride',
+    'extent',
+    'value_range',
+    'resolution'
+]
 
-def encode_image(
-    image_path: Union[str, Path],
-    checkpoint_path: Union[str, Path],
-    feature_dir: Union[str, Path],
-    model_type: str = None,
-    bands: List[int] = None,
-    stride: int = 512,
-    extent: str = None,
-    value_range: Tuple[float, float] = None,
-    resolution: float = None,
-    batch_size: int = 1,
-    gpu: bool = True,
-    gpu_id: int = 0,
-):
-    '''Encode image to SAM features.
 
-    Parameters:
-    ----------
-    image_path: str or Path
-        Path to the input image.
-    checkpoint_path: str or Path
-        Path to the SAM checkpoint.
-    feature_dir: str or Path
-        Path to the output feature directory.
-    model_type: one of ["vit_h", "vit_l", "vit_b"] or [0, 1, 2] or None, optional
-        The type of the SAM model. If None, the model type will be 
-        inferred from the checkpoint path. Default: None. 
-    bands: list of int, optional
-        The bands to be used for encoding. Should not be more than three bands.
-        If None, the first three bands (if available) will be used. Default: None.
-    stride: int, optional
-        The stride of the sliding window. Default: 512.
-    extent: str, optional
-        The extent of the image to be encoded. Should be in the format of
-        "minx, miny, maxx, maxy, [crs]". If None, the extent of the input
-        image will be used. Default: None.
-    value_range: tuple of float, optional
-        The value range of the input image. If None, the value range will be
-        automatically calculated from the input image. Default: None.
-    resolution: float, optional
-        The resolution of the output feature in the unit of raster crs.
-        If None, the resolution of the input image will be used. Default: None.
-    batch_size: int, optional
-        The batch size for encoding. Default: 1.
-    gpu: bool, optional
-        Whether to use GPU for encoding if available. Default: True.
-    gpu_id: int, optional
-        The device id of the GPU to be used. Default: 0.
-    '''
-    image_path = Path(image_path)
+class ImageEncoder:
+    '''Encode image to SAM features.'''
+
+    def __init__(
+        self,
+        checkpoint_path: Union[str, Path],
+        model_type: str = None,
+        batch_size: int = 1,
+        gpu: bool = True,
+        gpu_id: int = 0,
+    ):
+        '''Initialize the ImageEncoder.
+
+        Parameters:
+        ----------
+        checkpoint_path: str or Path
+            Path to the SAM checkpoint.
+        model_type: one of ["vit_h", "vit_l", "vit_b"] or [0, 1, 2] or None, optional
+            The type of the SAM model. If None, the model type will be 
+            inferred from the checkpoint path. Default: None. 
+        batch_size: int, optional
+            The batch size for encoding. Default: 1.
+        gpu: bool, optional
+            Whether to use GPU for encoding if available. Default: True.
+        gpu_id: int, optional
+            The device id of the GPU to be used. Default: 0.
+        '''
+        self.checkpoint_path = Path(checkpoint_path)
+
+        self.batch_size = batch_size
+        self.gpu = gpu
+        self.gpu_id = gpu_id
+        self.model_type = check_model_type(model_type, self.checkpoint_path)
+        self.device = detect_device(self.gpu, self.gpu_id)
+        self.sam_model = self.initialize_sam()
+
+    def encode_image(
+        self,
+        image_path: Union[str, Path],
+        feature_dir: Union[str, Path],
+        bands: List[int] = None,
+        stride: int = 512,
+        extent: str = None,
+        value_range: Tuple[float, float] = None,
+        resolution: float = None,
+    ):
+        '''Encode image to SAM features.
+
+        Parameters:
+        ----------
+        image_path: str or Path
+            Path to the input image.
+        feature_dir: str or Path
+            Path to the output feature directory.
+        bands: list of int, optional
+            The bands to be used for encoding. Should not be more than three bands.
+            If None, the first three bands (if available) will be used. Default: None.
+        stride: int, optional
+            The stride of the sliding window. Default: 512.
+        extent: str, optional
+            The extent of the image to be encoded. Should be in the format of
+            "minx, miny, maxx, maxy, [crs]". If None, the extent of the input
+            image will be used. Default: None.
+        value_range: tuple of float, optional
+            The value range of the input image. If None, the value range will be
+            automatically calculated from the input image. Default: None.
+        resolution: float, optional
+            The resolution of the output feature in the unit of raster crs.
+            If None, the resolution of the input image will be used. Default: None.
+        '''
+        image_path = Path(image_path)
+        feature_dir = Path(feature_dir)
+
+        print('\n----------------------------------------------')
+        print('     Start encoding image to SAM features')
+        print('----------------------------------------------\n')
+
+        # load image and check extent
+        with rasterio.open(image_path) as src:
+            arr = src.read()
+            meta = src.meta.copy()
+
+            if extent is None:
+                extent = [i for i in src.bounds]
+                extent_crs = src.crs
+            else:
+                extent_crs = CRS.from_user_input(
+                    extent.split(' ')[-1].strip()[1:-1]
+                )
+                extent = [float(i.strip(',').strip())
+                          for i in extent.split(' ')[:-1]]
+                extent = warp.transform_bounds(
+                    extent_crs,
+                    src.crs,
+                    *extent,
+                )
+
+        # check bands
+        if bands is None:
+            max_band = min(3, meta['count'])
+            bands = list(range(1, max_band+1))
+
+        if len(bands) > 3:
+            raise ValueError(
+                "SAM only supports no more than three bands,"
+                f" but {len(bands)} bands are given."
+            )
+        if max(bands) > meta['count']:
+            raise ValueError(
+                f"The band number of the input image is {meta['count']}. "
+                f"But the band index {max(bands)} is given."
+            )
+        # ensure only three bands are used, less than three bands will be broadcasted to three bands
+        bands = [str(i) for i in (bands * 3)[0:3]]
+
+        # check resolution
+        if resolution is None:
+            resolution = meta['transform'][0]
+
+        # get pixel number in the extent
+        img_width_in_extent = round(
+            (extent[2] - extent[0])/resolution)
+        img_height_in_extent = round(
+            (extent[3] - extent[1])/resolution)
+
+        # Print input parameters
+        print('Input Parameters:')
+        print('----------------------------------------------')
+        # check value range
+        if value_range is not None:
+            if isinstance(value_range, str):
+                try:
+                    value_range = eval(value_range)
+                except:
+                    raise ValueError(
+                        f"Could not evaluate the value range. {value_range}"
+                        "Please check the format of the value range."
+                    )
+            if value_range[0] >= value_range[1]:
+                raise ValueError(
+                    "Data value range is wrongly set or the image is with constant values.")
+            print(' Input data value range to be rescaled: '
+                  f'{value_range} (set by user)')
+        else:
+            value_range = [np.nanmin(arr),
+                           np.nanmax(arr)]
+            print(
+                f' Input data value range to be rescaled: {value_range} '
+                '(automatically set based on min-max value of input image inside the processing extent.)'
+            )
+
+        print(f' Image path: {image_path}')
+        print(f' Bands selected: {bands}')
+        print(f' Target resolution: {resolution}')
+        print(f' Processing extent: {extent}')
+        print(f' Processing image size: (width {img_width_in_extent}, '
+              f'height {img_height_in_extent})')
+        print('----------------------------------------------\n')
+
+        img_dir = str(image_path.parent)
+        img_name = image_path.name
+
+        SamTestRasterDataset.filename_glob = img_name
+        SamTestRasterDataset.all_bands = [
+            str(i) for i in range(1, meta['count']+1)
+        ]
+
+        sam_ds = SamTestRasterDataset(
+            root=img_dir,
+            crs=None,
+            res=resolution,
+            bands=bands,
+            cache=False
+        )
+
+        print(
+            f'\nRasterDataset info '
+            '\n----------------------------------------------'
+            f'\n filename_glob: {sam_ds.filename_glob}, '
+            f'\n all bands: {sam_ds.all_bands}, '
+            f'\n input bands: {sam_ds.bands}, '
+            f'\n resolution: {sam_ds.res}, '
+            f'\n bounds: {sam_ds.index.bounds}, '
+            f'\n num: {len(sam_ds.index)}'
+            '\n----------------------------------------------\n'
+        )
+
+        extent_bbox = BoundingBox(
+            minx=extent[0],
+            maxx=extent[2],
+            miny=extent[1],
+            maxy=extent[3],
+            mint=sam_ds.index.bounds[4],
+            maxt=sam_ds.index.bounds[5]
+        )
+
+        ds_sampler = SamTestGridGeoSampler(
+            sam_ds,
+            size=self.sam_model.image_encoder.img_size,
+            stride=stride,
+            roi=extent_bbox,
+            units=Units.PIXELS  # Units.CRS or Units.PIXELS
+        )
+
+        if len(ds_sampler) == 0:
+            raise ValueError(
+                f'!!!No available patch sample inside the chosen extent!!!')
+
+        ds_dataloader = DataLoader(
+            sam_ds,
+            batch_size=self.batch_size,
+            sampler=ds_sampler,
+            collate_fn=stack_samples
+        )
+
+        print('----------------------------------------------')
+        print(f' SAM model initialized. \n '
+              f' SAM model type:  {self.model_type}')
+
+        if not self.gpu or not gpu_available():
+            print(' !!!No GPU available, using CPU instead!!!')
+            self.batch_size = 1
+        print(f' Device type: {self.device}')
+
+        print(f' Patch size: {ds_sampler.patch_size} \n'
+              f' Batch size: {self.batch_size}')
+        print(f' Patch sample num: {len(ds_sampler)}')
+        print(f' Total batch num: {len(ds_dataloader)}')
+        print('----------------------------------------------\n')
+
+        for patch_idx, batch in tqdm(
+                enumerate(ds_dataloader),
+                desc='Encoding image',
+                unit='batch',
+                total=len(ds_dataloader)
+        ):
+
+            batch_input = rescale_img(
+                batch_input=batch['image'], value_range=value_range)
+
+            features = get_sam_feature(batch_input, self.sam_model)
+
+            # print(f'\nBatch no. {patch_idx+1} loaded')
+            # print(f'img_shape: ' + str(batch['img_shape'][0]))
+            # print('patch_size: ' + str(batch['image'].shape))
+            # print(f'feature_shape: {features.shape}')
+
+            # TODO: show gpu usage info
+
+            save_sam_feature(
+                sam_ds,
+                feature_dir,
+                batch,
+                features,
+                extent,
+                patch_idx,
+                self.model_type
+            )
+
+        print(f'"Output feature path": {feature_dir}')
+
+    def initialize_sam(self) -> Sam:
+        print("Initializing SAM model...\n")
+        sam_model = sam_model_registry[self.model_type](
+            checkpoint=self.checkpoint_path)
+        sam_model.to(device=self.device)
+        return sam_model
+
+
+def check_model_type(model_type, checkpoint_path):
     checkpoint_path = Path(checkpoint_path)
-    feature_dir = Path(feature_dir)
-    print('\n----------------------------------------------')
-    print('     Start encoding image to SAM features')
-    print('----------------------------------------------\n')
-
-    # model type
     model_type_errors_str = (
         f"model_type should be one of {SAM_Model_Types} or {range(len(SAM_Model_Types))}, "
         f"but {model_type} is given."
@@ -167,199 +397,7 @@ def encode_image(
             )
     else:
         raise ValueError(model_type_errors_str)
-
-    # extent
-    with rasterio.open(image_path) as src:
-        arr = src.read()
-        meta = src.meta.copy()
-
-        if extent is None:
-            extent = [i for i in src.bounds]
-            extent_crs = src.crs
-        else:
-            extent_crs = CRS.from_user_input(
-                extent.split(' ')[-1].strip()[1:-1]
-            )
-            extent = [float(i.strip(',').strip())
-                      for i in extent.split(' ')[:-1]]
-            extent = warp.transform_bounds(
-                src.crs,
-                extent_crs,
-                *extent,
-            )
-
-    # bands
-    if bands is None:
-        max_band = min(3, meta['count'])
-        bands = list(range(1, max_band+1))
-
-    if len(bands) > 3:
-        raise ValueError(
-            "SAM only supports no more than three bands,"
-            f" but {len(bands)} bands are given."
-        )
-    if max(bands) > meta['count']:
-        raise ValueError(
-            f"The band number of the input image is {meta['count']}. "
-            f"But the band index {max(bands)} is given."
-        )
-    # ensure only three bands are used, less than three bands will be broadcasted to three bands
-    bands = [str(i) for i in (bands * 3)[0:3]]
-
-    # resolution
-    if resolution is None:
-        resolution = meta['transform'][0]
-
-    # get pixel number in the extent
-    img_width_in_extent = round(
-        (extent[2] - extent[0])/resolution)
-    img_height_in_extent = round(
-        (extent[3] - extent[1])/resolution)
-
-    print('Input Parameters:')
-    print('----------------------------------------------')
-    # value range
-    if value_range is not None:
-        if isinstance(value_range, str):
-            value_range = [float(i) for i in value_range.split(',')]
-
-        if value_range[0] >= value_range[1]:
-            raise ValueError(
-                "Data value range is wrongly set or the image is with constant values.")
-        print(
-            f' Input data value range to be rescaled: {value_range} (set by user)')
-    else:
-        value_range = [np.nanmin(arr),
-                       np.nanmax(arr)]
-        print(
-            f' Input data value range to be rescaled: {value_range} '
-            '(automatically set based on min-max value of input image inside the processing extent.)'
-        )
-
-    print(f' Image path: {image_path}')
-    print(f' Bands selected: {bands}')
-    print(f' Target resolution: {resolution}')
-    print(f' Processing extent: {extent}')
-    print(f' Processing image size: (width {img_width_in_extent}, '
-          f'height {img_height_in_extent})')
-    print('----------------------------------------------\n')
-
-    img_dir = str(image_path.parent)
-    img_name = image_path.name
-
-    SamTestRasterDataset.filename_glob = img_name
-    SamTestRasterDataset.all_bands = [
-        str(i) for i in range(1, meta['count']+1)
-    ]
-
-    sam_ds = SamTestRasterDataset(
-        root=img_dir,
-        crs=None,
-        res=resolution,
-        bands=bands,
-        cache=False
-    )
-
-    print(
-        f'\nRasterDataset info '
-        '\n----------------------------------------------'
-        f'\n filename_glob: {sam_ds.filename_glob}, '
-        f'\n all bands: {sam_ds.all_bands}, '
-        f'\n input bands: {sam_ds.bands}, '
-        f'\n resolution: {sam_ds.res}, '
-        f'\n bounds: {sam_ds.index.bounds}, '
-        f'\n num: {len(sam_ds.index)}'
-        '\n----------------------------------------------\n'
-    )
-
-    extent_bbox = BoundingBox(
-        minx=extent[0],
-        maxx=extent[2],
-        miny=extent[1],
-        maxy=extent[3],
-        mint=sam_ds.index.bounds[4],
-        maxt=sam_ds.index.bounds[5]
-    )
-
-    device = detect_device(gpu, gpu_id)
-
-    sam_model = initialize_sam(
-        model_type=model_type,
-        sam_ckpt_path=checkpoint_path,
-        device=device
-    )
-
-    ds_sampler = SamTestGridGeoSampler(
-        sam_ds,
-        size=sam_model.image_encoder.img_size,
-        stride=stride,
-        roi=extent_bbox,
-        units=Units.PIXELS  # Units.CRS or Units.PIXELS
-    )
-
-    if len(ds_sampler) == 0:
-        raise ValueError(
-            f'!!!No available patch sample inside the chosen extent!!!')
-
-    ds_dataloader = DataLoader(
-        sam_ds,
-        batch_size=batch_size,
-        sampler=ds_sampler,
-        collate_fn=stack_samples
-    )
-
-    print('----------------------------------------------')
-    print(f' SAM model initialized. \n '
-          f' SAM model type:  {model_type}')
-
-    if not gpu or not gpu_available():
-        print(' !!!No GPU available, using CPU instead!!!')
-        batch_size = 1
-    print(f' Device type: {device}')
-
-    print(f' Patch size: {ds_sampler.patch_size} \n'
-          f' Batch size: {batch_size}')
-    print(f' Patch sample num: {len(ds_sampler)}')
-    print(f' Total batch num: {len(ds_dataloader)}')
-    print('----------------------------------------------\n')
-
-    for patch_idx, batch in tqdm(
-            enumerate(ds_dataloader),
-            desc='Encoding image',
-            unit='batch',
-            total=len(ds_dataloader)
-    ):
-
-        batch_input = rescale_img(
-            batch_input=batch['image'], value_range=value_range)
-
-        features = get_sam_feature(batch_input, sam_model)
-
-        # print(f'\nBatch no. {patch_idx+1} loaded')
-        # print(f'img_shape: ' + str(batch['img_shape'][0]))
-        # print('patch_size: ' + str(batch['image'].shape))
-        # print(f'feature_shape: {features.shape}')
-
-        # TODO: show gpu usage info
-
-        save_sam_feature(
-            sam_ds,
-            feature_dir,
-            batch,
-            features,
-            extent,
-            patch_idx,
-            model_type
-        )
-
-    print(f'"Output feature path": {feature_dir}')
-
-
-def initialize_sam(model_type: str, sam_ckpt_path: str, device: str) -> Sam:
-    sam_model = sam_model_registry[model_type](
-        checkpoint=sam_ckpt_path)
-    sam_model.to(device=device)
-    return sam_model
+    return model_type
 
 
 def gpu_available() -> bool:
@@ -492,7 +530,7 @@ class Usage(Exception):
         self.msg = msg
 
 
-def run_from_cmd(argv=None):
+def encode_image_from_cmd(argv=None):
     if argv == None:
         argv = sys.argv
 
@@ -564,12 +602,7 @@ def run_from_cmd(argv=None):
         raise ValueError('feature_dir is not specified.')
 
     if settings_path is not None:
-        with open(settings_path) as f:
-            _settings = json.load(f)
-            _settings = _settings['inputs']
-        _settings = {Parameter_Mapping[k]: v for k,
-                     v in _settings.items() if k != 'CRS'}
-        settings.update(_settings)
+        settings.update(parse_settings_file(settings_path))
 
     if image_path is not None:
         settings.update({'image_path': image_path})
@@ -595,8 +628,27 @@ def run_from_cmd(argv=None):
         settings.update({'gpu_id': gpu_id})
 
     print(f"\nsettings:\n {settings}\n")
-    encode_image(**settings)
+    init_settings, encode_settings = split_settings(settings)
+    img_encoder = ImageEncoder(**init_settings)
+    img_encoder.encode_image(**encode_settings)
+
+
+def parse_settings_file(settings_path):
+    with open(settings_path) as f:
+        settings = json.load(f)
+        settings = settings['inputs']
+    settings = {Parameter_Mapping[k]: v for k,
+                v in settings.items() if k != 'CRS'}
+    return settings
+
+
+def split_settings(settings):
+    init_settings = {k: v for k, v in settings.items()
+                     if k in Init_Settings}
+    encode_settings = {k: v for k, v in settings.items()
+                       if k in Encode_Settings}
+    return init_settings, encode_settings
 
 
 if __name__ == "__main__":
-    sys.exit(run_from_cmd())
+    sys.exit(encode_image_from_cmd())
