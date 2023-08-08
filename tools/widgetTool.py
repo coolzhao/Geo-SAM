@@ -624,7 +624,7 @@ class Selector(QDockWidget):
             self.toggle_hover_mode()
             if len(self.prompt_history) == 0:
                 MessageTool.MessageBoxOK(
-                    "Preview mode shows a prompt preview. Click to apply the prompt."
+                    "Preview mode only shows the preview of prompts. Click first to apply the prompt."
                 )
                 self.toggle_hover_mode()
                 return False
