@@ -7,7 +7,7 @@ from qgis._gui import QgsMapMouseEvent
 from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsVertexMarker, QgsMapCanvas
 from qgis.core import (
-    QgsPointXY, QgsWkbTypes, QgsField, QgsFields, QgsFillSymbol, 
+    QgsPointXY, QgsWkbTypes, QgsField, QgsFields, QgsFillSymbol,
     QgsGeometry, QgsFeature, QgsVectorLayer)
 from qgis.PyQt.QtCore import QVariant
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -15,7 +15,15 @@ from PyQt5.QtGui import QColor
 from qgis.utils import iface
 from .geoTool import ImageCRSManager, LayerExtent
 from .ulid import GroupId
-from ..ui.cursors import CursorPointBlue, CursorPointRed, CursorRect, UI_SCALE
+from ..ui.cursors import (
+    CursorPointFG,
+    CursorPointBG,
+    CursorRect,
+    UI_SCALE,
+    customize_fg_point_cursor,
+    customize_bg_point_cursor,
+    customize_bbox_cursor
+)
 from .messageTool import MessageTool
 
 SAM_Feature_Fields = [
@@ -242,6 +250,10 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.setCursor(CursorRect)
 
         self.reset()
+
+    def reset_cursor_color(self, color):
+        Cursor_User = customize_bbox_cursor(color)
+        self.setCursor(Cursor_User)
 
     def reset(self):
         self.startPoint = self.endPoint = None
@@ -495,9 +507,16 @@ class ClickTool(QgsMapToolEmitPoint):
 
         self.have_added_for_moving = False  # whether have added a point when mouse move
         if prompt_type == "fgpt":
-            self.setCursor(CursorPointBlue)
+            self.setCursor(CursorPointFG)
         elif prompt_type == "bgpt":
-            self.setCursor(CursorPointRed)
+            self.setCursor(CursorPointBG)
+
+    def reset_cursor_color(self, color):
+        if self.prompt_type == "fgpt":
+            Cursor_User = customize_fg_point_cursor(color)
+        elif self.prompt_type == "bgpt":
+            Cursor_User = customize_bg_point_cursor(color)
+        self.setCursor(Cursor_User)
 
     def clear_hover_prompt(self):
         # remove the last rectangle if have added a rectangle when mouse move
@@ -507,6 +526,8 @@ class ClickTool(QgsMapToolEmitPoint):
 
     def canvasPressEvent(self, e: QgsMapMouseEvent):
         self.clear_hover_prompt()
+        if self.have_added_for_moving:
+            self.have_added_for_moving = False
 
         # add a point when mouse press
         point = self.toMapCoordinates(e.pos())
@@ -516,6 +537,11 @@ class ClickTool(QgsMapToolEmitPoint):
             self.canvas_points.addPoint(point, foreground=False)
         self.prompt_history.append(self.prompt_type)
         self.execute_SAM.emit()
+
+        MessageTool.MessageLog(
+            f"canvas_points.labels: {self.canvas_points.labels}"
+            f"canvas_points.points_img_crs: {self.canvas_points.points_img_crs}"
+        )
 
     def canvasMoveEvent(self, e: QgsMapMouseEvent) -> None:
         if not self.hover_mode:
@@ -531,6 +557,11 @@ class ClickTool(QgsMapToolEmitPoint):
             self.canvas_points.addPoint(point, foreground=False, show=False)
         self.execute_SAM.emit()
         self.have_added_for_moving = True
+
+        MessageTool.MessageLog(
+            f"canvas_points.labels: {self.canvas_points.labels}"
+            f"canvas_points.points_img_crs: {self.canvas_points.points_img_crs}"
+        )
 
     def activate(self):
         QgsMapToolEmitPoint.activate(self)
