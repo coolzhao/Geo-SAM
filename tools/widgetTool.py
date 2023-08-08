@@ -78,6 +78,9 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_bg.setCheckable(True)
             self.wdg_sel.pushButton_rect.setCheckable(True)
 
+            # toggle show extent
+            self.wdg_sel.radioButton_show_extent.toggled.connect(
+                self.toggle_encoding_extent)
             # set show extent checked
             self.wdg_sel.radioButton_show_extent.setChecked(True)
 
@@ -115,13 +118,10 @@ class Selector(QDockWidget):
                 self.toggle_sam_hover_mode)
 
             # threshold of area
-            self.wdg_sel.Box_min_area.valueChanged.connect(
+            self.wdg_sel.Box_min_pixel.valueChanged.connect(
                 self.filter_feature_by_area)
-            self.wdg_sel.Box_min_area_default.valueChanged.connect(
+            self.wdg_sel.Box_min_pixel_default.valueChanged.connect(
                 self.load_default_t_area)
-            # toggle show extent
-            self.wdg_sel.radioButton_show_extent.toggled.connect(
-                self.toggle_encoding_extent)
 
             self.wdg_sel.ColorButton_bgpt.colorChanged.connect(
                 self.reset_background_color)
@@ -279,7 +279,8 @@ class Selector(QDockWidget):
             f"in '{Path(self.feature_dir).name}' have been loaded, "
             "you can start labeling now"
         )
-
+        self.res = float(
+            (self.sam_model.test_features.index_df.loc[:, 'res']/16).mean())
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
@@ -403,7 +404,7 @@ class Selector(QDockWidget):
             self.execute_SAM.emit()
 
     def filter_feature_by_area(self):
-        t_area = self.wdg_sel.Box_min_area.value()
+        t_area = self.wdg_sel.Box_min_pixel.value() * self.res **2
         if not hasattr(self, "polygon"):
             return None
 
@@ -413,8 +414,8 @@ class Selector(QDockWidget):
         self.t_area = t_area
 
     def load_default_t_area(self):
-        self.t_area_default = self.wdg_sel.Box_min_area_default.value()
-        self.wdg_sel.Box_min_area.setValue(self.t_area_default)
+        self.t_area_default = self.wdg_sel.Box_min_pixel_default.value() * self.res **2
+        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):
@@ -634,7 +635,7 @@ class Selector(QDockWidget):
 
         self.clear_canvas_layers_safely()
         self.prompt_history.clear()
-        self.wdg_sel.Box_min_area.setValue(self.t_area_default)
+        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
         # reenable hover mode
         self.toggle_hover_mode()
 
