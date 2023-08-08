@@ -146,7 +146,7 @@ class Selector(QDockWidget):
             self.shortcut_save = QShortcut(
                 QKeySequence(Qt.Key_S), self.wdg_sel)
             self.shortcut_hover_mode = QShortcut(
-                QKeySequence(Qt.Key_H), self.wdg_sel)
+                QKeySequence(Qt.Key_P), self.wdg_sel)
             self.shortcut_tab = QShortcut(
                 QKeySequence(Qt.Key_Tab), self.wdg_sel)
             self.shortcut_undo_sam_pg = QShortcut(
@@ -191,23 +191,33 @@ class Selector(QDockWidget):
         '''Destruct actions when closed widget'''
         self.clear_layers(clear_extent=True)
 
-        if hasattr(self, "shortcut_tab"):
-            self.shortcut_tab.disconnect()
-        if hasattr(self, "shortcut_undo_sam_pg"):
-            self.shortcut_undo_sam_pg.disconnect()
-        if hasattr(self, "shortcut_clear"):
-            self.shortcut_clear.activated.disconnect()
-        if hasattr(self, "shortcut_undo"):
-            self.shortcut_undo.activated.disconnect()
-        if hasattr(self, "shortcut_save"):
-            self.shortcut_save.activated.disconnect()
-        if hasattr(self, "shortcut_hover_mode"):
-            self.shortcut_hover_mode.activated.disconnect()
-        if hasattr(self, "wdg_sel"):
-            self.wdg_sel.MapLayerComboBox.layerChanged.disconnect()
+        # # set context for shortcuts to application
+        # # this will make shortcuts work even if the widget is not focused
+        # self.shortcut_clear.setContext(Qt.ApplicationShortcut)
+        # self.shortcut_undo.setContext(Qt.ApplicationShortcut)
+        # self.shortcut_save.setContext(Qt.ApplicationShortcut)
+        # self.shortcut_hover_mode.setContext(Qt.ApplicationShortcut)
+        # self.shortcut_tab.setContext(Qt.ApplicationShortcut)
+        # self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
+        # if hasattr(self, "shortcut_tab"):
+        #     self.shortcut_tab.disconnect(self.loop_prompt_type)
+        # if hasattr(self, "shortcut_undo_sam_pg"):
+        #     self.shortcut_undo_sam_pg.disconnect(self.undo_sam_polygon)
+        # if hasattr(self, "shortcut_clear"):
+        #     self.shortcut_clear.activated.disconnect(self.clear_layers)
+        # if hasattr(self, "shortcut_undo"):
+        #     self.shortcut_undo.activated.disconnect(self.undo_last_prompt)
+        # if hasattr(self, "shortcut_save"):
+        #     self.shortcut_save.activated.disconnect(self.save_shp_file)
+        # if hasattr(self, "shortcut_hover_mode"):
+        #     self.shortcut_hover_mode.activated.disconnect(self.toggle_hover_mode)
+        # if hasattr(self, "wdg_sel"):
+        #     self.wdg_sel.MapLayerComboBox.layerChanged.disconnect(
+        #         self.set_vector_layer)
 
     def unload(self):
         '''Unload actions when plugin is closed'''
+        self.clear_layers(clear_extent=True)
         self.destruct()
         self.iface.removeDockWidget(self.wdg_sel)
 
@@ -365,7 +375,7 @@ class Selector(QDockWidget):
             self.canvas_extent.clear()
 
     def toggle_hover_mode(self):
-        '''Toggle move mode in widget selector. For shortcut only'''
+        '''Toggle move mode in widget selector.'''
         if self.wdg_sel.radioButton_exe_hover.isChecked():
             self.wdg_sel.radioButton_exe_hover.setChecked(False)
         else:
@@ -422,6 +432,8 @@ class Selector(QDockWidget):
                 last_prompt = QgsRectangle(
                     last_rect[0], last_rect[2], last_rect[1], last_rect[3])
             else:
+                MessageTool.MessageLog(
+                    f"canvas_points.points_img_crs: {self.canvas_points.points_img_crs}")
                 last_point = self.canvas_points.points_img_crs[-1]
                 last_prompt = QgsRectangle(last_point, last_point)
             if not last_prompt.intersects(self.sam_model.extent):
@@ -575,7 +587,7 @@ class Selector(QDockWidget):
             self.clear_layers(clear_extent=True)
             self._init_feature_related()
             self.toggle_edit_mode()
-            self.toggle_encoding_extent()
+            self.toggle_enpcoding_extent()
         else:
             MessageTool.MessageBar(
                 'Oops',
@@ -594,8 +606,16 @@ class Selector(QDockWidget):
 
     def save_shp_file(self):
         '''save sam result into shapefile layer'''
-        self.clear_canvas_layers_safely()
-        self.prompt_history.clear()
+
+        if self.hover_mode:
+            self.toggle_hover_mode()
+            if len(self.prompt_history) == 0:
+                MessageTool.MessageBoxOK(
+                    "Preview mode shows a prompt preview. Click to apply the prompt."
+                )
+                self.toggle_hover_mode()
+                return False
+
         if hasattr(self, "polygon"):
             self.polygon.add_feature_to_layer(self.prompt_history, self.t_area)
             self.polygon.commit_changes()
@@ -606,9 +626,17 @@ class Selector(QDockWidget):
             if len(list(features)) == 0:
                 return None
             last_id = features[-1].id()
-            if self.sam_feature_history[-1][0] <= last_id:
-                self.sam_feature_history[-1].append(last_id)
-            self.wdg_sel.Box_min_area.setValue(self.t_area_default)
+            MessageTool.MessageLog(
+                f"sam_feature_history: {self.sam_feature_history}", 'critical')
+            if len(self.sam_feature_history) > 0:
+                if self.sam_feature_history[-1][0] <= last_id:
+                    self.sam_feature_history[-1].append(last_id)
+
+        self.clear_canvas_layers_safely()
+        self.prompt_history.clear()
+        self.wdg_sel.Box_min_area.setValue(self.t_area_default)
+        # reenable hover mode
+        self.toggle_hover_mode()
 
     def reset_prompt_type(self):
         '''reset prompt type'''
@@ -648,11 +676,17 @@ class Selector(QDockWidget):
         '''Reset background color'''
         self.canvas_points.background_color = self.wdg_sel.ColorButton_bgpt.color()
         self.canvas_points.flush_points_color()
+        self.tool_click_bg.reset_cursor_color(
+            self.wdg_sel.ColorButton_bgpt.color().name()
+        )
 
     def reset_foreground_color(self):
         '''Reset foreground color'''
         self.canvas_points.foreground_color = self.wdg_sel.ColorButton_fgpt.color()
         self.canvas_points.flush_points_color()
+        self.tool_click_fg.reset_cursor_color(
+            self.wdg_sel.ColorButton_fgpt.color().name()
+        )
 
     def reset_rectangular_color(self):
         '''Reset rectangular color'''
@@ -663,10 +697,9 @@ class Selector(QDockWidget):
         self.canvas_rect.set_line_color(color)
         self.canvas_rect.set_fill_color(color_fill)
 
-        if self.wdg_sel.radioButton_show_extent.isChecked():
-            self.canvas_extent.clear()
-            if hasattr(self, "sam_extent_canvas_crs"):
-                self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
+        self.tool_click_rect.reset_cursor_color(
+            self.wdg_sel.ColorButton_bbox.color().name()
+        )
 
     def reset_extent_color(self):
         '''Reset extent color'''
