@@ -265,8 +265,8 @@ class Selector(QDockWidget):
             self.canvas_rect.clear()
         if hasattr(self, "canvas_extent") and clear_extent:
             self.canvas_extent.clear()
-        # if hasattr(self, "polygon_temp"):
-        #     self.polygon_temp.rollback_changes()
+        if hasattr(self, "polygon"):
+            self.polygon.rollback_changes()
 
     def _init_feature_related(self):
         '''Init or reload feature related objects'''
@@ -403,8 +403,16 @@ class Selector(QDockWidget):
 
             self.execute_SAM.emit()
 
+    def is_pressed_prompt(self):
+        '''Check if the prompt is clicked or hovered'''
+        if (self.tool_click_fg.pressed or
+            self.tool_click_bg.pressed or
+                self.tool_click_rect.pressed):
+            return True
+        return False
+
     def filter_feature_by_area(self):
-        t_area = self.wdg_sel.Box_min_pixel.value() * self.res **2
+        t_area = self.wdg_sel.Box_min_pixel.value() * self.res ** 2
         if not hasattr(self, "polygon"):
             return None
 
@@ -414,7 +422,7 @@ class Selector(QDockWidget):
         self.t_area = t_area
 
     def load_default_t_area(self):
-        self.t_area_default = self.wdg_sel.Box_min_pixel_default.value() * self.res **2
+        self.t_area_default = self.wdg_sel.Box_min_pixel_default.value() * self.res ** 2
         self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
 
     def ensure_polygon_sam_exist(self):
@@ -468,6 +476,10 @@ class Selector(QDockWidget):
                 self.t_area
         ):
             self.undo_last_prompt()
+
+        if self.is_pressed_prompt():
+            self.polygon.rollback_changes()
+            self.polygon.add_feature_to_layer(self.prompt_history, self.t_area)
         self.topping_polygon_sam_layer()
 
         return True

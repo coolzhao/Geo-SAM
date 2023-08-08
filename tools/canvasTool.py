@@ -245,7 +245,9 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
         self.hover_mode: bool = False
-        self.have_added_for_moving = False
+        self.have_added_for_moving: bool = False
+        self.pressed: bool = False
+
         QgsMapToolEmitPoint.__init__(self, self.canvas_rect.canvas)
         self.setCursor(CursorRect)
 
@@ -262,12 +264,14 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.canvas_rect.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
 
     def canvasPressEvent(self, e):
+        self.pressed = False
         self.startPoint = self.toMapCoordinates(e.pos())
         self.endPoint = self.startPoint
         self.isEmittingPoint = True
         self.canvas_rect.showRect(self.startPoint, self.endPoint)
 
     def canvasReleaseEvent(self, e):
+        self.pressed = True
         self.isEmittingPoint = False
         if self.startPoint is None or self.endPoint is None:
             return None
@@ -503,6 +507,7 @@ class ClickTool(QgsMapToolEmitPoint):
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
         self.hover_mode: bool = False
+        self.pressed: bool = False
         QgsMapToolEmitPoint.__init__(self, self.canvas)
 
         self.have_added_for_moving = False  # whether have added a point when mouse move
@@ -525,9 +530,10 @@ class ClickTool(QgsMapToolEmitPoint):
             self.have_added_for_moving = False  # reset to False
 
     def canvasPressEvent(self, e: QgsMapMouseEvent):
+        self.pressed = True
         self.clear_hover_prompt()
-        if self.have_added_for_moving:
-            self.have_added_for_moving = False
+
+        self.have_added_for_moving = False
 
         # add a point when mouse press
         point = self.toMapCoordinates(e.pos())
@@ -538,15 +544,11 @@ class ClickTool(QgsMapToolEmitPoint):
         self.prompt_history.append(self.prompt_type)
         self.execute_SAM.emit()
 
-        MessageTool.MessageLog(
-            f"canvas_points.labels: {self.canvas_points.labels}"
-            f"canvas_points.points_img_crs: {self.canvas_points.points_img_crs}"
-        )
-
     def canvasMoveEvent(self, e: QgsMapMouseEvent) -> None:
         if not self.hover_mode:
             return
 
+        self.pressed = False
         self.clear_hover_prompt()
 
         # add a point when mouse move
@@ -557,11 +559,6 @@ class ClickTool(QgsMapToolEmitPoint):
             self.canvas_points.addPoint(point, foreground=False, show=False)
         self.execute_SAM.emit()
         self.have_added_for_moving = True
-
-        MessageTool.MessageLog(
-            f"canvas_points.labels: {self.canvas_points.labels}"
-            f"canvas_points.points_img_crs: {self.canvas_points.points_img_crs}"
-        )
 
     def activate(self):
         QgsMapToolEmitPoint.activate(self)
