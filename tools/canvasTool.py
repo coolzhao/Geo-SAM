@@ -646,7 +646,8 @@ class SAM_PolygonFeature:
         self.shapefile = shapefile
         self.default_name = default_name
         self.canvas_polygon = Canvas_SAM_Polygon(iface.mapCanvas())
-        self.geojson: Dict = {}
+        self.geojson_canvas: Dict = {}
+        self.geojson_layer: Dict = {}
         if layer is not None:
             self.reset_layer(layer)
         else:
@@ -707,7 +708,7 @@ class SAM_PolygonFeature:
         else:
             self._init_layer()
 
-        self.geojson = {}
+        self.geojson_canvas = {}
         self.show_layer()
         self.ensure_edit_mode()
         return True
@@ -801,9 +802,10 @@ class SAM_PolygonFeature:
         overwrite_geojson: bool
             whether overwrite the geojson of this class. 
             False for showing geometry greater than t_area.
+            True for showing new SAM result.
         '''
         if overwrite_geojson:
-            self.geojson = geojson
+            self.geojson_canvas = geojson
         for geom in geojson:
             points = []
             coordinates = geom['geometry']['coordinates'][0]
@@ -825,10 +827,12 @@ class SAM_PolygonFeature:
             # add geometry to canvas_polygon
             self.canvas_polygon.addPolygon(geometry)
 
-    def add_feature_to_layer(
+    def add_geojson_feature_to_layer(
             self,
-            prompt_history: List,
-            t_area: float
+            geojson: Dict,
+            t_area: float = 0,
+            prompt_history: List = [],
+            overwrite_geojson: bool = False
     ):
         '''Add a geojson feature to the layer
 
@@ -838,12 +842,18 @@ class SAM_PolygonFeature:
             features in geojson format
         t_area: float
             the threshold of area
+        overwrite_geojson: bool
+            whether overwrite the geojson of this class. 
+            False for showing geometry greater than t_area.
         '''
+        if overwrite_geojson:
+            self.geojson_layer = geojson
+
         features = []
         num_polygons = self.layer.featureCount()
 
         group_ulid = GroupId().ulid
-        for idx, geom in enumerate(self.geojson):
+        for idx, geom in enumerate(geojson):
             points = []
             coordinates = geom['geometry']['coordinates'][0]
             for coord in coordinates:

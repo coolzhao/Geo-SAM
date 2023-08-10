@@ -187,33 +187,32 @@ class Selector(QDockWidget):
         if not self.wdg_sel.isUserVisible():
             self.wdg_sel.setUserVisible(True)
 
+    def disconnect_safely(self, item):
+        try:
+            item.disconnect()
+        except:
+            pass
+
     def destruct(self):
         '''Destruct actions when closed widget'''
         self.clear_layers(clear_extent=True)
+        self.iface.actionPan().trigger()
 
-        # # set context for shortcuts to application
-        # # this will make shortcuts work even if the widget is not focused
+        # set context for shortcuts to application
+        # this will make shortcuts work even if the widget is not focused
         # self.shortcut_clear.setContext(Qt.ApplicationShortcut)
         # self.shortcut_undo.setContext(Qt.ApplicationShortcut)
         # self.shortcut_save.setContext(Qt.ApplicationShortcut)
         # self.shortcut_hover_mode.setContext(Qt.ApplicationShortcut)
         # self.shortcut_tab.setContext(Qt.ApplicationShortcut)
         # self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
-        # if hasattr(self, "shortcut_tab"):
-        #     self.shortcut_tab.disconnect(self.loop_prompt_type)
-        # if hasattr(self, "shortcut_undo_sam_pg"):
-        #     self.shortcut_undo_sam_pg.disconnect(self.undo_sam_polygon)
-        # if hasattr(self, "shortcut_clear"):
-        #     self.shortcut_clear.activated.disconnect(self.clear_layers)
-        # if hasattr(self, "shortcut_undo"):
-        #     self.shortcut_undo.activated.disconnect(self.undo_last_prompt)
-        # if hasattr(self, "shortcut_save"):
-        #     self.shortcut_save.activated.disconnect(self.save_shp_file)
-        # if hasattr(self, "shortcut_hover_mode"):
-        #     self.shortcut_hover_mode.activated.disconnect(self.toggle_hover_mode)
-        # if hasattr(self, "wdg_sel"):
-        #     self.wdg_sel.MapLayerComboBox.layerChanged.disconnect(
-        #         self.set_vector_layer)
+        self.disconnect_safely(self.shortcut_tab)
+        self.disconnect_safely(self.shortcut_undo_sam_pg)
+        self.disconnect_safely(self.shortcut_clear)
+        self.disconnect_safely(self.shortcut_undo)
+        self.disconnect_safely(self.shortcut_save)
+        self.disconnect_safely(self.shortcut_hover_mode)
+        self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
 
     def unload(self):
         '''Unload actions when plugin is closed'''
@@ -408,6 +407,7 @@ class Selector(QDockWidget):
         if (self.tool_click_fg.pressed or
             self.tool_click_bg.pressed or
                 self.tool_click_rect.pressed):
+            self.tool_click_rect.pressed = False
             return True
         return False
 
@@ -416,9 +416,20 @@ class Selector(QDockWidget):
         if not hasattr(self, "polygon"):
             return None
 
-        self.polygon.canvas_polygon.clear()
-        self.polygon.add_geojson_feature_to_canvas(
-            self.polygon.geojson, t_area)
+        if self.hover_mode:
+            self.polygon.canvas_polygon.clear()
+            self.polygon.add_geojson_feature_to_canvas(
+                self.polygon.geojson_layer,  # only need to use geojson_layer
+                t_area
+            )
+
+        # layer refresh for all mode
+        self.polygon.rollback_changes()
+        self.polygon.add_geojson_feature_to_layer(
+            self.polygon.geojson_layer,
+            t_area,
+            self.prompt_history
+        )
         self.t_area = t_area
 
     def load_default_t_area(self):
@@ -477,9 +488,15 @@ class Selector(QDockWidget):
         ):
             self.undo_last_prompt()
 
-        if self.is_pressed_prompt():
+        # show pressed prompt result in hover mode
+        if self.hover_mode and self.is_pressed_prompt():
             self.polygon.rollback_changes()
-            self.polygon.add_feature_to_layer(self.prompt_history, self.t_area)
+            self.polygon.add_geojson_feature_to_layer(
+                self.polygon.geojson_canvas,  # update with canvas polygon
+                self.t_area,
+                self.prompt_history,
+                overwrite_geojson=True
+            )
         self.topping_polygon_sam_layer()
 
         return True
@@ -611,16 +628,16 @@ class Selector(QDockWidget):
         '''Clear all temporary layers (canvas and new sam result) and reset prompt'''
         self.clear_canvas_layers_safely(clear_extent=clear_extent)
         if hasattr(self, "polygon"):
-            # self.polygon.rollback_changes()
+            self.polygon.rollback_changes()
             self.polygon.canvas_polygon.clear()
-        # if hasattr(self, "polygon_temp"):
-        #     self.polygon_temp.rollback_changes()
         self.prompt_history.clear()
 
     def save_shp_file(self):
         '''save sam result into shapefile layer'''
 
+        need_toggle = False
         if self.hover_mode:
+            need_toggle = True
             self.toggle_hover_mode()
             if len(self.prompt_history) == 0:
                 MessageTool.MessageBoxOK(
@@ -630,7 +647,11 @@ class Selector(QDockWidget):
                 return False
 
         if hasattr(self, "polygon"):
-            self.polygon.add_feature_to_layer(self.prompt_history, self.t_area)
+            self.polygon.add_geojson_feature_to_layer(
+                self.polygon.geojson_layer,
+                self.t_area,
+                self.prompt_history
+            )
             self.polygon.commit_changes()
             self.polygon.canvas_polygon.clear()
 
@@ -649,7 +670,8 @@ class Selector(QDockWidget):
         self.prompt_history.clear()
         self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
         # reenable hover mode
-        self.toggle_hover_mode()
+        if need_toggle:
+            self.toggle_hover_mode()
 
     def reset_prompt_type(self):
         '''reset prompt type'''
