@@ -879,9 +879,14 @@ class EncoderCopilot(QDockWidget):
             self.wdg_copilot.CheckpointFileWidget.setConfirmOverwrite(False)
 
             # model types
+            SAM_model_types = SAM_Model_Types_Full.copy()
+            SAM_model_types.append('')
             if self.wdg_copilot.SAMModelComboBox.count() == 0:
                 self.wdg_copilot.SAMModelComboBox.addItems(
-                    SAM_Model_Types_Full)
+                    SAM_model_types)
+
+            self.wdg_copilot.SAMModelComboBox.setCurrentIndex(
+                SAM_model_types.index(''))
 
             self.dockFirstOpen = False
             # add widget to QGIS
@@ -1064,6 +1069,8 @@ class EncoderCopilot(QDockWidget):
     def get_model_type(self) -> int:
         '''Get SAM model type from combo box'''
         model_type = self.wdg_copilot.SAMModelComboBox.currentIndex()
+        if model_type == len(SAM_Model_Types):
+            model_type = None
         return model_type
 
     def get_range_value(self) -> float:
