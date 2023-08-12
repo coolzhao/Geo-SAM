@@ -60,6 +60,7 @@ class ParseRangeThread(QThread):
                 window = None
             else:
                 window = window_from_bounds(*self.extent, src.transform)
+
             arr = src.read(
                 self.bands,
                 out_shape=(len(self.bands), height, width),
@@ -894,18 +895,33 @@ class EncoderCopilot(QDockWidget):
     def set_range_to_widget(self, range: str):
         '''Set range to widget'''
         range = eval(range)
-        print(range)
         self.wdg_copilot.MinValueBox.setValue(range[0])
         self.wdg_copilot.MaxValueBox.setValue(range[1])
         self.wdg_copilot.label_range_status.setText("Done!")
 
     def show_batch_extent_in_canvas(self, extents: str):
         extents = eval(extents)
+        num_batch = len(extents)
+        idx = np.random.randint(0, num_batch, size=(int(num_batch/10)))
+        alphas = np.full(num_batch, 100)
+        line_widths = np.full(num_batch, 2)
+        alphas[idx] = 254
+        line_widths[idx] = 5
+
         for i, extent in enumerate(extents):
+            if i == num_batch - 1:
+                alpha = 255
+                line_width = 5
+            else:
+                alpha = alphas[i]
+
+            line_width = line_widths[i]
+
             self.canvas_extent.add_extent(
                 QgsRectangle(*extent),
                 use_type='batch_extent',
-                alpha=((i+1) / len(self.ds_sampler) * 255)
+                alpha=alpha,
+                line_width=line_width
             )
         self.wdg_copilot.label_batch_settings.setText(
             f"Done! {len(extents)} batch")
@@ -915,18 +931,16 @@ class EncoderCopilot(QDockWidget):
         # clear widget items
         self.wdg_copilot.label_range_status.setText("")
         self.wdg_copilot.label_batch_settings.setText("")
-        self.wdg_copilot.MaxValueBox.setClearValueMode(
-            QgsDoubleSpinBox.CustomValue, "Not set"
-        )
         self.wdg_copilot.MaxValueBox.setClearValue(
             0, "Not set")
-        self.wdg_copilot.MinValueBox.setClearValueMode(
-            QgsDoubleSpinBox.CustomValue, "Not set"
-        )
         self.wdg_copilot.MinValueBox.setClearValue(
             0, "Not set")
         self.wdg_copilot.MinValueBox.clear()
         self.wdg_copilot.MaxValueBox.clear()
+        self.wdg_copilot.BoxResolutionScale.setClearValue(
+            1, "Not set")
+        self.wdg_copilot.BoxOverlap.setClearValue(
+            50, "Not set")
 
         if not self.valid_raster_layer():
             self.clear_bands()
@@ -1052,11 +1066,12 @@ class EncoderCopilot(QDockWidget):
         model_type = self.wdg_copilot.SAMModelComboBox.currentIndex()
         return model_type
 
-    def get_max_value(self) -> float:
-        return self.wdg_copilot.MaxValueBox.value()
-
-    def get_min_value(self) -> float:
-        return self.wdg_copilot.MinValueBox.value()
+    def get_range_value(self) -> float:
+        max_value = self.wdg_copilot.MaxValueBox.value()
+        min_value = self.wdg_copilot.MinValueBox.value()
+        if max_value == 0 and min_value == 0:
+            return None
+        return min_value, max_value
 
     def get_GPU_ID(self) -> int:
         return self.wdg_copilot.DeviceIDBox.value()
@@ -1111,8 +1126,7 @@ class EncoderCopilot(QDockWidget):
         extent = f'{self.get_extent_str()} [{crs}]'
         checkpoint_path = self.get_checkpoint_path()
         model_type = self.get_model_type()
-        max_value = self.get_max_value()
-        min_value = self.get_min_value()
+        range = self.get_range_value()
         batch_size = self.get_batch_size()
         gpu_id = self.get_GPU_ID()
 
@@ -1121,7 +1135,7 @@ class EncoderCopilot(QDockWidget):
                 {"INPUT": self.raster_layer.source(),
                  "BANDS": bands,
                  # TODO: show image with range interactively
-                 "RANGE": f"{min_value},{max_value}",
+                 "RANGE": range,
                  "CRS": crs,
                  "EXTENT": extent,
                  "RESOLUTION": resolution[0],

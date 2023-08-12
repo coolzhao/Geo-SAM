@@ -49,7 +49,9 @@ class Canvas_Rectangle:
         canvas: QgsMapCanvas,
         img_crs_manager: ImageCRSManager,
         use_type: str = 'bbox',
-        alpha: int = 255
+        alpha: int = 255,
+        line_width=None
+
     ):
         self.canvas = canvas
         self.qgis_project = QgsProject.instance()
@@ -57,6 +59,7 @@ class Canvas_Rectangle:
         # self.box_geo = None
         self.img_crs_manager = img_crs_manager
         self.alpha = alpha
+        self.line_width = line_width
         self.rubberBand = QgsRubberBand(
             self.canvas, QgsWkbTypes.PolygonGeometry)
 
@@ -116,12 +119,13 @@ class Canvas_Rectangle:
             self.alpha
         )
         # line_color2 = QColor(255, 255, 255)
-        line_width = 2
+        if self.line_width is None:
+            line_width = 2
+        else:
+            line_width = self.line_width
         line_color2 = None
-        if self.alpha > 200:
-            line_color2 = QColor(0, 0, 255)
-            line_width = 1
-        if self.alpha > 254:
+
+        if self.alpha == 255:
             line_color = QColor(255, 0, 0)
             line_color2 = QColor(255, 0, 0)
 
@@ -337,7 +341,8 @@ class Canvas_Extent:
 
     def add_extent(self, extent: QgsRectangle,
                    use_type: str = 'extent',
-                   alpha: int = 255
+                   alpha: int = 255,
+                   line_width=None
                    ):
         '''Add a extent on canvas'''
         xMin, yMin, xMax, yMax = extent.xMinimum(
@@ -346,7 +351,8 @@ class Canvas_Extent:
             self.canvas,
             self.img_crs_manager,
             use_type=use_type,
-            alpha=alpha
+            alpha=alpha,
+            line_width=line_width
         )
         if self.color is not None:
             canvas_rect.set_line_color(self.color)
