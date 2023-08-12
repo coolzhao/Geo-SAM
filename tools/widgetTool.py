@@ -2,10 +2,13 @@ import os
 import json
 from typing import List, Tuple, Any, Dict
 from pathlib import Path
+import rasterio
+import numpy as np
+from rasterio.windows import from_bounds as window_from_bounds
 from qgis.core import QgsProject, QgsCoordinateReferenceSystem, QgsMapLayerProxyModel
-from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget
-from qgis.core import QgsRasterLayer, QgsRectangle, QgsRasterBandStats
-from PyQt5.QtCore import Qt, pyqtSignal
+from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget, QgsDoubleSpinBox
+from qgis.core import QgsRasterLayer, QgsRectangle
+from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtWidgets import (
     QApplication,
     QShortcut,
@@ -27,6 +30,63 @@ SAM_Model_Types_Full: List[str] = ["vit_h (huge)",
                                    "vit_l (large)",
                                    "vit_b (base)"]
 SAM_Model_Types = [i.split(' ')[0].strip() for i in SAM_Model_Types_Full]
+
+
+class ParseRangeThread(QThread):
+    def __init__(
+            self,
+            retrieve_range: pyqtSignal,
+            raster_path: str,
+            extent: List[float],
+            bands: List[int],
+    ):
+        super().__init__()
+        self.retrieve_range = retrieve_range
+        self.raster_path = raster_path
+        self.extent = extent
+        self.bands = bands
+
+    def run(self):
+        with rasterio.open(self.raster_path) as src:
+            # if image is too large, downsample it
+            width = src.width
+            height = src.height
+
+            scale = width * height / 100000000
+            if scale >= 2:
+                width = int(width / scale)
+                height = int(height / scale)
+            if self.extent is None:
+                window = None
+            else:
+                window = window_from_bounds(*self.extent, src.transform)
+            arr = src.read(
+                self.bands,
+                out_shape=(len(self.bands), height, width),
+                window=window
+            )
+            if src.meta['nodata'] is not None:
+                arr = np.ma.masked_equal(arr, src.meta['nodata'])
+
+        self.retrieve_range.emit(f"{np.nanmin(arr)}, {np.nanmax(arr)}")
+
+
+class ShowBatchExtentThread(QThread):
+    def __init__(self, retrieve_batch, ds_sampler):
+        super().__init__()
+        self.retrieve_batch = retrieve_batch
+        self.ds_sampler = ds_sampler
+
+    def run(self):
+        extents = []
+        for patch in self.ds_sampler:
+            extents.append(
+                [patch['bbox'].minx,
+                 patch['bbox'].miny,
+                 patch['bbox'].maxx,
+                 patch['bbox'].maxy]
+            )
+        self.retrieve_batch.emit(f"{extents}")
 
 
 class Selector(QDockWidget):
@@ -750,6 +810,9 @@ class Selector(QDockWidget):
 
 class EncoderCopilot(QDockWidget):
     # TODO: support encoding process in this widget
+    retrieve_range = pyqtSignal(str)
+    retrieve_batch = pyqtSignal(str)
+
     def __init__(self, parent, iface: QgisInterface, cwd: str):
         QDockWidget.__init__(self)
         self.parent = parent
@@ -773,6 +836,8 @@ class EncoderCopilot(QDockWidget):
 
             ########## connect functions to widget items ##########
             # upper part
+            self.wdg_copilot.MapLayerComboBox.setFilters(
+                QgsMapLayerProxyModel.RasterLayer)
             self.wdg_copilot.MapLayerComboBox.layerChanged.connect(
                 self.parse_raster_info)
             self.wdg_copilot.ExtentGroupBox.setMapCanvas(self.canvas)
@@ -786,10 +851,16 @@ class EncoderCopilot(QDockWidget):
                 self.json_setting_to_clipboard)
             self.wdg_copilot.pushButton_ExportSetting.clicked.connect(
                 self.json_setting_to_file)
+            self.wdg_copilot.pushButton_parse_raster.clicked.connect(
+                self.parse_min_max_value)
 
             # bottom part
             self.wdg_copilot.CheckpointFileWidget.fileChanged.connect(
                 self.parse_model_type)
+
+            # signal
+            self.retrieve_range.connect(self.set_range_to_widget)
+            self.retrieve_batch.connect(self.show_batch_extent_in_canvas)
 
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
@@ -820,13 +891,48 @@ class EncoderCopilot(QDockWidget):
         if not self.wdg_copilot.isUserVisible():
             self.wdg_copilot.setUserVisible(True)
 
+    def set_range_to_widget(self, range: str):
+        '''Set range to widget'''
+        range = eval(range)
+        print(range)
+        self.wdg_copilot.MinValueBox.setValue(range[0])
+        self.wdg_copilot.MaxValueBox.setValue(range[1])
+        self.wdg_copilot.label_range_status.setText("Done!")
+
+    def show_batch_extent_in_canvas(self, extents: str):
+        extents = eval(extents)
+        for i, extent in enumerate(extents):
+            self.canvas_extent.add_extent(
+                QgsRectangle(*extent),
+                use_type='batch_extent',
+                alpha=((i+1) / len(self.ds_sampler) * 255)
+            )
+        self.wdg_copilot.label_batch_settings.setText(
+            f"Done! {len(extents)} batch")
+
     def parse_raster_info(self):
         '''Parse raster info and set to widget items'''
-        # set raster layer band to band field
-        # TODO: support multi-threading
+        # clear widget items
+        self.wdg_copilot.label_range_status.setText("")
+        self.wdg_copilot.label_batch_settings.setText("")
+        self.wdg_copilot.MaxValueBox.setClearValueMode(
+            QgsDoubleSpinBox.CustomValue, "Not set"
+        )
+        self.wdg_copilot.MaxValueBox.setClearValue(
+            0, "Not set")
+        self.wdg_copilot.MinValueBox.setClearValueMode(
+            QgsDoubleSpinBox.CustomValue, "Not set"
+        )
+        self.wdg_copilot.MinValueBox.setClearValue(
+            0, "Not set")
+        self.wdg_copilot.MinValueBox.clear()
+        self.wdg_copilot.MaxValueBox.clear()
+
         if not self.valid_raster_layer():
             self.clear_bands()
             return None
+
+        # set raster layer band to band field
         self.wdg_copilot.RasterBandComboBox_R.setLayer(self.raster_layer)
         self.wdg_copilot.RasterBandComboBox_G.setLayer(self.raster_layer)
         self.wdg_copilot.RasterBandComboBox_B.setLayer(self.raster_layer)
@@ -844,13 +950,33 @@ class EncoderCopilot(QDockWidget):
                 duration=30
             )
 
-        # set data value range
-        stats = self.raster_layer.dataProvider().bandStatistics(1, QgsRasterBandStats.All)
-        self.wdg_copilot.MinValueBox.setValue(stats.minimumValue)
-        self.wdg_copilot.MaxValueBox.setValue(stats.maximumValue)
-
         if not hasattr(self, "canvas_extent"):
             self.canvas_extent = Canvas_Extent(self.canvas, self.crs_layer)
+
+    def parse_min_max_value(self):
+        '''Parse min and max value from raster layer'''
+        if not self.valid_raster_layer():
+            return None
+        extent = self.get_extent()
+        if (extent.xMinimum() == extent.xMaximum() or
+                extent.yMinimum() == extent.yMaximum()):
+            extent = None
+        else:
+            extent = [extent.xMinimum(),
+                      extent.yMinimum(),
+                      extent.xMaximum(),
+                      extent.yMaximum()]
+
+        bands = list(set(self.get_bands()))
+
+        self.wdg_copilot.label_range_status.setText("Parse ...")
+        self.ParseThread = ParseRangeThread(
+            self.retrieve_range,
+            self.raster_layer.source(),
+            extent,
+            bands
+        )
+        self.ParseThread.start()
 
     def clear_bands(self):
         self.wdg_copilot.RasterBandComboBox_R.setBand(-1)
@@ -1100,14 +1226,14 @@ class EncoderCopilot(QDockWidget):
             maxt=layer_ds.index.bounds[5]
         )
 
-        ds_sampler = SamTestGridGeoSampler(
+        self.ds_sampler = SamTestGridGeoSampler(
             layer_ds,
             size=1024,  # Currently, only 1024 considered (SAM default)
             stride=self.get_stride(),
             roi=extent_bbox,
             units=Units.PIXELS  # Units.CRS or Units.PIXELS
         )
-        if len(ds_sampler) == 0:
+        if len(self.ds_sampler) == 0:
             MessageTool.MessageBar(
                 'Oops!!!',
                 'No available patch sample inside the chosen extent!!! '
@@ -1116,21 +1242,10 @@ class EncoderCopilot(QDockWidget):
             )
             return None
 
-        for i, patch in enumerate(ds_sampler):
-            extent = QgsRectangle(
-                patch['bbox'].minx,
-                patch['bbox'].miny,
-                patch['bbox'].maxx,
-                patch['bbox'].maxy
-            )
-            alpha = ((i+1) / len(ds_sampler) * 255)
-            if alpha == 255:
-                print(alpha)
-            self.canvas_extent.add_extent(
-                extent,
-                use_type='batch_extent',
-                alpha=((i+1) / len(ds_sampler) * 255)
-            )
+        self.wdg_copilot.label_batch_settings.setText("Computing ...")
+        self.show_batch_extent_thread = ShowBatchExtentThread(
+            self.retrieve_batch, self.ds_sampler)
+        self.show_batch_extent_thread.start()
 
     def reset_to_project_crs(self):
         self.project.setCrs(self.crs_project)

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>999</width>
-    <height>411</height>
+    <width>997</width>
+    <height>414</height>
    </rect>
   </property>
   <property name="maximumSize">
@@ -54,7 +54,7 @@
          <item row="0" column="2">
           <widget class="QGroupBox" name="groupBox_5">
            <property name="title">
-            <string>Boundary Setting</string>
+            <string>Batch Setting</string>
            </property>
            <layout class="QGridLayout" name="gridLayout_6">
             <item row="0" column="0">
@@ -126,6 +126,28 @@
                 </widget>
                </item>
               </layout>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="label_batch_settings">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>23</height>
+               </size>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
              </widget>
             </item>
            </layout>
@@ -243,7 +265,7 @@
         <property name="scrollOnExpand">
          <bool>true</bool>
         </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="1,1,1">
+        <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="1,0,1">
          <item>
           <widget class="QGroupBox" name="groupBox_13">
            <property name="title">
@@ -282,42 +304,92 @@
            <property name="title">
             <string>Data Value Range</string>
            </property>
-           <layout class="QVBoxLayout" name="verticalLayout_5">
-            <item>
+           <layout class="QGridLayout" name="gridLayout_13">
+            <item row="0" column="0">
              <widget class="QGroupBox" name="groupBox_17">
               <property name="title">
                <string>Maximum</string>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_4">
                <item>
-                <widget class="QDoubleSpinBox" name="MaxValueBox">
+                <widget class="QgsDoubleSpinBox" name="MaxValueBox">
                  <property name="minimum">
-                  <double>-9999999999999999493871352970740188669636450110134100730839040.000000000000000</double>
+                  <double>-100000000000000007629769841091887003294964970946560.000000000000000</double>
                  </property>
                  <property name="maximum">
-                  <double>99999999999999991611392.000000000000000</double>
+                  <double>999999999999999943801810948794571024057224129020550531544123892056457216.000000000000000</double>
                  </property>
-                 <property name="value">
-                  <double>255.000000000000000</double>
+                 <property name="clearValue">
+                  <bool>true</bool>
                  </property>
                 </widget>
                </item>
               </layout>
              </widget>
             </item>
-            <item>
+            <item row="0" column="1" rowspan="2">
+             <widget class="QGroupBox" name="groupBox_21">
+              <property name="title">
+               <string>Parse from Raster</string>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_3">
+               <item>
+                <widget class="QPushButton" name="pushButton_parse_raster">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Parse</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_range_status">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>23</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item row="1" column="0">
              <widget class="QGroupBox" name="groupBox_16">
               <property name="title">
                <string>Minimum</string>
               </property>
-              <layout class="QVBoxLayout" name="verticalLayout_3">
+              <layout class="QVBoxLayout" name="verticalLayout_5">
                <item>
-                <widget class="QDoubleSpinBox" name="MinValueBox">
+                <widget class="QgsDoubleSpinBox" name="MinValueBox">
                  <property name="minimum">
-                  <double>-100000000000000004384584304507619735463404765184.000000000000000</double>
+                  <double>-9999999999999999464902769475481793196872414789632.000000000000000</double>
                  </property>
                  <property name="maximum">
-                  <double>100000000000000000620008645040778319495168.000000000000000</double>
+                  <double>100000000000000001463069523067487303097004298786465505927861078716979636425114821591040.000000000000000</double>
                  </property>
                 </widget>
                </item>
