@@ -186,16 +186,16 @@ class ImageEncoder:
                 extent = [i for i in src.bounds]
                 extent_crs = src.crs
             else:
-                extent_crs = CRS.from_user_input(
-                    extent.split(' ')[-1].strip()[1:-1]
-                )
+                extent_crs = extent.split(' ')[-1].strip()[1:-1].strip()
                 extent = [float(i.strip(',').strip())
                           for i in extent.split(' ')[:-1]]
-                extent = warp.transform_bounds(
-                    extent_crs,
-                    src.crs,
-                    *extent,
-                )
+                if extent_crs != '':
+                    extent_crs = CRS.from_user_input(extent_crs)
+                    extent = warp.transform_bounds(
+                        extent_crs,
+                        src.crs,
+                        *extent,
+                    )
 
         # check bands
         if bands is None:
