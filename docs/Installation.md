@@ -7,14 +7,13 @@ You are suggested to install the latest version of [QGIS](https://www.qgis.org/e
 
 ## Install Library Dependencies
 
+Some dependencies need to be installed into the Python environment in QGIS beforehand to use Geo-SAM. `Pytorch` is a fundamental dependency. If you want to install the GPU version of `Pytorch`, it is recommended to refer to the official website for installation: <https://pytorch.org/>
+
+After installing `PyTorch`, `torchgeo` and `segment-anything` need to be installed subsequently. Below are tutorials for installing these dependencies on different operating systems.
+
 ### For Windows Users
 
-<!-- ![OsGeo4WShell](./img/OsGeo4WShell.png) -->
-
-<p align="left">
-  Open the <b>OSGeo4W Shell</b>
-  <img src="./img/OsGeo4WShell.png" width="100" title="OsGeo4WShell"> application from the Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
-</p>
+Open the **OSGeo4W Shell** ![OsGeo4WShell](img/OsGeo4WShell.png) application from the Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
 
 ```bash
 pip3 install torch torchvision
@@ -25,8 +24,9 @@ pip3 install segment-anything
 Our encoder tool now supports using CUDA GPU to accelerate the encoding process. If your PC has dedicated CUDA GPUs, you can install the CUDA library first and then install the gpu-version pytorch using the following command (using CUDA version 11.7 as an example):
 
 ```bash
-# add `--force-reinstall` if you installed the cpu version before.
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117 
+# or if you have installed the CPU version before.
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117 --force-reinstall
 ```
 
 ### For Mac or Linux Users
@@ -101,18 +101,25 @@ Below are some general paths of the plugin folder for your reference.
 
 After restarting QGIS, go to the menu `Plugins` > `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
 
-<p align="center">
-  <img src="img/Active_geo_sam.png" width="600" title="Plugin menu">
-</p>
+
+```{image} img/Active_geo_sam.png
+:alt: Plugin menu
+:width: 600px
+:align: center
+```
 
 After activating the Geo SAM plugin, you may find the Geo SAM tools under the `Plugins` menu,
 
-<p align="center">
-  <img src="img/Plugin_menu_geo_sam.png" width="350" title="Plugin menu">
-</p>
+```{image} img/Plugin_menu_geo_sam.png
+:alt: Plugin menu
+:width: 350px
+:align: center
+```
 
 You may also find a new toolbar, including two icons.
 
-<p align="center">
-  <img src="img/Toolbar_geo_sam.png" width="200" title="Plugin toolbar">
-</p>
+```{image} img/Toolbar_geo_sam.png
+:alt: Plugin toolbar
+:width: 200px
+:align: center
+```

@@ -26,7 +26,6 @@ The Geo SAM plugin includes two separate tools, the encoding tool, and the segme
    Acknowledgement
 
 
-
 Indices and tables
 ==================
 

@@ -4,19 +4,20 @@
 
 Click the `Segmentation Tool` icon to open the interactive segmentation widget. You will be shown a demo raster image with thaw slump and small pond landforms for you to try the tool. With a single click on the map, a segmentation result will be generated.
 
-<!-- ![try geo sam](img/try_geo_sam.png) -->
 
-<p align="center">
-  <img src="img/try_geo_sam.gif" width="500" title="Try Geo SAM">
-</p>
+```{image} img/try_geo_sam.gif
+:alt: try_geo_sam
+:width: 500px
+:align: center
+```
 
 A user interface will be shown below.
 
-<!-- ![ui_geo_sam](img/ui_geo_sam.png) -->
-
-<p align="center">
-  <img src="img/ui_geo_sam.png" width="600" title="Geo SAM UI">
-</p>
+```{image} img/ui_geo_sam.png
+:alt: Geo SAM UI
+:width: 600px
+:align: center
+```
 
 ### Add Prompts
 
@@ -42,9 +43,12 @@ You can uncheck the `Enable` button to temporally disable the tool and navigate 
 
 The plugin is initialized with features for demo purposes, and you can use the `Feature Folder` selection button to select the folder that includes the image features you need.
 
-<p align="center">
-  <img src="img/Select_feature_folder.png" width="250" title="Select feature folder">
-</p>
+```{image} img/Select_feature_folder.png
+:alt: Select feature folder
+:width: 250px
+:align: center
+```
+
 
 Then, press the `Load` button to load the selected image features. Remember to add the corresponding raster image to the QGIS project.
 
@@ -91,9 +95,12 @@ Since SAM only supports input images with sizes of (1024, 1204), small images wi
 
 The following animation shows how to use the encoder tool.
 
-<p align="center">
-  <img src="img/encoder_demo.gif" width="600" title="Try Geo SAM">
-</p>
+```{image} img/encoder_demo.gif
+:alt: Try Geo SAM
+:width: 600px
+:align: center
+```
+
 
 After processing the image, by default, the generated features will automatically be loaded in the segmentation tool for you to start labeling. Or you can choose to load the image features manually afterward.
 
