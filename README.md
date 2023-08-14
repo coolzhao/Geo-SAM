@@ -35,7 +35,12 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https:
 
 Geo SAM is a QGIS plugin that aims to help people segment, delineate or label landforms efficiently when using large-size geospatial raster images. [Segment Anything Model](https://segment-anything.com/) (SAM) is a foundation AI model with the superpower, but the model size is huge, and using it to process images can take a long time, even with a modern GPU. Our tool uses the strategies of encoding image features in advance and trimming the SAM model. The interactive segmentation process can be run in real-time on a laptop by only using a CPU, making it a convenient and efficient tool for dealing with satellite images.
 
-The Geo SAM plugin includes two separate tools, the encoding tool, and the segmentation tool. The encoding tool is designed to generate and save the image features using the SAM image encoder, and the encoding process only needs to run once per image. The segmentation tool is for interactively segmenting landforms, and it can only be used to segment preprocessed images (whose features have been generated in advance using the encoding tool, as the included demo image).
+The Geo SAM plugin includes two separate tools, the encoding tool and the segmentation tool. The encoding tool is designed to generate and save the image features using the SAM image encoder, and the encoding process only needs to run once per image. The segmentation tool is for interactively segmenting landforms, and it can only be used to segment preprocessed images (whose features have been generated in advance using the encoding tool, as the included demo image).
+
+Notes:
+
+- SAM natively supports only three-band images, but we have adapted Geo SAM to support one or two-band images so that you can try grayscale images, spectral index images (like NDVI, NDWI), or even SAR images.
+- SAM is designed to segment one object once with a series of prompts, so you should save the current results before getting to the next one when using the Geo SAM tool.
 
 ## Installation
 
@@ -90,7 +95,6 @@ Then install the libraries.
 ```bash
 # !important, add ./ to avoid using your default Python in the system
 ./pip3 install torch torchvision
-./pip3 install torchgeo
 ./pip3 install segment-anything
 ```
 
@@ -107,7 +111,7 @@ For Linux users, if your computer got available CUDA GPUs and with CUDA library 
 
 #### Download the Plugin
 
-Download the [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/latest), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
+Download the `stable version`: [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/tag/v1.1.1) or the `dev version` (more features and capabilities, but not rigorous tested): [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/tag/v1.2.1-dev), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
 
 #### Locate the QGIS Plugin folder
 
@@ -206,7 +210,6 @@ Then, press the `Load` button to load the selected image features. Remember to a
 ### Shortcuts
 
 - `Tab`: loop between 3 prompt types (the cursor will also change to the corresponding types)
-- `P`: Toggle to enable/disable executing SAM with `Preview mode`
 - `C`: clear all prompts in canvas [same as `Clear` button]
 - `Z`: undo the last prompt in canvas [same as `Undo` button]
 - `S`: save SAM output features into polygon [same as `Save` button]
@@ -267,7 +270,7 @@ After processing the image, by default, the generated features will automaticall
 
 ## Citation
 
-> Zhao, Zhuoyi, Fan, Chengyan, & Liu, Lin. (2023). Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation (1.1.0). Zenodo. https://doi.org/10.5281/zenodo.8191039
+> Zhao, Zhuoyi, Fan, Chengyan, & Liu, Lin. (2023). Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation (1.1.0). Zenodo. <https://doi.org/10.5281/zenodo.8191039>
 
 ```bibtex
 @software{zhao_zhuoyi_2023_8191039,
