@@ -678,7 +678,7 @@ class Selector(QDockWidget):
             self.clear_layers(clear_extent=True)
             self._init_feature_related()
             self.toggle_edit_mode()
-            self.toggle_enpcoding_extent()
+            self.toggle_encoding_extent()
         else:
             MessageTool.MessageBar(
                 'Oops',
