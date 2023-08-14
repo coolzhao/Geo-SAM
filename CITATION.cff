@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Zhao"
+  given-names: "Zhuoyi"
+- family-names: "Fan"
+  given-names: "Chengyan"
+- family-names: "Liu"
+  given-names: "Lin"
+title: "Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation"
+version: 1.1.0
+doi: 10.5281/zenodo.8191039
+date-released: 2023-7-27
+url: "https://doi.org/10.5281/zenodo.8191039"
