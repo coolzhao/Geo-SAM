@@ -7,7 +7,7 @@ You are suggested to install the latest version of [QGIS](https://www.qgis.org/e
 
 ## Install Library Dependencies
 
-Some dependencies need to be installed into the Python environment in QGIS beforehand to use Geo-SAM. `Pytorch` is a fundamental dependency. If you want to install the GPU version of `Pytorch`, it is recommended to refer to the official website for installation: <https://pytorch.org/>
+Some dependencies need to be installed into the Python environment in QGIS beforehand to use Geo-SAM. `Pytorch` is a fundamental dependency. If you want to install the GPU version of `Pytorch`, it is recommended to refer to the official website for installation: <https://pytorch.org/get-started/locally/#start-locally>
 
 After installing `PyTorch`, `torchgeo` and `segment-anything` need to be installed subsequently. Below are tutorials for installing these dependencies on different operating systems.
 
