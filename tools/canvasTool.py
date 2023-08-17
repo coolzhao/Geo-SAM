@@ -311,6 +311,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
               self.startPoint.y() == self.endPoint.y()):
             return None
         else:
+            self.canvas_rect.popRect()
             self.canvas_rect.addRect(self.startPoint, self.endPoint)
             self.execute_SAM.emit()
             self.have_added_for_moving = True
