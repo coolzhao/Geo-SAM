@@ -1,3 +1,0 @@
-recommonmark
-myst-parser
-sphinx-rtd-theme

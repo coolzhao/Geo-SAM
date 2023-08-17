@@ -1,0 +1,4 @@
+recommonmark
+myst-parser
+sphinx-rtd-theme
+sphinxcontrib-video

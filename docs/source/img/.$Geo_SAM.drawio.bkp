@@ -1,0 +1,30 @@
+<mxfile host="Electron" modified="2023-08-17T08:09:25.846Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.6.5 Chrome/114.0.5735.243 Electron/25.3.1 Safari/537.36" etag="NCiYs8Jipm6QRUh2zRm7" version="21.6.5" type="device">
+  <diagram name="第 1 页" id="Qk4crZJXrgiV5HGb2PUo">
+    <mxGraphModel dx="506" dy="76" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="8PEj8mDurR05MUQ0729d-14" value="" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="-46" y="65" width="313" height="192" as="geometry" />
+        </mxCell>
+        <mxCell id="8PEj8mDurR05MUQ0729d-19" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;startSize=8;endSize=8;entryX=0.764;entryY=0.003;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="8PEj8mDurR05MUQ0729d-15" target="8PEj8mDurR05MUQ0729d-17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="8PEj8mDurR05MUQ0729d-15" value="prompt&lt;br&gt;encoder" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="123" y="86" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="8PEj8mDurR05MUQ0729d-18" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;fontSize=12;startSize=8;endSize=8;" edge="1" parent="1" source="8PEj8mDurR05MUQ0729d-16">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="46" y="192" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8PEj8mDurR05MUQ0729d-16" value="image&lt;br&gt;encoder" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="-14" y="86" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="8PEj8mDurR05MUQ0729d-17" value="lightweight mask decoder" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="-14" y="193" width="260" height="42" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
