@@ -652,7 +652,8 @@ class SAM_PolygonFeature:
         self.img_crs_manager = img_crs_manager
         self.shapefile = shapefile
         self.default_name = default_name
-        self.canvas_polygon = Canvas_SAM_Polygon(iface.mapCanvas())
+        self.canvas = iface.mapCanvas()
+        self.canvas_polygon = Canvas_SAM_Polygon(self.canvas)
         self.geojson_canvas: Dict = {}
         self.geojson_layer: Dict = {}
         if layer is not None:
@@ -913,6 +914,7 @@ class SAM_PolygonFeature:
         # self.canvas_polygon.clear()
         try:
             self.layer.rollBack()
+            self.canvas.refresh()
             self.canvas_polygon.clear()
         except:
             return None

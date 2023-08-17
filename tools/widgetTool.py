@@ -329,6 +329,7 @@ class Selector(QDockWidget):
 
     def clear_canvas_layers_safely(self, clear_extent: bool = False):
         '''Clear canvas layers safely'''
+        self.canvas.refresh()
         if hasattr(self, "canvas_points"):
             self.canvas_points.clear()
         if hasattr(self, "canvas_rect"):
@@ -337,6 +338,7 @@ class Selector(QDockWidget):
             self.canvas_extent.clear()
         if hasattr(self, "polygon"):
             self.polygon.rollback_changes()
+        self.canvas.refresh()
 
     def _init_feature_related(self):
         '''Init or reload feature related objects'''
