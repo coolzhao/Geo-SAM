@@ -149,14 +149,13 @@ class SAM_Model:
         geojson = [{'properties': {'raster_val': value}, 'geometry': polygon}
                    for polygon, value in shape_generator]
 
-
         sam_polygon.canvas_polygon.clear()
         sam_polygon.add_geojson_feature_to_canvas(
             geojson,
             t_area,
             overwrite_geojson=True
         )
-        ## if hover mode, do not add to layer. will parse whether pressed after this function
+        # if hover mode, do not add to layer. will parse whether pressed after this function
         if not hover_mode:
             sam_polygon.rollback_changes()
             sam_polygon.add_geojson_feature_to_layer(

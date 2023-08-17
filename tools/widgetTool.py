@@ -110,6 +110,8 @@ class Selector(QDockWidget):
         self.hover_mode: bool = False
         self.t_area: float = 0.0
         self.t_area_default: float = 0.0
+        self.need_execute_sam_toggle_mode: bool = True
+        self.need_execute_sam_filter_area: bool = True
 
     def open_widget(self):
         '''Create widget selector'''
@@ -439,8 +441,10 @@ class Selector(QDockWidget):
         '''Toggle move mode in widget selector.'''
         if self.wdg_sel.radioButton_exe_hover.isChecked():
             self.wdg_sel.radioButton_exe_hover.setChecked(False)
+            self.need_execute_sam_toggle_mode = True
         else:
             self.wdg_sel.radioButton_exe_hover.setChecked(True)
+            self.need_execute_sam_toggle_mode = False
         # toggle move mode in sam model
         self.toggle_sam_hover_mode()
 
@@ -461,6 +465,7 @@ class Selector(QDockWidget):
             self.tool_click_bg.clear_hover_prompt()
             self.tool_click_rect.clear_hover_prompt()
 
+        if self.need_execute_sam_toggle_mode:
             self.execute_SAM.emit()
 
     def is_pressed_prompt(self):
@@ -473,6 +478,9 @@ class Selector(QDockWidget):
         return False
 
     def filter_feature_by_area(self):
+        if not self.need_execute_sam_filter_area:
+            return None
+
         t_area = self.wdg_sel.Box_min_pixel.value() * self.res ** 2
         if not hasattr(self, "polygon"):
             return None
@@ -695,7 +703,6 @@ class Selector(QDockWidget):
 
     def save_shp_file(self):
         '''save sam result into shapefile layer'''
-
         need_toggle = False
         if self.hover_mode:
             need_toggle = True
@@ -708,11 +715,13 @@ class Selector(QDockWidget):
                 return False
 
         if hasattr(self, "polygon"):
+            self.polygon.rollback_changes()
             self.polygon.add_geojson_feature_to_layer(
                 self.polygon.geojson_layer,
                 self.t_area,
                 self.prompt_history
             )
+
             self.polygon.commit_changes()
             self.polygon.canvas_polygon.clear()
 
@@ -722,17 +731,21 @@ class Selector(QDockWidget):
                 return None
             last_id = features[-1].id()
             MessageTool.MessageLog(
-                f"sam_feature_history: {self.sam_feature_history}", 'critical')
+                f"sam_feature_history: {self.sam_feature_history}")
             if len(self.sam_feature_history) > 0:
                 if self.sam_feature_history[-1][0] <= last_id:
                     self.sam_feature_history[-1].append(last_id)
 
-        self.clear_canvas_layers_safely()
-        self.prompt_history.clear()
-        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
         # reenable hover mode
         if need_toggle:
             self.toggle_hover_mode()
+        self.clear_canvas_layers_safely()
+        self.prompt_history.clear()
+        
+        ## avoid execute sam when reset min pixel to default value
+        self.need_execute_sam_filter_area = False
+        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
+        self.need_execute_sam_filter_area = True
 
     def reset_prompt_type(self):
         '''reset prompt type'''
