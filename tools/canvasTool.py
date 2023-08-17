@@ -76,7 +76,7 @@ class Canvas_Rectangle:
             self._init_bbox_layer()
         elif use_type == 'extent':
             self._init_extent_layer()
-        elif use_type == 'batch_extent':
+        elif use_type == 'patch_extent':
             self._init_batch_extent_layer()
 
     def flush_rect_color(self):
@@ -909,6 +909,8 @@ class SAM_PolygonFeature:
 
     def rollback_changes(self):
         '''Roll back the changes'''
+        # self.layer.rollBack()
+        # self.canvas_polygon.clear()
         try:
             self.layer.rollBack()
             self.canvas_polygon.clear()

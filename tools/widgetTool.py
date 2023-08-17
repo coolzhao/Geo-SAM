@@ -72,10 +72,10 @@ class ParseRangeThread(QThread):
         self.retrieve_range.emit(f"{np.nanmin(arr)}, {np.nanmax(arr)}")
 
 
-class ShowBatchExtentThread(QThread):
-    def __init__(self, retrieve_batch, ds_sampler):
+class ShowPatchExtentThread(QThread):
+    def __init__(self, retrieve_patch, ds_sampler):
         super().__init__()
-        self.retrieve_batch = retrieve_batch
+        self.retrieve_patch = retrieve_patch
         self.ds_sampler = ds_sampler
 
     def run(self):
@@ -87,7 +87,7 @@ class ShowBatchExtentThread(QThread):
                  patch['bbox'].maxx,
                  patch['bbox'].maxy]
             )
-        self.retrieve_batch.emit(f"{extents}")
+        self.retrieve_patch.emit(f"{extents}")
 
 
 class Selector(QDockWidget):
@@ -239,16 +239,17 @@ class Selector(QDockWidget):
             # default is fgpt, but do not change when reloading feature folder
             # self.reset_prompt_type()
             self.dockFirstOpen = False
-            # add widget to QGIS
-            self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
         else:
             self.clear_layers(clear_extent=True)
+
+         # add widget to QGIS
+        self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
 
         self.toggle_edit_mode()
         self.toggle_encoding_extent()
 
-        if not self.wdg_sel.isUserVisible():
-            self.wdg_sel.setUserVisible(True)
+        # if not self.wdg_sel.isUserVisible():
+        #     self.wdg_sel.setUserVisible(True)
 
     def disconnect_safely(self, item):
         try:
@@ -269,6 +270,17 @@ class Selector(QDockWidget):
         # self.shortcut_hover_mode.setContext(Qt.ApplicationShortcut)
         # self.shortcut_tab.setContext(Qt.ApplicationShortcut)
         # self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
+        # self.disconnect_safely(self.shortcut_tab)
+        # self.disconnect_safely(self.shortcut_undo_sam_pg)
+        # self.disconnect_safely(self.shortcut_clear)
+        # self.disconnect_safely(self.shortcut_undo)
+        # self.disconnect_safely(self.shortcut_save)
+        # self.disconnect_safely(self.shortcut_hover_mode)
+        # self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
+
+    def unload(self):
+        '''Unload actions when plugin is closed'''
+        self.clear_layers(clear_extent=True)
         self.disconnect_safely(self.shortcut_tab)
         self.disconnect_safely(self.shortcut_undo_sam_pg)
         self.disconnect_safely(self.shortcut_clear)
@@ -276,10 +288,6 @@ class Selector(QDockWidget):
         self.disconnect_safely(self.shortcut_save)
         self.disconnect_safely(self.shortcut_hover_mode)
         self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
-
-    def unload(self):
-        '''Unload actions when plugin is closed'''
-        self.clear_layers(clear_extent=True)
         self.destruct()
         self.iface.removeDockWidget(self.wdg_sel)
 
@@ -741,8 +749,8 @@ class Selector(QDockWidget):
             self.toggle_hover_mode()
         self.clear_canvas_layers_safely()
         self.prompt_history.clear()
-        
-        ## avoid execute sam when reset min pixel to default value
+
+        # avoid execute sam when reset min pixel to default value
         self.need_execute_sam_filter_area = False
         self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
         self.need_execute_sam_filter_area = True
@@ -825,7 +833,7 @@ class Selector(QDockWidget):
 class EncoderCopilot(QDockWidget):
     # TODO: support encoding process in this widget
     retrieve_range = pyqtSignal(str)
-    retrieve_batch = pyqtSignal(str)
+    retrieve_patch = pyqtSignal(str)
 
     def __init__(self, parent, iface: QgisInterface, cwd: str):
         QDockWidget.__init__(self)
@@ -874,7 +882,7 @@ class EncoderCopilot(QDockWidget):
 
             # signal
             self.retrieve_range.connect(self.set_range_to_widget)
-            self.retrieve_batch.connect(self.show_batch_extent_in_canvas)
+            self.retrieve_patch.connect(self.show_patch_extent_in_canvas)
 
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
@@ -917,17 +925,17 @@ class EncoderCopilot(QDockWidget):
         self.wdg_copilot.MaxValueBox.setValue(range[1])
         self.wdg_copilot.label_range_status.setText("Done!")
 
-    def show_batch_extent_in_canvas(self, extents: str):
+    def show_patch_extent_in_canvas(self, extents: str):
         extents = eval(extents)
-        num_batch = len(extents)
-        idx = np.random.randint(0, num_batch, size=(int(num_batch/10)))
-        alphas = np.full(num_batch, 100)
-        line_widths = np.full(num_batch, 2)
+        num_patch = len(extents)
+        idx = np.random.randint(0, num_patch, size=(int(num_patch/10)))
+        alphas = np.full(num_patch, 100)
+        line_widths = np.full(num_patch, 2)
         alphas[idx] = 254
         line_widths[idx] = 5
 
         for i, extent in enumerate(extents):
-            if i == num_batch - 1:
+            if i == num_patch - 1:
                 alpha = 255
                 line_width = 5
             else:
@@ -937,18 +945,18 @@ class EncoderCopilot(QDockWidget):
 
             self.canvas_extent.add_extent(
                 QgsRectangle(*extent),
-                use_type='batch_extent',
+                use_type='patch_extent',
                 alpha=alpha,
                 line_width=line_width
             )
-        self.wdg_copilot.label_batch_settings.setText(
-            f"Done! {len(extents)} batch")
+        self.wdg_copilot.label_patch_settings.setText(
+            f"Done! {len(extents)} patches")
 
     def parse_raster_info(self):
         '''Parse raster info and set to widget items'''
         # clear widget items
         self.wdg_copilot.label_range_status.setText("")
-        self.wdg_copilot.label_batch_settings.setText("")
+        self.wdg_copilot.label_patch_settings.setText("")
         self.wdg_copilot.MaxValueBox.setClearValue(
             0, "Not set")
         self.wdg_copilot.MinValueBox.setClearValue(
@@ -1220,7 +1228,7 @@ class EncoderCopilot(QDockWidget):
 
     def show_extents(self):
         self.show_bbox_extent()
-        self.show_batch_extent()
+        self.show_patch_extent()
 
     def show_bbox_extent(self):
         '''Show bbox extent in canvas'''
@@ -1229,8 +1237,8 @@ class EncoderCopilot(QDockWidget):
             extent = self.get_extent()
             self.canvas_extent.add_extent(extent)
 
-    def show_batch_extent(self):
-        '''Show all batch extents in canvas'''
+    def show_patch_extent(self):
+        '''Show all patch extents in canvas'''
         if not self.check_setting_available():
             return None
 
@@ -1276,10 +1284,10 @@ class EncoderCopilot(QDockWidget):
             )
             return None
 
-        self.wdg_copilot.label_batch_settings.setText("Computing ...")
-        self.show_batch_extent_thread = ShowBatchExtentThread(
-            self.retrieve_batch, self.ds_sampler)
-        self.show_batch_extent_thread.start()
+        self.wdg_copilot.label_patch_settings.setText("Computing ...")
+        self.show_patch_extent_thread = ShowPatchExtentThread(
+            self.retrieve_patch, self.ds_sampler)
+        self.show_patch_extent_thread.start()
 
     def reset_to_project_crs(self):
         self.project.setCrs(self.crs_project)
