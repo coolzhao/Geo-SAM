@@ -163,14 +163,16 @@ class Canvas_Rectangle:
     def addRect(self, startPoint: QgsPointXY, endPoint: QgsPointXY):
         self.rect_list.append((startPoint, endPoint))
 
-    def popRect(self):
+    def popRect(self, show_rect: bool = True, clear_canvas: bool = True):
         if len(self.rect_list) > 0:
             self.rect_list.pop()
             if len(self.rect_list) > 0:
                 startPoint, endPoint = self.rect_list[-1]
-                self.showRect(startPoint, endPoint)
+                if show_rect:
+                    self.showRect(startPoint, endPoint)
             else:
-                self.clear()
+                if clear_canvas:
+                    self.clear()
 
     def showRect(self, startPoint, endPoint):
         self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
@@ -277,12 +279,14 @@ class RectangleMapTool(QgsMapToolEmitPoint):
     def canvasReleaseEvent(self, e):
         self.pressed = True
         self.isEmittingPoint = False
+        self.clear_hover_prompt()
         if self.startPoint is None or self.endPoint is None:
             return None
         elif (self.startPoint.x() == self.endPoint.x() or
               self.startPoint.y() == self.endPoint.y()):
             return None
         else:
+
             self.canvas_rect.addRect(self.startPoint, self.endPoint)
             self.prompt_history.append('bbox')
             self.execute_SAM.emit()
@@ -291,7 +295,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
     def clear_hover_prompt(self):
         # remove the last rectangle if have added a rectangle when mouse move
         if self.have_added_for_moving:
-            self.canvas_rect.popRect()
+            self.canvas_rect.popRect(show_rect=False, clear_canvas=False)
             self.have_added_for_moving = False  # reset to False
 
     def canvasMoveEvent(self, e):
@@ -311,7 +315,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
               self.startPoint.y() == self.endPoint.y()):
             return None
         else:
-            self.canvas_rect.popRect()
+            self.canvas_rect.popRect(show_rect=False, clear_canvas=False)
             self.canvas_rect.addRect(self.startPoint, self.endPoint)
             self.execute_SAM.emit()
             self.have_added_for_moving = True
