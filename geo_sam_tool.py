@@ -100,12 +100,14 @@ class Geo_SAM(QObject):
 
     def create_widget_selector(self):
         '''Create widget for selecting landform by prompts'''
-        self.wdg_sel = Selector(self, self.iface, self.cwd)
+        if not hasattr(self, "wdg_sel"):
+            self.wdg_sel = Selector(self, self.iface, self.cwd)
         self.wdg_sel.open_widget()
 
     def create_widget_encoder_copilot(self):
         '''Create widget for co-piloting encoder settings'''
-        self.wdg_sel = EncoderCopilot(self, self.iface, self.cwd)
+        if not hasattr(self, "wdg_sel"):
+            self.wdg_sel = EncoderCopilot(self, self.iface, self.cwd)
         self.wdg_sel.open_widget()
 
     def unload(self):
