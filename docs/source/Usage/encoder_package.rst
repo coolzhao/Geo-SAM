@@ -3,7 +3,7 @@
 GeoSAM-Image-Encoder (Python package)
 ======================================
 
-This  package is part of Geo-SAM and is used to encode image data into features recognized by Geo-SAM.
+This package is part of the Geo-SAM project and is a standalone Python package that does not depend on QGIS. This package allows you to encode remote sensing images into features that can be recognized by Geo-SAM on a remote server, such as ``Colab`` or ``AWS``.
 
 
 Installation

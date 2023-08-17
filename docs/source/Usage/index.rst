@@ -1,6 +1,7 @@
-# Usage of Tools
+Usage of Geo-SAM Tools
+======================
 
-This section describes the usage of the tools provided in this package.
+This section describes the usage of the tools provided in ``Geo-SAM``.
 
 .. toctree::
    :maxdepth: 1
