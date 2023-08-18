@@ -3,6 +3,11 @@
 GeoSAM-Image-Encoder (Python package)
 ======================================
 
+.. image:: https://img.shields.io/pypi/v/GeoSAM-Image-Encoder
+    :target: https://pypi.org/project/GeoSAM-Image-Encoder/
+
+
+
 This package is part of the Geo-SAM project and is a standalone Python package that does not depend on QGIS. This package allows you to encode remote sensing images into features that can be recognized by Geo-SAM on a remote server, such as ``Colab`` or ``AWS``.
 
 

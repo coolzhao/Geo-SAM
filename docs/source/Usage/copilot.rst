@@ -39,6 +39,9 @@ The following animation shows how to use the ``Encoder Copilot Tool``.
 
 .. video:: ../_static/EncoderCopilotDemo.mp4
     :width: 700
-    :preload: auto 
+    :preload: metadata
+    :poster: ../_static/EncoderCopilotCover.jpg
+    
+     
 
     
