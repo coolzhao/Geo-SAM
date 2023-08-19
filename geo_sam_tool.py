@@ -42,43 +42,43 @@ class Geo_SAM(QObject):
 
         self.actionSamTool = QAction(
             QIcon_GeoSAMTool,
-            "Geo SAM Segmentation Tool",
+            "Geo-SAM Segmentation",
             self.iface.mainWindow()
         )
 
         self.actionSamEncoder = QAction(
             QIcon_EncoderTool,
-            "Geo SAM Encoding Tool",
+            "Geo-SAM Image Encoder",
             self.iface.mainWindow()
         )
 
         self.actionSamEncoderCopilot = QAction(
             QIcon_EncoderCopilot,
-            "Geo SAM Encoding Copilot",
+            "Encoder Copilot",
             self.iface.mainWindow()
         )
 
         self.actionSamTool.setObjectName("mActionGeoSamTool")
         self.actionSamTool.setToolTip(
-            "Geo SAM Segmentation Tool: Use it to label landforms")
+            "Geo-SAM Segmentation: Use it to label landforms")
         self.actionSamTool.triggered.connect(self.create_widget_selector)
 
         self.actionSamEncoder.setObjectName("mActionGeoSamEncoder")
         self.actionSamEncoder.setToolTip(
-            "Geo SAM Encoding Tool: Use it to encode/preprocess image before labeling")
+            "Geo-SAM Image Encoder: Use it to encode/preprocess image before labeling")
         self.actionSamEncoder.triggered.connect(self.encodeImage)
 
         self.actionSamEncoderCopilot.setObjectName(
             "mActionGeoSamEncoderCopilot")
         self.actionSamEncoderCopilot.setToolTip(
-            "Geo SAM Encoding Copilot: Assist you in optimizing your Encoder Settings")
+            "Encoder Copilot: Assist you in optimizing your Encoder Settings")
         self.actionSamEncoderCopilot.triggered.connect(
             self.create_widget_encoder_copilot)
 
-        self.iface.addPluginToMenu('Geo SAM Tools', self.actionSamTool)
-        self.iface.addPluginToMenu('Geo SAM Tools', self.actionSamEncoder)
+        self.iface.addPluginToMenu('Geo-SAM Tools', self.actionSamTool)
+        self.iface.addPluginToMenu('Geo-SAM Tools', self.actionSamEncoder)
         self.iface.addPluginToMenu(
-            'Geo SAM Tools', self.actionSamEncoderCopilot)
+            'Geo-SAM Tools', self.actionSamEncoderCopilot)
 
         # self.iface.addToolBarIcon(self.action)
         self.toolbar.addAction(self.actionSamTool)
