@@ -1,6 +1,6 @@
-# Geo-SAM Segmentation Tool (QGIS)
+# Geo-SAM Segmentation (QGIS plugin)
 
-Click the `Geo-SAM Segmentation Tool` icon to open the interactive segmentation widget. You will be shown a demo raster image with thaw slump and small pond landforms for you to try the tool. With a single click on the map, a segmentation result will be generated.
+Click the `Geo-SAM Segmentation` icon to open the interactive segmentation widget. You will be shown a demo raster image with thaw slump and small pond landforms for you to try the tool. With a single click on the map, a segmentation result will be generated.
 
 ```{image} ../img/try_geo_sam.gif
 :alt: try_geo_sam

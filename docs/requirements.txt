@@ -1,4 +1,5 @@
 recommonmark
+sphinx==3.5.3
 myst-parser
-sphinx-rtd-theme
 sphinxcontrib-video
+sphinx_rtd_theme

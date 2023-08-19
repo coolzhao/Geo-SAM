@@ -1,7 +1,7 @@
 
-# Geo-SAM Encoder Tool (QGIS)
+# Geo-SAM Image Encoder (QGIS plugin)
 
-If you want to try your own images, you can use the `Geo-SAM Encoder Tool`. This tool helps to preprocess geospatial images and generate image features using the SAM image encoder. The generated image features can then be used in our `Geo-SAM Segmentation Tool` to label the landforms by adding points and bounding box prompts.
+If you want to try your own images, you can use the `Geo-SAM Image Encoder` tool. This tool helps to preprocess geospatial images and generate image features using the SAM image encoder. The generated image features can then be used in our `Geo-SAM Segmentation` tool to label the landforms by adding points and bounding box prompts.
 
 ## Download SAM Checkpoints
 
@@ -23,7 +23,7 @@ Since SAM only supports input images with sizes of (1024, 1204), small images wi
 
 ## Demo Animation
 
-The following animation shows how to use the encoder tool.
+The following animation shows how to use the encoding tool.
 
 ```{image} ../img/encoder_demo.gif
 :alt: Try Geo SAM

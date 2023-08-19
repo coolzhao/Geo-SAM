@@ -1,4 +1,6 @@
 # Future Works
 
 - Support HQ-SAM model
-- Existing polygon refinement
+- Support labeling large objects across patches
+- Add video tutorials for installation and usage
+
