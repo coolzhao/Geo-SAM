@@ -24,10 +24,6 @@ class Geo_SAM(QObject):
         self.demo_img_name = "beiluhe_google_img_201211_clip"
         feature_dir = cwd + "/features/" + self.demo_img_name
         self.feature_dir = feature_dir
-        self.toolPan = QgsMapToolPan(self.canvas)
-        self.dockFirstOpen = True
-        self.prompt_history: List[str] = []
-        self.sam_feature_history: List[List[int]] = []
 
     def initProcessing(self):
         self.provider = GeoSamProvider()
