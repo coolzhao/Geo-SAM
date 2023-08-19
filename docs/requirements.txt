@@ -3,3 +3,4 @@ sphinx==3.5.3
 myst-parser
 sphinxcontrib-video
 sphinx_rtd_theme
+Jinja2<3.1
