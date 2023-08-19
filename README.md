@@ -48,10 +48,9 @@ Read the documentation for more details: <https://geo-sam.readthedocs.io/en/late
 
 ![Segmentation Demo](docs/source/img/PreviewModeDemo.gif)
 
-
 - Image Encoder Demo (QGIS plugin part)
 
-![Encoder Demo](https://i.imgur.com/1wrrZa1.gif)
+![Encoder Demo](docs/source/img/encoder_demo.gif)
 
 - Encoder Copilot Demo
 
