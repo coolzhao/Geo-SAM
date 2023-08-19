@@ -473,8 +473,10 @@ class SamTestRasterDataset(RasterDataset):
             indexes=band_indexes,
             out_shape=target_shape,
             window=window_from_bounds(*bounds, src.transform),
+            masked=True,
             resampling=Resampling.bilinear,
         )
+        dest = dest.filled(fill_value=0.0)
 
         # fix numpy dtypes which are not supported by pytorch tensors
         if dest.dtype == np.uint16:
@@ -484,7 +486,8 @@ class SamTestRasterDataset(RasterDataset):
 
         tensor = torch.tensor(dest)  # .float()
         if torch.isnan(tensor).any():
-            tensor = torch.nan_to_num(tensor, nan=0.0) # , posinf=0.0, neginf=0.0
+            # , posinf=0.0, neginf=0.0
+            tensor = torch.nan_to_num(tensor, nan=0.0)
         tensor = self.pad_patch(tensor, patch_size)
 
         sample = {"crs": self.crs, "bbox": bbox,
