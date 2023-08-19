@@ -42,19 +42,29 @@ Read the documentation for more details: <https://geo-sam.readthedocs.io/en/late
 
 - Interactive Segmentation Demo (**millisecond-level response time after providing prompts**)
 
-![Segmentation Demo](docs/source/img/try_geo_sam.gif)
+<p align="center">
+  <img src="docs/source/img/try_geo_sam.gif" width="700" title="try_geo_sam">
+</p>
 
 - ``Preview Mode`` Demo for Interactive Segmentation  (**Execute SAM following the mouse cursor**)
 
-![Segmentation Demo](docs/source/img/PreviewModeDemo.gif)
+<p align="center">
+  <img src="docs/source/img/PreviewModeDemo.gif" width="700" title="try_geo_sam">
+</p>
 
 - Image Encoder Demo (QGIS plugin part)
 
-![Encoder Demo](docs/source/img/encoder_demo.gif)
+<p align="center">
+  <img src="docs/source/img/encoder_demo.gif" width="700" title="try_geo_sam">
+</p>
 
 - Encoder Copilot Demo
 
-[![Alt text](docs/source/_static/EncoderCopilotCover.jpg)](https://youtu.be/NWemi3xcCd0)
+<p align="center">
+[<img src="docs/source/_static/EncoderCopilotCover.jpg" width="700"
+/>](https://www.youtube.com/embed/<NWemi3xcCd0>)
+</p>
+<!-- [![Alt text](docs/source/_static/EncoderCopilotCover.jpg)](https://youtu.be/NWemi3xcCd0) -->
 
 
 ## Citation
