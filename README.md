@@ -62,7 +62,7 @@ Read the documentation for more details: <https://geo-sam.readthedocs.io/en/late
 
 <div align="center">
   <a href="https://youtu.be/NWemi3xcCd0"><img src="docs/source/_static/EncoderCopilotCover.jpg" alt="Copilot Demo
-"></a>
+" width="700"></a>
 </div>
 
 
