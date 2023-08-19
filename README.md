@@ -60,11 +60,10 @@ Read the documentation for more details: <https://geo-sam.readthedocs.io/en/late
 
 - Encoder Copilot Demo
 
-<p align="center">
-[<img src="docs/source/_static/EncoderCopilotCover.jpg" width="700"
-/>](https://www.youtube.com/embed/<NWemi3xcCd0>)
-</p>
-<!-- [![Alt text](docs/source/_static/EncoderCopilotCover.jpg)](https://youtu.be/NWemi3xcCd0) -->
+<div align="center">
+  <a href="https://youtu.be/NWemi3xcCd0"><img src="docs/source/_static/EncoderCopilotCover.jpg" alt="Copilot Demo
+"></a>
+</div>
 
 
 ## Citation
