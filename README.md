@@ -59,11 +59,8 @@ Read the documentation for more details: <https://geo-sam.readthedocs.io/en/late
 </p>
 
 - Encoder Copilot Demo
-
-<div align="center">
-  <a href="https://youtu.be/NWemi3xcCd0"><img src="docs/source/_static/EncoderCopilotCover.jpg" alt="Copilot Demo
-" width="700"></a>
-</div>
+  
+https://github.com/coolzhao/Geo-SAM/assets/24694181/f11783cb-d028-498a-9e1d-09b7df1563cc
 
 
 ## Citation
