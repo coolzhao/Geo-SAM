@@ -2,13 +2,12 @@
 
 By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
-- [Geo SAM](#geo-sam)
-  - [Introduction](#introduction)
-  - [Reasons for choosing Geo-SAM](#reasons-for-choosing-geo-sam)
-  - [Installation and Usage](#installation-and-usage)
-  - [Demos](#demos)
-  - [Citation](#citation)
-  - [Acknowledgement](#acknowledgement)
+- [Introduction](#introduction)
+- [Reasons for choosing Geo-SAM](#reasons-for-choosing-geo-sam)
+- [Installation and Usage](#installation-and-usage)
+- [Demos](#demos)
+- [Citation](#citation)
+- [Acknowledgement](#acknowledgement)
 
 ## Introduction
 
