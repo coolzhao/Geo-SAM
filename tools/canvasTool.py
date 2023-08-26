@@ -250,7 +250,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.prompt_history = prompt_history
         self.execute_SAM = execute_SAM
         self.img_crs_manager = img_crs_manager
-        self.hover_mode: bool = False
+        self.preview_mode: bool = False
         self.have_added_for_moving: bool = False
         self.pressed: bool = False
 
@@ -278,6 +278,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
 
     def canvasReleaseEvent(self, e):
         self.pressed = True
+        print(f'bbox pressed: {self.pressed}')
         self.isEmittingPoint = False
         self.clear_hover_prompt()
         if self.startPoint is None or self.endPoint is None:
@@ -301,12 +302,13 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         if not self.isEmittingPoint:
             return
 
+        self.pressed = False
         # update the rectangle as the mouse moves
         self.endPoint = self.toMapCoordinates(e.pos())
         self.canvas_rect.showRect(self.startPoint, self.endPoint)
 
         # execute SAM when mouse move
-        if not self.hover_mode:
+        if not self.preview_mode:
             return
         if self.startPoint is None or self.endPoint is None:
             return None
@@ -516,7 +518,7 @@ class ClickTool(QgsMapToolEmitPoint):
             )
         self.prompt_type = prompt_type
         self.execute_SAM = execute_SAM
-        self.hover_mode: bool = False
+        self.preview_mode: bool = False
         self.pressed: bool = False
         QgsMapToolEmitPoint.__init__(self, self.canvas)
 
@@ -555,7 +557,7 @@ class ClickTool(QgsMapToolEmitPoint):
         self.execute_SAM.emit()
 
     def canvasMoveEvent(self, e: QgsMapMouseEvent) -> None:
-        if not self.hover_mode:
+        if not self.preview_mode:
             return
 
         self.pressed = False
@@ -656,8 +658,10 @@ class SAM_PolygonFeature:
         self.shapefile = shapefile
         self.default_name = default_name
         self.canvas = iface.mapCanvas()
-        self.canvas_polygon = Canvas_SAM_Polygon(self.canvas)
-        self.geojson_canvas: Dict = {}
+        self.canvas_preview_polygon = Canvas_SAM_Polygon(self.canvas)
+        self.canvas_prompt_polygon = Canvas_SAM_Polygon(self.canvas)
+        self.geojson_canvas_preview: Dict = {}
+        self.geojson_canvas_prompt: Dict = {}
         self.geojson_layer: Dict = {}
         if layer is not None:
             self.reset_layer(layer)
@@ -700,6 +704,10 @@ class SAM_PolygonFeature:
         else:
             return True
 
+    def reset_geojson(self):
+        self.geojson_canvas_preview = {}
+        self.geojson_canvas_prompt = {}
+
     def reset_layer(self, layer: QgsVectorLayer) -> bool:
         '''Reset the layer to a new layer
 
@@ -719,7 +727,7 @@ class SAM_PolygonFeature:
         else:
             self._init_layer()
 
-        self.geojson_canvas = {}
+        self.reset_geojson()
         self.show_layer()
         self.ensure_edit_mode()
         return True
@@ -800,7 +808,8 @@ class SAM_PolygonFeature:
             self,
             geojson: Dict,
             t_area: float,
-            overwrite_geojson: bool = False
+            target: str = 'preview',
+            overwrite_geojson: bool = False,
     ):
         '''Add a geojson feature to the layer
 
@@ -810,13 +819,13 @@ class SAM_PolygonFeature:
             features in geojson format
         t_area: float
             the threshold of area
+        target: str, one of ['preview', 'prompt']
+            the target of the geojson, default 'preview'
         overwrite_geojson: bool
             whether overwrite the geojson of this class. 
             False for showing geometry greater than t_area.
             True for showing new SAM result.
         '''
-        if overwrite_geojson:
-            self.geojson_canvas = geojson
         for geom in geojson:
             points = []
             coordinates = geom['geometry']['coordinates'][0]
@@ -835,8 +844,15 @@ class SAM_PolygonFeature:
             # it will not be added to the layer
             if geometry_area < t_area:
                 continue
-            # add geometry to canvas_polygon
-            self.canvas_polygon.addPolygon(geometry)
+
+            if target == 'preview':
+                self.canvas_preview_polygon.addPolygon(geometry)
+                if overwrite_geojson:
+                    self.geojson_canvas_preview = geojson
+            else:
+                self.canvas_prompt_polygon.addPolygon(geometry)
+                if overwrite_geojson:
+                    self.geojson_canvas_prompt = geojson
 
     def add_geojson_feature_to_layer(
             self,
@@ -882,8 +898,8 @@ class SAM_PolygonFeature:
             # it will not be added to the layer
             if geometry_area < t_area:
                 continue
-            # add geometry to canvas_polygon
-            self.canvas_polygon.addPolygon(geometry)
+            # add geometry to canvas_preview_polygon
+            self.canvas_preview_polygon.addPolygon(geometry)
 
             # add geometry to shapefile
             feature = QgsFeature()
@@ -911,26 +927,20 @@ class SAM_PolygonFeature:
         if not self.layer.isEditable():
             self.layer.startEditing()
 
-    def rollback_changes(self):
-        '''Roll back the changes'''
-        # self.layer.rollBack()
-        # self.canvas_polygon.clear()
-        try:
-            self.layer.rollBack()
-            self.canvas.refresh()
-            self.canvas_polygon.clear()
-        except:
-            return None
-        # except RuntimeError as inst:
-        #     print(inst.args[0])
-        #     if inst.args[0] == 'wrapped C/C++ object of type QgsVectorLayer has been deleted':
-        #         self._init_layer()
-        #         print('Polygon layer has been deleted, new polygon layer created')
-        # except Exception as err:
-        #     print(f"Unexpected {err=}, {type(err)=}")
-        #     # self._init_layer()
-        #     # print('Polygon layer has been deleted, new polygon layer created')
-        #     raise
+    def clear_canvas_polygons(self):
+        '''Clear the polygon on canvas'''
+        self.canvas_preview_polygon.clear()
+        self.canvas_prompt_polygon.clear()
+        self.canvas.refresh()
+
+    # def rollback_changes(self):
+    #     '''Roll back the changes'''
+    #     try:
+    #         # self.layer.rollBack()
+    #         self.clear_canvas_polygons()
+    #         self.canvas.refresh()
+    #     except:
+    #         return None
 
     def commit_changes(self):
         '''Commit the changes'''

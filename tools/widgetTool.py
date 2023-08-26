@@ -107,7 +107,7 @@ class Selector(QDockWidget):
         self.dockFirstOpen = True
         self.prompt_history: List[str] = []
         self.sam_feature_history: List[List[int]] = []
-        self.hover_mode: bool = False
+        self.preview_mode: bool = False
         self.t_area: float = 0.0
         self.t_area_default: float = 0.0
         self.need_execute_sam_toggle_mode: bool = True
@@ -262,22 +262,6 @@ class Selector(QDockWidget):
         self.clear_layers(clear_extent=True)
         self.iface.actionPan().trigger()
 
-        # set context for shortcuts to application
-        # this will make shortcuts work even if the widget is not focused
-        # self.shortcut_clear.setContext(Qt.ApplicationShortcut)
-        # self.shortcut_undo.setContext(Qt.ApplicationShortcut)
-        # self.shortcut_save.setContext(Qt.ApplicationShortcut)
-        # self.shortcut_hover_mode.setContext(Qt.ApplicationShortcut)
-        # self.shortcut_tab.setContext(Qt.ApplicationShortcut)
-        # self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
-        # self.disconnect_safely(self.shortcut_tab)
-        # self.disconnect_safely(self.shortcut_undo_sam_pg)
-        # self.disconnect_safely(self.shortcut_clear)
-        # self.disconnect_safely(self.shortcut_undo)
-        # self.disconnect_safely(self.shortcut_save)
-        # self.disconnect_safely(self.shortcut_hover_mode)
-        # self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
-
     def unload(self):
         '''Unload actions when plugin is closed'''
         self.clear_layers(clear_extent=True)
@@ -337,7 +321,7 @@ class Selector(QDockWidget):
         if hasattr(self, "canvas_extent") and clear_extent:
             self.canvas_extent.clear()
         if hasattr(self, "polygon"):
-            self.polygon.rollback_changes()
+            self.polygon.clear_canvas_polygons()
         self.canvas.refresh()
 
     def _init_feature_related(self):
@@ -390,6 +374,11 @@ class Selector(QDockWidget):
 
     def loop_prompt_type(self):
         '''Loop prompt type'''
+        # reset pressed to False before loop
+        self.tool_click_fg.pressed = False
+        self.tool_click_bg.pressed = False
+        self.tool_click_rect.pressed = False
+        
         if self.wdg_sel.pushButton_fg.isChecked():
             self.draw_background_point()
         elif self.wdg_sel.pushButton_bg.isChecked():
@@ -461,15 +450,15 @@ class Selector(QDockWidget):
     def toggle_sam_hover_mode(self):
         '''Toggle move mode in sam model'''
         if self.wdg_sel.radioButton_exe_hover.isChecked():
-            self.hover_mode = True
-            self.tool_click_fg.hover_mode = True
-            self.tool_click_bg.hover_mode = True
-            self.tool_click_rect.hover_mode = True
+            self.preview_mode = True
+            self.tool_click_fg.preview_mode = True
+            self.tool_click_bg.preview_mode = True
+            self.tool_click_rect.preview_mode = True
         else:
-            self.hover_mode = False
-            self.tool_click_fg.hover_mode = False
-            self.tool_click_bg.hover_mode = False
-            self.tool_click_rect.hover_mode = False
+            self.preview_mode = False
+            self.tool_click_fg.preview_mode = False
+            self.tool_click_bg.preview_mode = False
+            self.tool_click_rect.preview_mode = False
             # clear hover prompts
             self.tool_click_fg.clear_hover_prompt()
             self.tool_click_bg.clear_hover_prompt()
@@ -483,11 +472,11 @@ class Selector(QDockWidget):
         if (self.tool_click_fg.pressed or
             self.tool_click_bg.pressed or
                 self.tool_click_rect.pressed):
-            self.tool_click_rect.pressed = False
             return True
         return False
 
     def filter_feature_by_area(self):
+        '''Filter feature by area'''
         if not self.need_execute_sam_filter_area:
             return None
 
@@ -495,20 +484,18 @@ class Selector(QDockWidget):
         if not hasattr(self, "polygon"):
             return None
 
-        if self.hover_mode:
-            self.polygon.canvas_polygon.clear()
-            self.polygon.add_geojson_feature_to_canvas(
-                self.polygon.geojson_layer,  # only need to use geojson_layer
-                t_area
-            )
+        # clear SAM canvas result
+        self.polygon.canvas_prompt_polygon.clear()
+        if self.preview_mode:
+            self.polygon.canvas_preview_polygon.clear()
 
-        # layer refresh for all mode
-        self.polygon.rollback_changes()
-        self.polygon.add_geojson_feature_to_layer(
-            self.polygon.geojson_layer,
+        # filter feature by new area, only show in prompt canvas
+        self.polygon.add_geojson_feature_to_canvas(
+            self.polygon.geojson_canvas_prompt,
             t_area,
-            self.prompt_history
+            target='prompt'
         )
+
         self.t_area = t_area
 
     def load_default_t_area(self):
@@ -523,8 +510,8 @@ class Selector(QDockWidget):
         self.set_vector_layer()
 
     def execute_segmentation(self) -> bool:
-        # check last prompt inside feature extent
-        if len(self.prompt_history) > 0 and not self.is_pressed_prompt():
+        # check prompt inside feature extent and add last id to history for new prompt
+        if len(self.prompt_history) > 0 and self.is_pressed_prompt():
             prompt_last = self.prompt_history[-1]
             if prompt_last == 'bbox':
                 last_rect = self.canvas_rect.extent
@@ -554,24 +541,26 @@ class Selector(QDockWidget):
                 self.sam_feature_history.append([last_id])
 
         self.ensure_polygon_sam_exist()
+
         # execute segmentation
         if not self.sam_model.sam_predict(
                 self.canvas_points,
                 self.canvas_rect,
                 self.polygon,
-                self.prompt_history,
-                self.hover_mode,
+                self.preview_mode,
                 self.t_area
         ):
+            # out of extent and not in preview mode
             self.undo_last_prompt()
 
-        # show pressed prompt result in hover mode
-        if self.hover_mode and self.is_pressed_prompt():
-            self.polygon.rollback_changes()
-            self.polygon.add_geojson_feature_to_layer(
-                self.polygon.geojson_canvas,  # update with canvas polygon
+        # show pressed prompt result in preview mode
+        if self.preview_mode and self.is_pressed_prompt():
+            print("show pressed prompt result in preview mode")
+            self.polygon.canvas_prompt_polygon.clear()
+            self.polygon.add_geojson_feature_to_canvas(
+                self.polygon.geojson_canvas_preview,  # update with canvas polygon
                 self.t_area,
-                self.prompt_history,
+                target='prompt',
                 overwrite_geojson=True
             )
         self.topping_polygon_sam_layer()
@@ -705,14 +694,13 @@ class Selector(QDockWidget):
         '''Clear all temporary layers (canvas and new sam result) and reset prompt'''
         self.clear_canvas_layers_safely(clear_extent=clear_extent)
         if hasattr(self, "polygon"):
-            self.polygon.rollback_changes()
-            self.polygon.canvas_polygon.clear()
+            self.polygon.clear_canvas_polygons()
         self.prompt_history.clear()
 
     def save_shp_file(self):
         '''save sam result into shapefile layer'''
         need_toggle = False
-        if self.hover_mode:
+        if self.preview_mode:
             need_toggle = True
             self.toggle_hover_mode()
             if len(self.prompt_history) == 0:
@@ -723,32 +711,36 @@ class Selector(QDockWidget):
                 return False
 
         if hasattr(self, "polygon"):
-            self.polygon.rollback_changes()
             self.polygon.add_geojson_feature_to_layer(
-                self.polygon.geojson_layer,
+                self.polygon.geojson_canvas_prompt,
                 self.t_area,
                 self.prompt_history
             )
 
             self.polygon.commit_changes()
-            self.polygon.canvas_polygon.clear()
+            self.polygon.canvas_preview_polygon.clear()
+            self.polygon.canvas_prompt_polygon.clear()
 
             # add last id of new features to history
             features = list(self.polygon.layer.getFeatures())
             if len(list(features)) == 0:
                 return None
             last_id = features[-1].id()
-            MessageTool.MessageLog(
-                f"sam_feature_history: {self.sam_feature_history}")
-            if len(self.sam_feature_history) > 0:
-                if self.sam_feature_history[-1][0] <= last_id:
-                    self.sam_feature_history[-1].append(last_id)
 
-        # reenable hover mode
+            if len(self.sam_feature_history) > 0:
+                if self.sam_feature_history[-1][0] > last_id:
+                    MessageTool.MessageLog(
+                        "New features id is smaller than last id in history",
+                        level='warning'
+                    )
+                self.sam_feature_history[-1].append(last_id)
+
+        # reenable preview mode
         if need_toggle:
             self.toggle_hover_mode()
         self.clear_canvas_layers_safely()
         self.prompt_history.clear()
+        self.polygon.reset_geojson()
 
         # avoid execute sam when reset min pixel to default value
         self.need_execute_sam_filter_area = False
@@ -784,7 +776,7 @@ class Selector(QDockWidget):
             self.canvas.refresh()
 
     def check_message_box_outside(self):
-        if self.hover_mode:
+        if self.preview_mode:
             return True
         else:
             return MessageTool.MessageBoxOK('Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')

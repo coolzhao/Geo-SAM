@@ -49,20 +49,19 @@ class SAM_Model:
         self.extent = QgsRectangle(
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3])
 
-    def sam_predict(self,
-                    canvas_points: Canvas_Points,
-                    canvas_rect: Canvas_Rectangle,
-                    sam_polygon: SAM_PolygonFeature,
-                    prompt_history: List,
-                    hover_mode: bool = False,
-                    t_area: float = 0.0
-                    ) -> bool:
+    def sam_predict(
+        self,
+        canvas_points: Canvas_Points,
+        canvas_rect: Canvas_Rectangle,
+        sam_polygon: SAM_PolygonFeature,
+        preview_mode: bool = False,
+        t_area: float = 0.0
+    ) -> bool:
         extent_union = LayerExtent.union_extent(
             canvas_points.extent, canvas_rect.extent)
 
         if extent_union is None:
-            sam_polygon.rollback_changes()
-            return True
+            return True  # no extent to predict
 
         min_x, max_x, min_y, max_y = extent_union
 
@@ -73,9 +72,9 @@ class SAM_Model:
         test_sampler = SamTestFeatureGeoSampler(
             self.test_features, roi=prompts_roi)
 
-        # if hover mode, check if the hover location is outside the image
+        # if preview mode, check if the hover location is outside the image
         if len(test_sampler) == 0:
-            if hover_mode:
+            if preview_mode:
                 MessageTool.MessageLog(
                     "Hover location outside the boundary of the image",
                     'warning',
@@ -149,19 +148,20 @@ class SAM_Model:
         geojson = [{'properties': {'raster_val': value}, 'geometry': polygon}
                    for polygon, value in shape_generator]
 
-        sam_polygon.canvas_polygon.clear()
-        sam_polygon.add_geojson_feature_to_canvas(
-            geojson,
-            t_area,
-            overwrite_geojson=True
-        )
-        # if hover mode, do not add to layer. will parse whether pressed after this function
-        if not hover_mode:
-            sam_polygon.rollback_changes()
-            sam_polygon.add_geojson_feature_to_layer(
+        sam_polygon.canvas_preview_polygon.clear()
+        sam_polygon.canvas_preview_polygon.clear()
+
+        if preview_mode:
+            sam_polygon.add_geojson_feature_to_canvas(
                 geojson,
                 t_area,
-                prompt_history,
+                overwrite_geojson=True
+            )
+        else:
+            sam_polygon.add_geojson_feature_to_canvas(
+                geojson,
+                t_area,
+                target='prompt',
                 overwrite_geojson=True
             )
         return True
