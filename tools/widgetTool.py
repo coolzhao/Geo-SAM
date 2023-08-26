@@ -524,19 +524,17 @@ class Selector(QDockWidget):
 
     def execute_segmentation(self) -> bool:
         # check last prompt inside feature extent
-        if len(self.prompt_history) > 0 and not self.hover_mode:
+        if len(self.prompt_history) > 0 and not self.is_pressed_prompt():
             prompt_last = self.prompt_history[-1]
             if prompt_last == 'bbox':
                 last_rect = self.canvas_rect.extent
                 last_prompt = QgsRectangle(
                     last_rect[0], last_rect[2], last_rect[1], last_rect[3])
             else:
-                MessageTool.MessageLog(
-                    f"canvas_points.points_img_crs: {self.canvas_points.points_img_crs}")
-                last_point = self.canvas_points.points_img_crs[-1]
+                last_point = self.canvas_points.img_crs_points[-1]
                 last_prompt = QgsRectangle(last_point, last_point)
             if not last_prompt.intersects(self.sam_model.extent):
-                self.message_box_outside()
+                self.check_message_box_outside()
                 self.undo_last_prompt()
                 return False
 
@@ -785,7 +783,7 @@ class Selector(QDockWidget):
         else:
             self.canvas.refresh()
 
-    def message_box_outside(self):
+    def check_message_box_outside(self):
         if self.hover_mode:
             return True
         else:

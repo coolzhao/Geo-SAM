@@ -286,7 +286,6 @@ class RectangleMapTool(QgsMapToolEmitPoint):
               self.startPoint.y() == self.endPoint.y()):
             return None
         else:
-
             self.canvas_rect.addRect(self.startPoint, self.endPoint)
             self.prompt_history.append('bbox')
             self.execute_SAM.emit()
@@ -395,7 +394,7 @@ class Canvas_Points:
         self.extent = None
         self.img_crs_manager = img_crs_manager
         self.markers: List[QgsVertexMarker] = []
-        self.points_img_crs: List[QgsPointXY] = []
+        self.img_crs_points: List[QgsPointXY] = []
         self.labels: List[bool] = []
         self.foreground_color = QColor(0, 0, 255)
         self.background_color = QColor(255, 0, 0)
@@ -430,7 +429,7 @@ class Canvas_Points:
         self.markers.append(m)
         point_img_crs = self.img_crs_manager.point_to_img_crs(
             point, self.project_crs)
-        self.points_img_crs.append(point_img_crs)
+        self.img_crs_points.append(point_img_crs)
         self.labels.append(foreground)
 
         self._update_extent()
@@ -450,7 +449,7 @@ class Canvas_Points:
         if len(self.markers) > 0:
             m = self.markers.pop()
             self.canvas.scene().removeItem(m)
-            self.points_img_crs.pop()
+            self.img_crs_points.pop()
             self.labels.pop()
 
             self._update_extent()
@@ -462,7 +461,7 @@ class Canvas_Points:
         self.canvas.refresh()
 
         self.markers = []
-        self.points_img_crs = []
+        self.img_crs_points = []
         self.labels = []
         self._update_extent()
 
@@ -487,7 +486,7 @@ class Canvas_Points:
             return None, None
         else:
             points = []
-            for point in self.points_img_crs:
+            for point in self.img_crs_points:
                 row_point, col_point = rowcol(tf, point.x(), point.y())
                 points.append((col_point, row_point))
 
