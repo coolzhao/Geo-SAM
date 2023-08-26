@@ -1,6 +1,5 @@
-from typing import List
 from qgis.core import QgsApplication
-from qgis.gui import QgsMapToolPan, QgisInterface
+from qgis.gui import QgisInterface
 from PyQt5.QtCore import pyqtSignal, QObject
 from PyQt5.QtWidgets import (
     QAction,
@@ -50,7 +49,7 @@ class Geo_SAM(QObject):
 
         self.actionSamEncoderCopilot = QAction(
             QIcon_EncoderCopilot,
-            "Encoder Copilot",
+            "Geo-SAM Encoder Copilot",
             self.iface.mainWindow()
         )
 
@@ -81,44 +80,40 @@ class Geo_SAM(QObject):
         self.toolbar.addAction(self.actionSamEncoder)
         self.toolbar.addAction(self.actionSamEncoderCopilot)
         self.toolbar.setVisible(True)
-        # Not working
-        # start_time = time.time()
-        # while True:
-        #     geoSamToolbar: QToolBar = self.iface.mainWindow().findChild(QToolBar,
-        #                                                                 'mGeoSamToolbar')
-        #     current_time = time.time()
-        #     elapsed_time = (current_time - start_time) * 1000
-        #     if geoSamToolbar:
-        #         geoSamToolbar.setVisible(False)
-        #         break
-        #     if elapsed_time > 3000:
-        #         break
 
     def create_widget_selector(self):
         '''Create widget for selecting landform by prompts'''
-        if not hasattr(self, "wdg_sel"):
-            self.wdg_sel = Selector(self, self.iface, self.cwd)
-        self.wdg_sel.open_widget()
+        if not hasattr(self, "wdg_select"):
+            self.wdg_select = Selector(self, self.iface, self.cwd)
+        self.wdg_select.open_widget()
 
     def create_widget_encoder_copilot(self):
         '''Create widget for co-piloting encoder settings'''
-        if not hasattr(self, "wdg_sel"):
-            self.wdg_sel = EncoderCopilot(self, self.iface, self.cwd)
-        self.wdg_sel.open_widget()
+        if not hasattr(self, "wdg_copilot"):
+            self.wdg_copilot = EncoderCopilot(self, self.iface, self.cwd)
+        self.wdg_copilot.open_widget()
 
     def unload(self):
         '''Unload actions when plugin is closed'''
-        if hasattr(self, "wdg_sel"):
-            self.wdg_sel.unload()
-            self.wdg_sel.setParent(None)
-        # self.wdg_sel.setVisible(False)
+        if hasattr(self, "wdg_select"):
+            self.wdg_select.unload()
+            self.wdg_select.setParent(None)
+        if hasattr(self, "wdg_copilot"):
+            self.wdg_copilot.unload()
+            self.wdg_copilot.setParent(None)
+
+        # self.wdg_select.setVisible(False)
         self.iface.removeToolBarIcon(self.actionSamTool)
         self.iface.removeToolBarIcon(self.actionSamEncoder)
-        self.iface.removePluginMenu('&Geo-SAM', self.actionSamTool)
-        self.iface.removePluginMenu('&Geo-SAM', self.actionSamEncoder)
+        self.iface.removeToolBarIcon(self.actionSamEncoderCopilot)
+        self.iface.removePluginMenu('&Geo-SAM Tools', self.actionSamTool)
+        self.iface.removePluginMenu('&Geo-SAM Tools', self.actionSamEncoder)
+        self.iface.removePluginMenu(
+            '&Geo-SAM Tools', self.actionSamEncoderCopilot)
 
         del self.actionSamTool
         del self.actionSamEncoder
+        del self.actionSamEncoderCopilot
         del self.toolbar
         QgsApplication.processingRegistry().removeProvider(self.provider)
 
