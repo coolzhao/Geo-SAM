@@ -1,19 +1,19 @@
-from typing import List
-import numpy as np
-from pathlib import Path
 import time
+from pathlib import Path
+from typing import List
 
 import numpy as np
 import rasterio
-from rasterio.transform import from_bounds as transform_from_bounds
+from qgis.core import QgsCoordinateReferenceSystem, QgsRectangle
 from rasterio.features import shapes as get_shapes
-from qgis.core import QgsRectangle
-from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
-from .sam_ext import build_sam_no_encoder, SamPredictorNoImgEncoder
-from .geoTool import LayerExtent
-from .canvasTool import SAM_PolygonFeature, Canvas_Rectangle, Canvas_Points
+from rasterio.transform import from_bounds as transform_from_bounds
 from torchgeo.datasets import BoundingBox
+
+from .canvasTool import Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
+from .geoTool import LayerExtent
 from .messageTool import MessageTool
+from .sam_ext import SamPredictorNoImgEncoder, build_sam_no_encoder
+from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
 
 
 class SAM_Model:
@@ -34,6 +34,7 @@ class SAM_Model:
         """Prepares data and layer."""
         self.test_features = SamTestFeatureDataset(
             root=self.feature_dir, bands=None, cache=False)
+        self.img_qgs_crs = QgsCoordinateReferenceSystem(self.test_features.crs)
         self.img_crs = str(self.test_features.crs)
         # Load sam decoder
         self.model_type = self.test_features.model_type

@@ -1,30 +1,28 @@
-import os
 import json
-from typing import List, Tuple, Any, Dict
+import os
 from pathlib import Path
-import rasterio
-import numpy as np
-from rasterio.windows import from_bounds as window_from_bounds
-from qgis.core import QgsProject, QgsCoordinateReferenceSystem, QgsMapLayerProxyModel
-from qgis.gui import QgsMapToolPan, QgisInterface, QgsFileWidget, QgsDoubleSpinBox
-from qgis.core import QgsRasterLayer, QgsRectangle
-from PyQt5.QtCore import Qt, pyqtSignal, QThread
-from PyQt5.QtWidgets import (
-    QApplication,
-    QShortcut,
-    QFileDialog,
-    QDockWidget,
-)
-from PyQt5.QtGui import QKeySequence, QColor
-from torchgeo.samplers import Units
-from torchgeo.datasets import BoundingBox
+from typing import Any, Dict, List, Tuple
 
+import numpy as np
+import rasterio
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QColor, QKeySequence
+from PyQt5.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
+from qgis.core import (QgsCoordinateReferenceSystem, QgsMapLayerProxyModel,
+                       QgsProject, QgsRasterLayer, QgsRectangle)
+from qgis.gui import (QgisInterface, QgsDoubleSpinBox, QgsFileWidget,
+                      QgsMapToolPan)
+from rasterio.windows import from_bounds as window_from_bounds
+from torchgeo.datasets import BoundingBox
+from torchgeo.samplers import Units
+
+from ..ui import UI_EncoderCopilot, UI_Selector
+from .canvasTool import (Canvas_Extent, Canvas_Points, Canvas_Rectangle,
+                         ClickTool, RectangleMapTool, SAM_PolygonFeature)
 from .geoTool import ImageCRSManager
-from .SAMTool import SAM_Model
-from .canvasTool import RectangleMapTool, ClickTool, Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature, Canvas_Extent
-from ..ui import UI_Selector, UI_EncoderCopilot
-from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
 from .messageTool import MessageTool
+from .SAMTool import SAM_Model
+from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
 
 SAM_Model_Types_Full: List[str] = ["vit_h (huge)",
                                    "vit_l (large)",
@@ -93,16 +91,18 @@ class ShowPatchExtentThread(QThread):
 class Selector(QDockWidget):
     execute_SAM = pyqtSignal()
 
-    def __init__(self, parent, iface: QgisInterface, cwd: str):
+    def __init__(self, parent, iface: QgisInterface, cwd: str, load_demo: bool = True):
         # super().__init__()
         QDockWidget.__init__(self)
         self.parent = parent
         self.iface = iface
-        self.cwd = cwd
+        self.cwd = Path(cwd)
         self.canvas = iface.mapCanvas()
         self.demo_img_name = "beiluhe_google_img_201211_clip"
-        feature_dir = cwd + "/features/" + self.demo_img_name
-        self.feature_dir = feature_dir
+        self.feature_dir = str(self.cwd / "features" / self.demo_img_name)
+        self.load_demo = load_demo
+        self.project: QgsProject = QgsProject.instance()
+        self.crs_project: QgsCoordinateReferenceSystem = self.project.crs()
         self.toolPan = QgsMapToolPan(self.canvas)
         self.dockFirstOpen = True
         self.prompt_history: List[str] = []
@@ -117,13 +117,15 @@ class Selector(QDockWidget):
         '''Create widget selector'''
         self.parent.toolbar.setVisible(True)
         if self.dockFirstOpen:
-            self._init_feature_related()
-            self.load_demo_img()
-
             if self.receivers(self.execute_SAM) == 0:
                 self.execute_SAM.connect(self.execute_segmentation)
 
             self.wdg_sel = UI_Selector
+
+            if self.load_demo:
+                self.wdg_sel.QgsFile_feature.setFilePath(self.feature_dir)
+                self._set_feature_related()
+                self.load_demo_img()
 
             ######### Setting default parameters for items #########
             self.wdg_sel.MapLayerComboBox.setFilters(
@@ -199,6 +201,7 @@ class Selector(QDockWidget):
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
             self.wdg_sel.closed.connect(self.destruct)
             self.wdg_sel.closed.connect(self.iface.actionPan().trigger)
+            self.wdg_sel.closed.connect(self.reset_to_project_crs)
 
             ########### shortcuts ############
             # create shortcuts
@@ -257,9 +260,13 @@ class Selector(QDockWidget):
         except:
             pass
 
+    def reset_to_project_crs(self):
+        self.project.setCrs(self.crs_project)
+
     def destruct(self):
         '''Destruct actions when closed widget'''
         self.clear_layers(clear_extent=True)
+        self.reset_to_project_crs()
         self.iface.actionPan().trigger()
 
     def unload(self):
@@ -277,21 +284,20 @@ class Selector(QDockWidget):
 
     def load_demo_img(self):
         layer_list = QgsProject.instance().mapLayersByName(self.demo_img_name)
-        print(layer_list)
         if layer_list:
             rlayer = layer_list[0]
         else:
-            img_path = os.path.join(
-                self.cwd, "rasters", self.demo_img_name+'.tif')
+            img_path = str(self.cwd / "rasters" / f"{self.demo_img_name}.tif")
             if os.path.exists(img_path):
                 rlayer = QgsRasterLayer(img_path, self.demo_img_name)
                 if rlayer.isValid():
                     QgsProject.instance().addMapLayer(rlayer)
                 else:
-                    print("Demo image layer failed to load!")
+                    MessageTool.MessageBoxOK(
+                        "Demo image layer failed to load!")
                 # self.iface.addRasterLayer(img_path, self.demo_img_name)
             else:
-                print(img_path, 'does not exist')
+                MessageTool.MessageBoxOK(f'{img_path} does not exist')
 
     def topping_polygon_sam_layer(self):
         '''Topping polygon layer of SAM result to top of TOC'''
@@ -324,17 +330,24 @@ class Selector(QDockWidget):
             self.polygon.clear_canvas_polygons()
         self.canvas.refresh()
 
-    def _init_feature_related(self):
+    def _set_feature_related(self):
         '''Init or reload feature related objects'''
-
         # init feature related objects
-        self.sam_model = SAM_Model(self.feature_dir, self.cwd)
+        self.sam_model = SAM_Model(self.feature_dir, str(self.cwd))
         MessageTool.MessageBar(
             "Great",
             f"SAM Features with {self.sam_model.feature_size} patches "
             f"in '{Path(self.feature_dir).name}' have been loaded, "
             "you can start labeling now"
         )
+        if self.sam_model.img_qgs_crs != self.crs_project:
+            self.project.setCrs(self.sam_model.img_qgs_crs)
+            MessageTool.MessageBar(
+                "Note:",
+                "Project CRS has been changed to Feature CRS temporarily, "
+                "and will be reset to original CRS when this widget is closed.",
+                duration=30
+            )
         self.res = float(
             (self.sam_model.test_features.index_df.loc[:, 'res']/16).mean())
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
@@ -378,7 +391,7 @@ class Selector(QDockWidget):
         self.tool_click_fg.pressed = False
         self.tool_click_bg.pressed = False
         self.tool_click_rect.pressed = False
-        
+
         if self.wdg_sel.pushButton_fg.isChecked():
             self.draw_background_point()
         elif self.wdg_sel.pushButton_bg.isChecked():
@@ -542,6 +555,10 @@ class Selector(QDockWidget):
 
         self.ensure_polygon_sam_exist()
 
+        # clear canvas prompt polygon for new prompt
+        if self.is_pressed_prompt():
+            self.polygon.canvas_prompt_polygon.clear()
+
         # execute segmentation
         if not self.sam_model.sam_predict(
                 self.canvas_points,
@@ -555,8 +572,6 @@ class Selector(QDockWidget):
 
         # show pressed prompt result in preview mode
         if self.preview_mode and self.is_pressed_prompt():
-            print("show pressed prompt result in preview mode")
-            self.polygon.canvas_prompt_polygon.clear()
             self.polygon.add_geojson_feature_to_canvas(
                 self.polygon.geojson_canvas_preview,  # update with canvas polygon
                 self.t_area,
@@ -681,8 +696,8 @@ class Selector(QDockWidget):
         self.feature_dir = self.wdg_sel.QgsFile_feature.filePath()
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
             self.clear_layers(clear_extent=True)
-            self._init_feature_related()
-            self.toggle_edit_mode()
+            self._set_feature_related()
+            # self.toggle_edit_mode()
             self.toggle_encoding_extent()
         else:
             MessageTool.MessageBar(
@@ -970,7 +985,6 @@ class EncoderCopilot(QDockWidget):
         self.wdg_copilot.RasterBandComboBox_B.setLayer(self.raster_layer)
 
         # set crs to layer crs
-        self.crs_project = self.project.crs()
         self.crs_layer = self.raster_layer.crs()
 
         if self.crs_layer != self.crs_project:
