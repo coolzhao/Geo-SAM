@@ -1,0 +1,11 @@
+{
+    "fg_color": "#0000ff",
+    "bg_color": "#ff0000",
+    "bbox_color": "#0000ff",
+    "extent_color": "#ff0000",
+    "prompt_color": "#3bba00",
+    "preview_color": "#00ff00",
+    "load_demo": true,
+    "show_boundary": true,
+    "default_minimum_pixels": 0
+}
