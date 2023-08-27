@@ -664,7 +664,7 @@
            <item row="1" column="1">
             <widget class="QGroupBox" name="groupBox_8">
              <property name="title">
-              <string>Extent</string>
+              <string>Boundary</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_9">
               <item>
