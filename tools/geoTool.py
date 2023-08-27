@@ -16,7 +16,6 @@ class ImageCRSManager:
     def __init__(self, img_crs) -> None:
         self.img_crs = QgsCoordinateReferenceSystem(
             img_crs)  # from str to QgsCRS
-        # print(self.img_crs.authid())
 
     def img_point_to_crs(
         self, point: QgsPointXY, dst_crs: QgsCoordinateReferenceSystem

@@ -7,19 +7,19 @@
     <x>0</x>
     <y>0</y>
     <width>752</width>
-    <height>242</height>
+    <height>282</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
     <width>752</width>
-    <height>242</height>
+    <height>282</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
     <width>524287</width>
-    <height>524287</height>
+    <height>700</height>
    </size>
   </property>
   <property name="features">
@@ -45,7 +45,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -53,7 +53,7 @@
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_7">
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout" stretch="1,2">
+         <layout class="QVBoxLayout" name="verticalLayout" stretch="3,4">
           <item>
            <widget class="QFrame" name="Top">
             <property name="sizePolicy">
@@ -289,6 +289,12 @@
                <layout class="QGridLayout" name="gridLayout_15">
                 <item row="0" column="0">
                  <widget class="QDoubleSpinBox" name="Box_min_pixel">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
                   <property name="decimals">
                    <number>3</number>
                   </property>
@@ -351,7 +357,7 @@
             <property name="maximumSize">
              <size>
               <width>16777215</width>
-              <height>180</height>
+              <height>300</height>
              </size>
             </property>
             <property name="saveCollapsedState">
@@ -385,12 +391,31 @@
                 <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="5,1">
                  <item>
                   <widget class="QGroupBox" name="groupBox_3">
+                   <property name="minimumSize">
+                    <size>
+                     <width>0</width>
+                     <height>0</height>
+                    </size>
+                   </property>
                    <property name="title">
                     <string>From Layer</string>
                    </property>
                    <layout class="QHBoxLayout" name="horizontalLayout_5">
                     <item>
-                     <widget class="QgsMapLayerComboBox" name="MapLayerComboBox"/>
+                     <widget class="QgsMapLayerComboBox" name="MapLayerComboBox">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>0</width>
+                        <height>0</height>
+                       </size>
+                      </property>
+                     </widget>
                     </item>
                    </layout>
                   </widget>
@@ -404,10 +429,16 @@
                     <item>
                      <widget class="QToolButton" name="pushButton_load_file">
                       <property name="sizePolicy">
-                       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                         <horstretch>0</horstretch>
                         <verstretch>0</verstretch>
                        </sizepolicy>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>0</width>
+                        <height>0</height>
+                       </size>
                       </property>
                       <property name="toolTip">
                        <string>Create/Load from a file</string>
@@ -548,70 +579,20 @@
        <attribute name="title">
         <string>Settings</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_6">
+       <layout class="QHBoxLayout" name="horizontalLayout_6" stretch="3,2">
         <item>
          <widget class="QGroupBox" name="groupBox_5">
           <property name="title">
            <string>Colors</string>
           </property>
-          <layout class="QGridLayout" name="gridLayout_5">
-           <item row="0" column="1">
-            <widget class="QGroupBox" name="groupBox_7">
-             <property name="title">
-              <string>BBox</string>
-             </property>
-             <layout class="QGridLayout" name="gridLayout_16">
-              <item row="0" column="0">
-               <widget class="QgsColorButton" name="ColorButton_bbox">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimumSize">
-                 <size>
-                  <width>15</width>
-                  <height>16</height>
-                 </size>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QGroupBox" name="groupBox_8">
-             <property name="title">
-              <string>Extent</string>
-             </property>
-             <layout class="QGridLayout" name="gridLayout_17">
-              <item row="0" column="0">
-               <widget class="QgsColorButton" name="ColorButton_extent">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimumSize">
-                 <size>
-                  <width>15</width>
-                  <height>16</height>
-                 </size>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
+          <layout class="QGridLayout" name="gridLayout_5" rowstretch="1,1" columnstretch="1,1,1" rowminimumheight="1,1" columnminimumwidth="1,1,1">
            <item row="0" column="0">
             <widget class="QGroupBox" name="groupBox_9">
              <property name="title">
               <string>Foreground Point</string>
              </property>
-             <layout class="QGridLayout" name="gridLayout_18">
-              <item row="1" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_2">
+              <item>
                <widget class="QgsColorButton" name="ColorButton_fgpt">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -635,9 +616,109 @@
              <property name="title">
               <string>Background Point</string>
              </property>
-             <layout class="QGridLayout" name="gridLayout_19">
-              <item row="0" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_7">
+              <item>
                <widget class="QgsColorButton" name="ColorButton_bgpt">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>15</width>
+                  <height>16</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QGroupBox" name="groupBox_7">
+             <property name="title">
+              <string>BBox</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_8">
+              <item>
+               <widget class="QgsColorButton" name="ColorButton_bbox">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>15</width>
+                  <height>16</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QGroupBox" name="groupBox_8">
+             <property name="title">
+              <string>Extent</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_9">
+              <item>
+               <widget class="QgsColorButton" name="ColorButton_extent">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>15</width>
+                  <height>16</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QGroupBox" name="groupBox_12">
+             <property name="title">
+              <string>Prompt Polygon</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_3">
+              <item>
+               <widget class="QgsColorButton" name="ColorButton_prompt">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>15</width>
+                  <height>16</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QGroupBox" name="groupBox_13">
+             <property name="title">
+              <string>Preview Polygon</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_4">
+              <item>
+               <widget class="QgsColorButton" name="ColorButton_preview">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                   <horstretch>0</horstretch>
@@ -663,27 +744,33 @@
           <property name="title">
            <string>Others</string>
           </property>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
-           <item>
-            <widget class="QGroupBox" name="groupBox_11">
+          <layout class="QGridLayout" name="gridLayout_8" columnstretch="1,1" columnminimumwidth="1,1">
+           <item row="1" column="0">
+            <widget class="QGroupBox" name="groupBox_15">
              <property name="title">
-              <string>Default Minimum Pixels</string>
+              <string>Load Demo</string>
              </property>
-             <layout class="QGridLayout" name="gridLayout_12">
-              <item row="0" column="0">
-               <widget class="QDoubleSpinBox" name="Box_min_pixel_default">
-                <property name="decimals">
-                 <number>3</number>
+             <layout class="QVBoxLayout" name="verticalLayout_5">
+              <item>
+               <widget class="QRadioButton" name="radioButton_load_demo">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
-                <property name="maximum">
-                 <double>10000000000000000000000.000000000000000</double>
+                <property name="toolTip">
+                 <string>Load Demo when opening widget</string>
+                </property>
+                <property name="text">
+                 <string>Enable</string>
                 </property>
                </widget>
               </item>
              </layout>
             </widget>
            </item>
-           <item>
+           <item row="2" column="0">
             <widget class="QGroupBox" name="groupBox_10">
              <property name="title">
               <string>Show Boundary</string>
@@ -707,10 +794,57 @@
                  <string>Toggle to show the extent of the image features (operable extent )</string>
                 </property>
                 <property name="text">
-                 <string>Show</string>
+                 <string>Enable</string>
                 </property>
                 <property name="checked">
                  <bool>false</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QGroupBox" name="groupBox_11">
+             <property name="title">
+              <string>Default Minimum Pixels</string>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_12">
+              <item row="0" column="0">
+               <widget class="QDoubleSpinBox" name="Box_min_pixel_default">
+                <property name="decimals">
+                 <number>3</number>
+                </property>
+                <property name="maximum">
+                 <double>10000000000000000000000.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QGroupBox" name="groupBox_16">
+             <property name="title">
+              <string>Reset To Default</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_6">
+              <item>
+               <widget class="QPushButton" name="pushButton_reset_settings">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>100</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Reset</string>
                 </property>
                </widget>
               </item>

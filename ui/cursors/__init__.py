@@ -1,7 +1,8 @@
 import os
-from qgis.core import Qgis, QgsApplication
-from PyQt5.QtGui import QIcon, QCursor
+
 from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QCursor, QIcon
+from qgis.core import Qgis, QgsApplication
 
 __all__ = [
     'CursorPointFG',
@@ -68,24 +69,10 @@ CursorPointBlue_path = os.path.join(cwd, "CursorPointBlue.svg")
 CursorPointRed_path = os.path.join(cwd, "CursorPointRed.svg")
 CursorRect_path = os.path.join(cwd, "CursorRect.svg")
 
-CursorFG_user_path = os.path.join(cwd, "CursorFG_user.svg")
-CursorBG_user_path = os.path.join(cwd, "CursorBG_user.svg")
-CursorBBox_user_path = os.path.join(cwd, "CursorBBox_user.svg")
 
-if os.path.exists(CursorFG_user_path):
-    CursorFG_path = CursorFG_user_path
-else:
-    CursorFG_path = CursorPointBlue_path
-
-if os.path.exists(CursorBG_user_path):
-    CursorBG_path = CursorBG_user_path
-else:
-    CursorBG_path = CursorPointRed_path
-
-if os.path.exists(CursorBBox_user_path):
-    CursorBBox_path = CursorBBox_user_path
-else:
-    CursorBBox_path = CursorRect_path
+CursorFG_path = CursorPointBlue_path
+CursorBG_path = CursorPointRed_path
+CursorBBox_path = CursorRect_path
 
 # scaling ref: https://github.com/qgis/QGIS/blob/11c77af3dd95fb1f5bb4ce3a4ef5dc97de951ec5/src/core/qgsapplication.cpp#L873
 UI_SCALE = round(Qgis.UI_SCALE_FACTOR *
@@ -115,11 +102,11 @@ def customize_fg_point_cursor(color2):
         st1_point,
         st2_point.format(color2)
     )
-    with open(CursorFG_user_path, 'w') as f:
+    with open(CursorFG_path, 'w') as f:
         f.write(svg)
 
     CursorPointFG = QCursor(
-        QIcon(CursorFG_user_path)
+        QIcon(CursorFG_path)
         .pixmap(QSize(UI_SCALE, UI_SCALE))
     )
     return CursorPointFG
@@ -131,11 +118,11 @@ def customize_bg_point_cursor(color2):
         st1_point,
         st2_point.format(color2)
     )
-    with open(CursorBG_user_path, 'w') as f:
+    with open(CursorBG_path, 'w') as f:
         f.write(svg)
 
     CursorPointBG = QCursor(
-        QIcon(CursorBG_user_path)
+        QIcon(CursorBG_path)
         .pixmap(QSize(UI_SCALE, UI_SCALE))
     )
     return CursorPointBG
@@ -148,11 +135,11 @@ def customize_bbox_cursor(color2):
         st2_rect.format(color2)
     )
 
-    with open(CursorBBox_user_path, 'w') as f:
+    with open(CursorBBox_path, 'w') as f:
         f.write(svg)
 
     CursorRect = QCursor(
-        QIcon(CursorBBox_user_path)
+        QIcon(CursorBBox_path)
         .pixmap(QSize(UI_SCALE, UI_SCALE))
     )
     return CursorRect

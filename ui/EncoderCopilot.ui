@@ -28,7 +28,7 @@
         <property name="maximumSize">
          <size>
           <width>160777</width>
-          <height>360</height>
+          <height>500</height>
          </size>
         </property>
         <layout class="QGridLayout" name="gridLayout_10">
@@ -57,59 +57,25 @@
             <string>Batch Setting</string>
            </property>
            <layout class="QGridLayout" name="gridLayout_6">
-            <item row="0" column="0">
-             <widget class="QGroupBox" name="groupBox_6">
-              <property name="title">
-               <string>Resolution Scale</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_5">
-               <item row="0" column="0">
-                <widget class="QgsDoubleSpinBox" name="BoxResolutionScale">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="decimals">
-                  <number>2</number>
-                 </property>
-                 <property name="minimum">
-                  <double>0.100000000000000</double>
-                 </property>
-                 <property name="maximum">
-                  <double>100.000000000000000</double>
-                 </property>
-                 <property name="singleStep">
-                  <double>0.050000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>1.000000000000000</double>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </widget>
-            </item>
             <item row="1" column="0">
-             <widget class="QGroupBox" name="groupBox_7">
+             <widget class="QGroupBox" name="groupBox_27">
               <property name="title">
                <string>Overlap</string>
               </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_2">
-               <item row="0" column="0">
+              <layout class="QVBoxLayout" name="verticalLayout_15">
+               <item>
                 <widget class="QgsDoubleSpinBox" name="BoxOverlap">
                  <property name="sizePolicy">
-                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>83</width>
+                   <height>20</height>
+                  </size>
                  </property>
                  <property name="suffix">
                   <string>%</string>
@@ -148,6 +114,46 @@
               <property name="alignment">
                <set>Qt::AlignCenter</set>
               </property>
+             </widget>
+            </item>
+            <item row="0" column="0">
+             <widget class="QGroupBox" name="groupBox_22">
+              <property name="title">
+               <string>Resolution Scale</string>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_10">
+               <item>
+                <widget class="QgsDoubleSpinBox" name="BoxResolutionScale">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>83</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                 <property name="decimals">
+                  <number>2</number>
+                 </property>
+                 <property name="minimum">
+                  <double>0.100000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>100.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.050000000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </widget>
             </item>
            </layout>
@@ -189,45 +195,36 @@
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_2">
                <item>
-                <widget class="QGroupBox" name="groupBox_9">
+                <widget class="QGroupBox" name="groupBox_28">
                  <property name="title">
                   <string>Red</string>
                  </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_9">
-                  <item row="0" column="0">
+                 <layout class="QVBoxLayout" name="verticalLayout_16">
+                  <item>
                    <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_R"/>
                   </item>
                  </layout>
                 </widget>
                </item>
                <item>
-                <widget class="QGroupBox" name="groupBox_10">
+                <widget class="QGroupBox" name="groupBox_29">
                  <property name="title">
                   <string>Green</string>
                  </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_8">
-                  <item row="0" column="0">
+                 <layout class="QVBoxLayout" name="verticalLayout_17">
+                  <item>
                    <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_G"/>
                   </item>
                  </layout>
                 </widget>
                </item>
                <item>
-                <widget class="QGroupBox" name="groupBox_11">
+                <widget class="QGroupBox" name="groupBox_30">
                  <property name="title">
                   <string>Blue</string>
                  </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_11">
-                  <item row="0" column="0">
+                 <layout class="QVBoxLayout" name="verticalLayout_18">
+                  <item>
                    <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_B"/>
                   </item>
                  </layout>

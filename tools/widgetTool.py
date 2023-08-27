@@ -16,7 +16,8 @@ from rasterio.windows import from_bounds as window_from_bounds
 from torchgeo.datasets import BoundingBox
 from torchgeo.samplers import Units
 
-from ..ui import UI_EncoderCopilot, UI_Selector
+from ..ui import (DefaultSettings, Settings, UI_EncoderCopilot, UI_Selector,
+                  save_user_settings)
 from .canvasTool import (Canvas_Extent, Canvas_Points, Canvas_Rectangle,
                          ClickTool, RectangleMapTool, SAM_PolygonFeature)
 from .geoTool import ImageCRSManager
@@ -102,7 +103,6 @@ class Selector(QDockWidget):
         self.feature_dir = str(self.cwd / "features" / self.demo_img_name)
         self.load_demo = load_demo
         self.project: QgsProject = QgsProject.instance()
-        self.crs_project: QgsCoordinateReferenceSystem = self.project.crs()
         self.toolPan = QgsMapToolPan(self.canvas)
         self.dockFirstOpen = True
         self.prompt_history: List[str] = []
@@ -112,20 +112,28 @@ class Selector(QDockWidget):
         self.t_area_default: float = 0.0
         self.need_execute_sam_toggle_mode: bool = True
         self.need_execute_sam_filter_area: bool = True
+        # colors
+        self.style_preview_polygon: Dict[str, Any] = {
+            "line_color": Settings["preview_color"],
+            "fill_color": self.alpha_color(Settings["preview_color"], 10),
+            "line_width": 2,
+        }
+        self.style_prompt_polygon: Dict[str, Any] = {
+            "line_color": Settings["prompt_color"],
+            "fill_color": self.alpha_color(Settings["prompt_color"], 10),
+            "line_width": 3,
+        }
 
     def open_widget(self):
         '''Create widget selector'''
         self.parent.toolbar.setVisible(True)
         if self.dockFirstOpen:
+            self.crs_project: QgsCoordinateReferenceSystem = self.project.crs()
+
             if self.receivers(self.execute_SAM) == 0:
                 self.execute_SAM.connect(self.execute_segmentation)
 
             self.wdg_sel = UI_Selector
-
-            if self.load_demo:
-                self.wdg_sel.QgsFile_feature.setFilePath(self.feature_dir)
-                self._set_feature_related()
-                self.load_demo_img()
 
             ######### Setting default parameters for items #########
             self.wdg_sel.MapLayerComboBox.setFilters(
@@ -133,7 +141,7 @@ class Selector(QDockWidget):
                 | QgsMapLayerProxyModel.VectorLayer
             )
             self.wdg_sel.MapLayerComboBox.setAllowEmptyLayer(True)
-            self.wdg_sel.MapLayerComboBox.setLayer(None)
+            self.wdg_sel.MapLayerComboBox.setAdditionalLayers([None])
 
             self.wdg_sel.QgsFile_feature.setStorageMode(
                 QgsFileWidget.GetDirectory)
@@ -143,17 +151,12 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_bg.setCheckable(True)
             self.wdg_sel.pushButton_rect.setCheckable(True)
 
+            self.wdg_sel.pushButton_reset_settings.clicked.connect(
+                self.reset_default_settings)
+
             # toggle show extent
             self.wdg_sel.radioButton_show_extent.toggled.connect(
                 self.toggle_encoding_extent)
-            # set show extent checked
-            self.wdg_sel.radioButton_show_extent.setChecked(True)
-
-            # set default color
-            self.wdg_sel.ColorButton_bgpt.setColor(Qt.red)
-            self.wdg_sel.ColorButton_fgpt.setColor(Qt.blue)
-            self.wdg_sel.ColorButton_bbox.setColor(Qt.blue)
-            self.wdg_sel.ColorButton_extent.setColor(Qt.red)
 
             ########## connect function to widget items ##########
             self.wdg_sel.pushButton_fg.clicked.connect(
@@ -196,6 +199,12 @@ class Selector(QDockWidget):
                 self.reset_rectangular_color)
             self.wdg_sel.ColorButton_extent.colorChanged.connect(
                 self.reset_extent_color)
+            self.wdg_sel.ColorButton_prompt.colorChanged.connect(
+                self.reset_prompt_polygon_color)
+            self.wdg_sel.ColorButton_preview.colorChanged.connect(
+                self.reset_preview_polygon_color)
+            self.wdg_sel.radioButton_load_demo.toggled.connect(
+                self.toggle_load_demo_img)
 
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
@@ -235,6 +244,9 @@ class Selector(QDockWidget):
             self.shortcut_tab.setContext(Qt.ApplicationShortcut)
             self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
 
+            ########## set default Settings ##########
+            self.set_user_settings()
+
             ########## set dock ##########
             self.wdg_sel.setFloating(True)
             self.wdg_sel.setFocusPolicy(Qt.StrongFocus)
@@ -245,14 +257,64 @@ class Selector(QDockWidget):
         else:
             self.clear_layers(clear_extent=True)
 
-         # add widget to QGIS
+        # add widget to QGIS
         self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
 
         self.toggle_edit_mode()
         self.toggle_encoding_extent()
+        self._ensure_feature_crs()
 
         # if not self.wdg_sel.isUserVisible():
         #     self.wdg_sel.setUserVisible(True)
+    def alpha_color(self, color: QColor, alpha: float) -> QColor:
+        return QColor(color.red(), color.green(), color.blue(), alpha)
+
+    def set_user_settings_color(self):
+        self.wdg_sel.ColorButton_bgpt.setColor(Settings["bg_color"])
+        self.wdg_sel.ColorButton_fgpt.setColor(Settings["fg_color"])
+        self.wdg_sel.ColorButton_bbox.setColor(Settings["bbox_color"])
+        self.wdg_sel.ColorButton_extent.setColor(Settings["extent_color"])
+        self.wdg_sel.ColorButton_prompt.setColor(Settings["prompt_color"])
+        self.wdg_sel.ColorButton_preview.setColor(Settings["preview_color"])
+
+    def set_user_settings(self):
+        if Settings["load_demo"]:
+            self.wdg_sel.QgsFile_feature.setFilePath(self.feature_dir)
+            self.wdg_sel.radioButton_load_demo.setChecked(True)
+            self._set_feature_related()
+            self.load_demo_img()
+
+        if Settings["show_boundary"]:
+            self.wdg_sel.radioButton_show_extent.setChecked(True)
+            self._set_feature_related()
+
+        self.set_user_settings_color()
+
+    def reset_default_settings(self):
+        save_user_settings({}, mode='overwrite')
+        if (DefaultSettings["load_demo"] and
+                not self.wdg_sel.radioButton_load_demo.isChecked()):
+            self.wdg_sel.QgsFile_feature.setFilePath(self.feature_dir)
+            self.wdg_sel.radioButton_load_demo.setChecked(True)
+
+        if (DefaultSettings["show_boundary"] and
+                not self.wdg_sel.radioButton_show_extent.isChecked()):
+            self.wdg_sel.radioButton_show_extent.setChecked(True)
+            self._set_feature_related()
+
+        self.wdg_sel.Box_min_pixel_default.setValue(
+            DefaultSettings["default_minimum_pixels"])
+
+        # set default color
+        self.wdg_sel.ColorButton_bgpt.setColor(DefaultSettings["bg_color"])
+        self.wdg_sel.ColorButton_fgpt.setColor(DefaultSettings["fg_color"])
+        self.wdg_sel.ColorButton_bbox.setColor(DefaultSettings["bbox_color"])
+        self.wdg_sel.ColorButton_extent.setColor(
+            DefaultSettings["extent_color"])
+        self.wdg_sel.ColorButton_prompt.setColor(
+            DefaultSettings["prompt_color"])
+        self.wdg_sel.ColorButton_preview.setColor(
+            DefaultSettings["preview_color"])
 
     def disconnect_safely(self, item):
         try:
@@ -261,7 +323,12 @@ class Selector(QDockWidget):
             pass
 
     def reset_to_project_crs(self):
-        self.project.setCrs(self.crs_project)
+        if self.crs_project != self.project.crs():
+            MessageTool.MessageBar(
+                "Note:",
+                "Project CRS has been reset to original CRS."
+            )
+            self.project.setCrs(self.crs_project)
 
     def destruct(self):
         '''Destruct actions when closed widget'''
@@ -272,15 +339,22 @@ class Selector(QDockWidget):
     def unload(self):
         '''Unload actions when plugin is closed'''
         self.clear_layers(clear_extent=True)
-        self.disconnect_safely(self.shortcut_tab)
-        self.disconnect_safely(self.shortcut_undo_sam_pg)
-        self.disconnect_safely(self.shortcut_clear)
-        self.disconnect_safely(self.shortcut_undo)
-        self.disconnect_safely(self.shortcut_save)
-        self.disconnect_safely(self.shortcut_hover_mode)
-        self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
+        if hasattr(self, "shortcut_tab"):
+            self.disconnect_safely(self.shortcut_tab)
+        if hasattr(self, "shortcut_undo_sam_pg"):
+            self.disconnect_safely(self.shortcut_undo_sam_pg)
+        if hasattr(self, "shortcut_clear"):
+            self.disconnect_safely(self.shortcut_clear)
+        if hasattr(self, "shortcut_undo"):
+            self.disconnect_safely(self.shortcut_undo)
+        if hasattr(self, "shortcut_save"):
+            self.disconnect_safely(self.shortcut_save)
+        if hasattr(self, "shortcut_hover_mode"):
+            self.disconnect_safely(self.shortcut_hover_mode)
+        if hasattr(self, "wdg_sel"):
+            self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
+            self.iface.removeDockWidget(self.wdg_sel)
         self.destruct()
-        self.iface.removeDockWidget(self.wdg_sel)
 
     def load_demo_img(self):
         layer_list = QgsProject.instance().mapLayersByName(self.demo_img_name)
@@ -330,6 +404,18 @@ class Selector(QDockWidget):
             self.polygon.clear_canvas_polygons()
         self.canvas.refresh()
 
+    def _ensure_feature_crs(self):
+        if not hasattr(self, "sam_model"):
+            return None
+        if self.sam_model.img_qgs_crs != self.crs_project:
+            self.project.setCrs(self.sam_model.img_qgs_crs)
+            MessageTool.MessageBar(
+                "Note:",
+                "Project CRS has been changed to Feature CRS temporarily, "
+                "and will be reset to original CRS when this widget is closed.",
+                duration=30
+            )
+
     def _set_feature_related(self):
         '''Init or reload feature related objects'''
         # init feature related objects
@@ -340,20 +426,15 @@ class Selector(QDockWidget):
             f"in '{Path(self.feature_dir).name}' have been loaded, "
             "you can start labeling now"
         )
-        if self.sam_model.img_qgs_crs != self.crs_project:
-            self.project.setCrs(self.sam_model.img_qgs_crs)
-            MessageTool.MessageBar(
-                "Note:",
-                "Project CRS has been changed to Feature CRS temporarily, "
-                "and will be reset to original CRS when this widget is closed.",
-                duration=30
-            )
+
         self.res = float(
             (self.sam_model.test_features.index_df.loc[:, 'res']/16).mean())
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
         self.canvas_extent = Canvas_Extent(self.canvas, self.img_crs_manager)
+
+        self._ensure_feature_crs()
 
         # reset canvas extent
         self.sam_extent_canvas_crs = self.img_crs_manager.img_extent_to_crs(
@@ -414,10 +495,7 @@ class Selector(QDockWidget):
         # radioButton = self.sender()
         radioButton = self.wdg_sel.radioButton_enable
         if not radioButton.isChecked():
-            # UI_Selector.setEnabled(False)
             self.canvas.setMapTool(self.toolPan)
-            # findChildren(self, type, name: str = '', options: Union[Qt.FindChildOptions, Qt.FindChildOption] = Qt.FindChildrenRecursively): argument 2 has unexpected type 'FindChildOption'
-            # for wdg in UI_Selector.findChildren(QPushButton, 'pushButton_fg'): # PyQt5.QtWidgets.QDockWidget
             self.wdg_sel.pushButton_fg.setEnabled(False)
             self.wdg_sel.pushButton_bg.setEnabled(False)
             self.wdg_sel.pushButton_rect.setEnabled(False)
@@ -425,16 +503,12 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_undo.setEnabled(False)
             self.wdg_sel.pushButton_save.setEnabled(False)
         else:
-            # for wdg in UI_Selector.findChildren(QWidget, 'pushButton', Qt.FindChildrenRecursively):
-            #     print(wdg.objectName())
-            #     wdg.setEnabled(True)
             self.wdg_sel.pushButton_fg.setEnabled(True)
             self.wdg_sel.pushButton_bg.setEnabled(True)
             self.wdg_sel.pushButton_rect.setEnabled(True)
             self.wdg_sel.pushButton_clear.setEnabled(True)
             self.wdg_sel.pushButton_undo.setEnabled(True)
             self.wdg_sel.pushButton_save.setEnabled(True)
-            self.reset_prompt_type()
 
     def toggle_encoding_extent(self):
         '''Show or hide extent of SAM encoded feature'''
@@ -446,8 +520,13 @@ class Selector(QDockWidget):
                     "Oops",
                     "No sam feature loaded"
                 )
+            show_extent = True
         else:
+            if not hasattr(self, "canvas_extent"):
+                return None
             self.canvas_extent.clear()
+            show_extent = False
+        save_user_settings({"show_boundary": show_extent}, mode='update')
 
     def toggle_hover_mode(self):
         '''Toggle move mode in widget selector.'''
@@ -512,8 +591,11 @@ class Selector(QDockWidget):
         self.t_area = t_area
 
     def load_default_t_area(self):
-        self.t_area_default = self.wdg_sel.Box_min_pixel_default.value() * self.res ** 2
+        min_pixel = self.wdg_sel.Box_min_pixel_default.value()
+        self.t_area_default = min_pixel * self.res ** 2
         self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
+        save_user_settings(
+            {"default_minimum_pixels": min_pixel}, mode='update')
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):
@@ -584,6 +666,12 @@ class Selector(QDockWidget):
 
     def draw_foreground_point(self):
         '''draw foreground point in canvas'''
+        if not hasattr(self, "tool_click_fg"):
+            MessageTool.MessageBar(
+                "Oops: ",
+                "Please load feature folder first"
+            )
+            return None
         self.canvas.setMapTool(self.tool_click_fg)
         button = self.wdg_sel.pushButton_fg
         if not button.isChecked():
@@ -597,6 +685,12 @@ class Selector(QDockWidget):
 
     def draw_background_point(self):
         '''draw background point in canvas'''
+        if not hasattr(self, "tool_click_bg"):
+            MessageTool.MessageBar(
+                "Oops: ",
+                "Please load feature folder first"
+            )
+            return None
         self.canvas.setMapTool(self.tool_click_bg)
         button = self.wdg_sel.pushButton_bg
         if not button.isChecked():
@@ -610,6 +704,12 @@ class Selector(QDockWidget):
 
     def draw_rect(self):
         '''draw rectangle in canvas'''
+        if not hasattr(self, "tool_click_rect"):
+            MessageTool.MessageBar(
+                "Oops: ",
+                "Please load feature folder first"
+            )
+            return None
         self.canvas.setMapTool(self.tool_click_rect)
         button = self.wdg_sel.pushButton_rect  # self.sender()
         if not button.isChecked():
@@ -623,7 +723,6 @@ class Selector(QDockWidget):
 
     def set_vector_layer(self):
         '''set sam output vector layer'''
-
         new_layer = self.wdg_sel.MapLayerComboBox.currentLayer()
 
         # parse whether the new selected layer is same as current layer
@@ -637,11 +736,15 @@ class Selector(QDockWidget):
                     self.MapLayerComboBox.setLayer(None)
         else:
             self.polygon = SAM_PolygonFeature(
-                self.img_crs_manager, layer=new_layer)
+                self.img_crs_manager, layer=new_layer,
+                kwargs_preview_polygon=self.style_preview_polygon,
+                kwargs_prompt_polygon=self.style_prompt_polygon
+            )
 
         # clear layer history
         self.sam_feature_history = []
         self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+        # self.set_user_settings_color()
 
     def load_vector_file(self) -> None:
         file_dialog = QFileDialog()
@@ -672,7 +775,10 @@ class Selector(QDockWidget):
             layer_list = QgsProject.instance().mapLayersByName(file_path.stem)
             if len(layer_list) > 0:
                 self.polygon = SAM_PolygonFeature(
-                    self.img_crs_manager, layer=layer_list[0])
+                    self.img_crs_manager, layer=layer_list[0],
+                    kwargs_preview_polygon=self.style_preview_polygon,
+                    kwargs_prompt_polygon=self.style_prompt_polygon
+                )
                 if not hasattr(self.polygon, "layer"):
                     return None
                 MessageTool.MessageBar(
@@ -684,12 +790,16 @@ class Selector(QDockWidget):
 
             else:
                 self.polygon = SAM_PolygonFeature(
-                    self.img_crs_manager, shapefile=file_path)
+                    self.img_crs_manager, shapefile=file_path,
+                    kwargs_preview_polygon=self.style_preview_polygon,
+                    kwargs_prompt_polygon=self.style_prompt_polygon
+                )
                 if not hasattr(self.polygon, "layer"):
                     return None
             # clear layer history
             self.sam_feature_history = []
             self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+            # self.set_user_settings_color()
 
     def load_feature(self):
         '''load feature'''
@@ -798,43 +908,100 @@ class Selector(QDockWidget):
 
     def reset_background_color(self):
         '''Reset background color'''
-        self.canvas_points.background_color = self.wdg_sel.ColorButton_bgpt.color()
-        self.canvas_points.flush_points_color()
-        self.tool_click_bg.reset_cursor_color(
-            self.wdg_sel.ColorButton_bgpt.color().name()
+        color = self.wdg_sel.ColorButton_bgpt.color()
+        save_user_settings(
+            {"bg_color": color.name()},
+            mode='update'
         )
+        if not hasattr(self, "canvas_points"):
+            return None
+        self.canvas_points.background_color = color
+        self.canvas_points.flush_points_color()
+        self.tool_click_bg.reset_cursor_color(color.name())
 
     def reset_foreground_color(self):
         '''Reset foreground color'''
-        self.canvas_points.foreground_color = self.wdg_sel.ColorButton_fgpt.color()
-        self.canvas_points.flush_points_color()
-        self.tool_click_fg.reset_cursor_color(
-            self.wdg_sel.ColorButton_fgpt.color().name()
+        color = self.wdg_sel.ColorButton_fgpt.color()
+        save_user_settings(
+            {"fg_color": color.name()},
+            mode='update'
         )
+        if not hasattr(self, "canvas_points"):
+            return None
+        self.canvas_points.foreground_color = color
+        self.canvas_points.flush_points_color()
+        self.tool_click_fg.reset_cursor_color(color.name())
 
     def reset_rectangular_color(self):
         '''Reset rectangular color'''
         color = self.wdg_sel.ColorButton_bbox.color()
+        save_user_settings(
+            {"bbox_color": color.name()},
+            mode='update'
+        )
+        if not hasattr(self, "canvas_rect"):
+            return None
+
         color_fill = list(color.getRgb())
         color_fill[-1] = 10
         color_fill = QColor(*color_fill)
         self.canvas_rect.set_line_color(color)
         self.canvas_rect.set_fill_color(color_fill)
 
-        self.tool_click_rect.reset_cursor_color(
-            self.wdg_sel.ColorButton_bbox.color().name()
-        )
+        self.tool_click_rect.reset_cursor_color(color.name())
 
     def reset_extent_color(self):
         '''Reset extent color'''
-        self.canvas_extent.set_color(
-            self.wdg_sel.ColorButton_extent.color()
+        color = self.wdg_sel.ColorButton_extent.color()
+        if not hasattr(self, "canvas_extent"):
+            return None
+        self.canvas_extent.set_color(color)
+        save_user_settings(
+            {"extent_color": color.name()},
+            mode='update'
         )
 
         if self.wdg_sel.radioButton_show_extent.isChecked():
             self.canvas_extent.clear()
             if hasattr(self, "sam_extent_canvas_crs"):
                 self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
+
+    def reset_prompt_polygon_color(self):
+        '''Reset prompt polygon color'''
+        if not hasattr(self, "polygon"):
+            return None
+        color = self.wdg_sel.ColorButton_prompt.color()
+        save_user_settings(
+            {"prompt_color": color.name()},
+            mode='update'
+        )
+        self.polygon.canvas_prompt_polygon.set_line_style(color)
+
+    def reset_preview_polygon_color(self):
+        '''Reset preview polygon color'''
+        if not hasattr(self, "polygon"):
+            return None
+        color = self.wdg_sel.ColorButton_preview.color()
+        save_user_settings(
+            {"preview_color": color.name()},
+            mode='update'
+        )
+
+        self.polygon.canvas_preview_polygon.set_line_style(color)
+
+    def toggle_load_demo_img(self):
+        '''Toggle whether load demo image'''
+        if self.wdg_sel.radioButton_load_demo.isChecked():
+            self.load_demo = True
+            self._set_feature_related()
+            self.load_demo_img()
+        else:
+            self.load_demo = False
+        save_user_settings(
+            {"load_demo": self.load_demo},
+            mode='update'
+        )
+        self.reset_prompt_type()
 
 
 class EncoderCopilot(QDockWidget):

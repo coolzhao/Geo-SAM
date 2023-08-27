@@ -1,27 +1,28 @@
 # Extension of torchgeo library by zyzhao
-import sys
 import glob
 import os
 import re
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, cast, Union, Iterator, Iterable
-import rasterio
-from rasterio.vrt import WarpedVRT
-from rasterio.windows import from_bounds as window_from_bounds
-from rasterio.enums import Resampling
-from rasterio.crs import CRS
+import sys
+from typing import (Any, Callable, Dict, Iterable, Iterator, List, Optional,
+                    Sequence, Tuple, Union, cast)
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import rasterio
 import torch
+from rasterio.crs import CRS
+from rasterio.enums import Resampling
+from rasterio.vrt import WarpedVRT
+from rasterio.windows import from_bounds as window_from_bounds
+from rtree.index import Index, Property
 from torch import Tensor
 from torch.nn import functional as F
-from torchgeo.datasets import BoundingBox, RasterDataset, GeoDataset
+from torchgeo.datasets import BoundingBox, GeoDataset, RasterDataset
 from torchgeo.datasets.utils import disambiguate_timestamp
-from torchgeo.samplers import Units, GeoSampler
+from torchgeo.samplers import GeoSampler, Units
 from torchgeo.samplers.constants import Units
 from torchgeo.samplers.utils import _to_tuple, tile_to_chips
-import matplotlib.pyplot as plt
-
-from rtree.index import Index, Property
 
 
 class SamTestGridGeoSampler(GeoSampler):
@@ -224,12 +225,9 @@ class SamTestFeatureDataset(RasterDataset):
                         root, os.path.basename(row_df['filepath']))
                     self.index.insert(i, coords, filepath)
                     i += 1
-                # print(coords[0].dtype)
                 index_set = True
-                # print('index loaded from: ', os.path.basename(csv_filepath))
                 print(f"Index loaded from: {os.path.basename(csv_filepath)}")
             else:
-                # print('index file does not match the raster list, it will be recreated.')
                 print(f"Index file does not match the raster list, will be recreated.")
 
         if not index_set:
@@ -290,10 +288,8 @@ class SamTestFeatureDataset(RasterDataset):
                 self.index_df['maxt'] = [coord[5] for coord in coords_list]
                 self.index_df.loc[:, 'crs'] = str(crs)
                 self.index_df.loc[:, 'res'] = res
-                # print(self.index_df.dtypes)
                 index_set = True
                 self.index_df.to_csv(csv_filepath)
-                # print('index file: ', os.path.basename(csv_filepath), ' saved')
                 print(f"Index file: {os.path.basename(csv_filepath)} saved")
 
         if i == 0:
@@ -353,8 +349,6 @@ class SamTestFeatureDataset(RasterDataset):
 
         src = vrt_fh
         dest = src.read()  # read all bands
-        # print(src.profile)
-        # print(src.compression)
         tags = src.tags()
         if 'img_shape' in tags.keys():
             img_shape = tags['img_shape']
@@ -589,12 +583,10 @@ class SamTestFeatureGeoSampler(GeoSampler):
                                properties=Property(dimension=3))
             hits = dataset.index.intersection(tuple(roi), objects=True)
             # hit_nearest = list(dataset.index.nearest(tuple(roi), num_results=1, objects=True))[0]
-            # print('nearest hit: ', hit_nearest.object)
             idx = 0
             for hit in hits:
                 idx += 1
                 bbox = BoundingBox(*hit.bounds)  # & roi
-                # print(bbox)
                 center_x_bbox = (bbox.maxx + bbox.minx)/2
                 center_y_bbox = (bbox.maxy + bbox.miny)/2
 
@@ -602,7 +594,6 @@ class SamTestFeatureGeoSampler(GeoSampler):
                 center_y_roi = (roi.maxy + roi.miny)/2
                 dist_roi_tmp = (center_x_bbox - center_x_roi)**2 + \
                     (center_y_bbox - center_y_roi)**2
-                # print(dist_roi_tmp)
                 if idx == 1:
                     self.dist_roi = dist_roi_tmp
                     self.q_bbox = bbox
@@ -613,10 +604,8 @@ class SamTestFeatureGeoSampler(GeoSampler):
                     self.q_path = hit.object
                 # self.index.insert(hit.id, tuple(bbox), hit.object)
 
-        # print('intersected features: ', idx)
         print(f"Prompt intersected with {idx} feature patches")
 
-        # print('selected hit: ', self.q_path)
         if self.q_bbox is None:
             self.length = 0
             # raise Exception('no feature found intersected with prompts')

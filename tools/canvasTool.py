@@ -1,30 +1,26 @@
-from typing import List, Any, Dict
 import os
-import numpy as np
 from pathlib import Path
-from rasterio.transform import rowcol, Affine
-from qgis._gui import QgsMapMouseEvent
-from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsVectorFileWriter, QgsRectangle
-from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsMapTool, QgsVertexMarker, QgsMapCanvas
-from qgis.core import (
-    QgsPointXY, QgsWkbTypes, QgsField, QgsFields, QgsFillSymbol,
-    QgsGeometry, QgsFeature, QgsVectorLayer)
-from qgis.PyQt.QtCore import QVariant
+from typing import Any, Dict, List
+
+import numpy as np
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
+from qgis._gui import QgsMapMouseEvent
+from qgis.core import (QgsFeature, QgsField, QgsFields, QgsFillSymbol,
+                       QgsGeometry, QgsPointXY, QgsProject, QgsRectangle,
+                       QgsVectorFileWriter, QgsVectorLayer, QgsWkbTypes)
+from qgis.gui import (QgsMapCanvas, QgsMapTool, QgsMapToolEmitPoint,
+                      QgsRubberBand, QgsVertexMarker)
+from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
+from rasterio.transform import Affine, rowcol
+
+from ..ui.cursors import (UI_SCALE, CursorPointBG, CursorPointFG, CursorRect,
+                          customize_bbox_cursor, customize_bg_point_cursor,
+                          customize_fg_point_cursor)
 from .geoTool import ImageCRSManager, LayerExtent
-from .ulid import GroupId
-from ..ui.cursors import (
-    CursorPointFG,
-    CursorPointBG,
-    CursorRect,
-    UI_SCALE,
-    customize_fg_point_cursor,
-    customize_bg_point_cursor,
-    customize_bbox_cursor
-)
 from .messageTool import MessageTool
+from .ulid import GroupId
 
 SAM_Feature_Fields = [
     QgsField("group_ulid", QVariant.String),
@@ -278,7 +274,6 @@ class RectangleMapTool(QgsMapToolEmitPoint):
 
     def canvasReleaseEvent(self, e):
         self.pressed = True
-        print(f'bbox pressed: {self.pressed}')
         self.isEmittingPoint = False
         self.clear_hover_prompt()
         if self.startPoint is None or self.endPoint is None:
@@ -597,17 +592,25 @@ class Canvas_SAM_Polygon:
     def __init__(
         self,
         canvas: QgsMapCanvas,
+        line_color=QColor(0, 255, 0),
+        fill_color=QColor(0, 255, 0, 10),
+        line_width=2
     ):
         self.canvas = canvas
         self.geometry_list: List[QgsGeometry] = []
         self.rubber_band_list: List[QgsRubberBand] = []
+        self.line_color = line_color
+        self.fill_color = fill_color
+        self.line_width = line_width
 
     def new_rubber_band(self):
         rubber_band = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
-        self.set_layer_style(rubber_band,
-                             QColor(0, 255, 0, 10),
-                             Qt.green,
-                             1)
+        self.set_layer_style(
+            rubber_band,
+            self.fill_color,
+            self.line_color,
+            self.line_width
+        )
         return rubber_band
 
     def set_layer_style(self, rubber_band, fill_color, line_color, line_width, line_color_2=None):
@@ -642,6 +645,20 @@ class Canvas_SAM_Polygon:
             self.canvas.refresh()
             self.geometry_list.pop()
 
+    def set_line_style(self, color: QColor, line_width: int = 2):
+        if color is None:
+            return None
+
+        self.line_color = color
+        color_fill = list(color.getRgb())
+        color_fill[-1] = 10
+        # self.color_fill = QColor(*color_fill)
+        self.color_fill = QColor(color.red(), color.green(), color.blue(), 10)
+        for rubber_band in self.rubber_band_list:
+            rubber_band.setStrokeColor(self.line_color)
+            rubber_band.setFillColor(self.color_fill)
+            rubber_band.setWidth(line_width)
+
 
 class SAM_PolygonFeature:
     '''A polygon feature for SAM output'''
@@ -651,15 +668,19 @@ class SAM_PolygonFeature:
         img_crs_manager: ImageCRSManager,
         shapefile: str = None,
         layer: QgsVectorLayer = None,
-        default_name: str = 'polygon_sam'
+        default_name: str = 'polygon_sam',
+        kwargs_preview_polygon: Dict = {},
+        kwargs_prompt_polygon: Dict = {}
     ):
         self.qgis_project = QgsProject.instance()
         self.img_crs_manager = img_crs_manager
         self.shapefile = shapefile
         self.default_name = default_name
         self.canvas = iface.mapCanvas()
-        self.canvas_preview_polygon = Canvas_SAM_Polygon(self.canvas)
-        self.canvas_prompt_polygon = Canvas_SAM_Polygon(self.canvas)
+        self.canvas_preview_polygon = Canvas_SAM_Polygon(
+            self.canvas, **kwargs_preview_polygon)
+        self.canvas_prompt_polygon = Canvas_SAM_Polygon(
+            self.canvas, **kwargs_prompt_polygon)
         self.geojson_canvas_preview: Dict = {}
         self.geojson_canvas_prompt: Dict = {}
         self.geojson_layer: Dict = {}
