@@ -7,6 +7,10 @@
 Welcome to Geo-SAM's documentation!
 ===================================
 
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.8191039.svg
+   :target: https://zenodo.org/record/8191039
+   :alt: DOI
+
 By `Joey <https://github.com/coolzhao>`_ and `Fancy <https://github.com/Fanchengyan>`_ from `Cryosphere Lab <https://cryocuhk.github.io/>`_, ESSC, CUHK.
 
 Introduction

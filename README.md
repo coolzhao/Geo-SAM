@@ -1,13 +1,19 @@
 # Geo SAM
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8191039.svg)](https://zenodo.org/record/8191039)
+
 By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
+- [Installation and Usage](#installation-and-usage)
 - [Introduction](#introduction)
 - [Reasons for choosing Geo-SAM](#reasons-for-choosing-geo-sam)
-- [Installation and Usage](#installation-and-usage)
 - [Demos](#demos)
 - [Citation](#citation)
 - [Acknowledgement](#acknowledgement)
+
+## Installation and Usage
+
+Read the documentation for more details: <https://geo-sam.readthedocs.io/en/latest/>.
 
 ## Introduction
 
@@ -31,10 +37,6 @@ Notes:
 - SAM is designed to **segment one object once with a series of prompts**, so you should save the current results before getting to the next one when using the Geo-SAM tool.
 - SAM natively supports only three-band images, but we have adapted Geo-SAM to support one or two-band images so that you can try grayscale images, spectral index images (like NDVI, NDWI), or even SAR images.
 - The Geo-SAM plugin is currently in active development. We will continue making improvements and welcome your feedback. If you have any questions or suggestions, please feel free to open an issue on our GitHub repository at [GitHub issue](https://github.com/coolzhao/Geo-SAM/issues).
-
-## Installation and Usage
-
-Read the documentation for more details: <https://geo-sam.readthedocs.io/en/latest/>.
 
 
 ## Demos
