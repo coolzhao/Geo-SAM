@@ -1,6 +1,6 @@
 # Geo SAM
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8191039.svg)](https://zenodo.org/record/8191039)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8191039.svg)](https://zenodo.org/record/8191039) [![Documentation Status](https://readthedocs.org/projects/geo-sam/badge/?version=latest)](https://geo-sam.readthedocs.io/en/latest/?badge=latest)
 
 By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 

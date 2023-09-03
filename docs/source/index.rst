@@ -11,6 +11,10 @@ Welcome to Geo-SAM's documentation!
    :target: https://zenodo.org/record/8191039
    :alt: DOI
 
+.. image:: https://readthedocs.org/projects/geo-sam/badge/?version=latest
+    :target: https://geo-sam.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
 By `Joey <https://github.com/coolzhao>`_ and `Fancy <https://github.com/Fanchengyan>`_ from `Cryosphere Lab <https://cryocuhk.github.io/>`_, ESSC, CUHK.
 
 Introduction
