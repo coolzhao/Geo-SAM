@@ -793,11 +793,16 @@ class SAM_PolygonFeature:
         if layer_list:
             self.layer = layer_list[0]
             self.layer.commitChanges()
+            MessageTool.MessageBar(
+                "Note:",
+                f"Using vector layer: '{self.default_name}' to store the output polygons.",
+                duration=30
+            )
         else:
             MessageTool.MessageBar(
                 "Note:",
                 "Output Shapefile is not specified. "
-                "A temporal layer 'polygon_sam' is created, "
+                f"A temporal layer: '{self.default_name}' is created, "
                 "remember to save it before quit.",
                 duration=30
             )

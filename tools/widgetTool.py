@@ -602,7 +602,7 @@ class Selector(QDockWidget):
             layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
             if layer:
                 return None
-        self.set_vector_layer()
+        self.set_vector_layer(reset=True)
 
     def execute_segmentation(self) -> bool:
         # check prompt inside feature extent and add last id to history for new prompt
@@ -721,7 +721,7 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_bg.toggle()
         self.prompt_type = 'bbox'
 
-    def set_vector_layer(self):
+    def set_vector_layer(self, reset=False):
         '''set sam output vector layer'''
         new_layer = self.wdg_sel.MapLayerComboBox.currentLayer()
 
@@ -732,14 +732,22 @@ class Selector(QDockWidget):
                     old_layer.id() == new_layer.id()):
                 return None
             else:
-                if not self.polygon.reset_layer(new_layer):
-                    self.MapLayerComboBox.setLayer(None)
+                if reset:
+                    new_layer = None
+                self.polygon.reset_layer(new_layer)
+                MessageTool.MessageLog(
+                    f'vector layer reset')
+            # if not self.polygon.reset_layer(new_layer):
+            #     self.wdg_sel.MapLayerComboBox.setLayer(None)
         else:
+            if reset:
+                new_layer = None
             self.polygon = SAM_PolygonFeature(
                 self.img_crs_manager, layer=new_layer,
                 kwargs_preview_polygon=self.style_preview_polygon,
                 kwargs_prompt_polygon=self.style_prompt_polygon
             )
+            MessageTool.MessageLog('vector layer initialized')
 
         # clear layer history
         self.sam_feature_history = []
