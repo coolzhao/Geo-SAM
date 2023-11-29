@@ -39,7 +39,7 @@
        </sizepolicy>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="Prompts">
        <attribute name="title">
@@ -797,7 +797,7 @@
                  </sizepolicy>
                 </property>
                 <property name="toolTip">
-                 <string>Preview SAM reslut while moving mouse (P)</string>
+                 <string>Preview mask while hovering mouse (P)</string>
                 </property>
                 <property name="text">
                  <string>Enable</string>
@@ -822,7 +822,7 @@
                  </sizepolicy>
                 </property>
                 <property name="toolTip">
-                 <string>Load Demo when opening widget</string>
+                 <string>Load demo features when opening the widget</string>
                 </property>
                 <property name="text">
                  <string>Enable</string>
@@ -853,7 +853,7 @@
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Toggle to show the extent of the image features (operable extent )</string>
+                 <string>Toggle to show the extent of SAM features (operable area )</string>
                 </property>
                 <property name="text">
                  <string>Enable</string>
@@ -887,7 +887,7 @@
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Toggle to show the extent of the image features (operable extent )</string>
+                 <string>Zoom to the extent of SAM features when loaded</string>
                 </property>
                 <property name="text">
                  <string>Enable</string>
