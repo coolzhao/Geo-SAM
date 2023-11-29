@@ -6,21 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>752</width>
-    <height>282</height>
+    <width>952</width>
+    <height>174</height>
    </rect>
   </property>
-  <property name="minimumSize">
-   <size>
-    <width>752</width>
-    <height>282</height>
-   </size>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>524287</width>
-    <height>700</height>
-   </size>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="features">
    <set>QDockWidget::AllDockWidgetFeatures</set>
@@ -35,561 +29,582 @@
      <verstretch>0</verstretch>
     </sizepolicy>
    </property>
-   <property name="maximumSize">
-    <size>
-     <width>16777215</width>
-     <height>16777215</height>
-    </size>
-   </property>
-   <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
      <widget class="QTabWidget" name="tabWidget">
-      <property name="currentIndex">
-       <number>0</number>
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
       </property>
-      <widget class="QWidget" name="tab">
+      <property name="currentIndex">
+       <number>3</number>
+      </property>
+      <widget class="QWidget" name="Prompts">
        <attribute name="title">
-        <string>Prompt</string>
+        <string>Prompts</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_7">
+       <layout class="QVBoxLayout" name="verticalLayout_17">
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout" stretch="3,4">
-          <item>
-           <widget class="QFrame" name="Top">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>150</height>
-             </size>
-            </property>
-            <property name="toolTip">
-             <string/>
-            </property>
-            <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="6,3,6,0,3">
-             <property name="spacing">
-              <number>3</number>
+         <widget class="QFrame" name="Top">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>150</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string/>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="6,3,6,2,3,3">
+           <property name="spacing">
+            <number>1</number>
+           </property>
+           <property name="leftMargin">
+            <number>3</number>
+           </property>
+           <property name="topMargin">
+            <number>3</number>
+           </property>
+           <property name="rightMargin">
+            <number>3</number>
+           </property>
+           <property name="bottomMargin">
+            <number>3</number>
+           </property>
+           <item>
+            <widget class="QGroupBox" name="addPointsGroupBox">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
              </property>
-             <property name="leftMargin">
-              <number>3</number>
+             <property name="toolTip">
+              <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
              </property>
-             <property name="topMargin">
-              <number>3</number>
+             <property name="title">
+              <string>Add Points</string>
              </property>
-             <property name="rightMargin">
-              <number>3</number>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
              </property>
-             <property name="bottomMargin">
-              <number>1</number>
-             </property>
-             <item>
-              <widget class="QGroupBox" name="addPointsGroupBox">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="toolTip">
-                <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
-               </property>
-               <property name="title">
-                <string>Add Points</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignHCenter|Qt::AlignTop</set>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_2" columnstretch="3,3" columnminimumwidth="0,0">
-                <property name="leftMargin">
-                 <number>9</number>
+             <layout class="QGridLayout" name="gridLayout_2" columnstretch="3,3" columnminimumwidth="0,0">
+              <property name="leftMargin">
+               <number>9</number>
+              </property>
+              <property name="rightMargin">
+               <number>9</number>
+              </property>
+              <property name="horizontalSpacing">
+               <number>4</number>
+              </property>
+              <item row="0" column="0">
+               <widget class="QPushButton" name="pushButton_fg">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
-                <property name="rightMargin">
-                 <number>9</number>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
                 </property>
-                <property name="horizontalSpacing">
-                 <number>4</number>
+                <property name="toolTip">
+                 <string>Add foreground points (Tab)</string>
                 </property>
-                <item row="0" column="0">
-                 <widget class="QPushButton" name="pushButton_fg">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="toolTip">
-                   <string>Add foreground points (Tab)</string>
-                  </property>
-                  <property name="text">
-                   <string>FG</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="1">
-                 <widget class="QPushButton" name="pushButton_bg">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="toolTip">
-                   <string>Add background points (Tab)</string>
-                  </property>
-                  <property name="text">
-                   <string>BG</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="addBBoxGroupBox">
-               <property name="enabled">
-                <bool>true</bool>
-               </property>
-               <property name="toolTip">
-                <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
-               </property>
-               <property name="title">
-                <string>Add BBox</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignHCenter|Qt::AlignTop</set>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_7">
-                <item row="0" column="0">
-                 <widget class="QPushButton" name="pushButton_rect">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>16777215</width>
-                    <height>16777215</height>
-                   </size>
-                  </property>
-                  <property name="toolTip">
-                   <string>Add bounding box (Tab)</string>
-                  </property>
-                  <property name="text">
-                   <string>BBox</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="ClearPromptGroupBox">
-               <property name="toolTip">
-                <string>Press &quot;C&quot; to clear all prompts, &quot;Z&quot; to undo last prompt </string>
-               </property>
-               <property name="title">
-                <string>Clear/Undo</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignHCenter|Qt::AlignTop</set>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_6" columnstretch="1,1">
-                <property name="leftMargin">
-                 <number>9</number>
+                <property name="text">
+                 <string>FG</string>
                 </property>
-                <property name="rightMargin">
-                 <number>9</number>
-                </property>
-                <property name="horizontalSpacing">
-                 <number>4</number>
-                </property>
-                <item row="0" column="0">
-                 <widget class="QPushButton" name="pushButton_clear">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="toolTip">
-                   <string>Clear all prompts (C)</string>
-                  </property>
-                  <property name="text">
-                   <string>Clear</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="1">
-                 <widget class="QPushButton" name="pushButton_undo">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="toolTip">
-                   <string>Undo last prompt (Z)</string>
-                  </property>
-                  <property name="text">
-                   <string>Undo</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="groupBox_14">
-               <property name="title">
-                <string>Minimum Pixels</string>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_15">
-                <item row="0" column="0">
-                 <widget class="QDoubleSpinBox" name="Box_min_pixel">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="decimals">
-                   <number>3</number>
-                  </property>
-                  <property name="maximum">
-                   <double>10000000000000000000000.000000000000000</double>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="PolygonGroupBox">
-               <property name="toolTip">
-                <string>Press &quot;S&quot; to save current segementation results</string>
-               </property>
-               <property name="title">
-                <string>Save Results</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignHCenter|Qt::AlignTop</set>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_3">
-                <item row="0" column="0">
-                 <widget class="QPushButton" name="pushButton_save">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="toolTip">
-                   <string>Save current segmentation results (S)</string>
-                  </property>
-                  <property name="text">
-                   <string>Save</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <widget class="QgsCollapsibleGroupBox" name="Middle">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>300</height>
-             </size>
-            </property>
-            <property name="saveCollapsedState">
-             <bool>false</bool>
-            </property>
-            <layout class="QHBoxLayout" name="horizontalLayout" stretch="9,1,1">
-             <property name="leftMargin">
-              <number>3</number>
-             </property>
-             <property name="topMargin">
-              <number>1</number>
-             </property>
-             <property name="rightMargin">
-              <number>3</number>
-             </property>
-             <property name="bottomMargin">
-              <number>3</number>
-             </property>
-             <item>
-              <widget class="QSplitter" name="splitter">
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <widget class="QGroupBox" name="OutShapefileGroupBox">
-                <property name="title">
-                 <string>SAM Output Feature</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignHCenter|Qt::AlignTop</set>
-                </property>
-                <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="5,1">
-                 <item>
-                  <widget class="QGroupBox" name="groupBox_3">
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>0</height>
-                    </size>
-                   </property>
-                   <property name="title">
-                    <string>From Layer</string>
-                   </property>
-                   <layout class="QHBoxLayout" name="horizontalLayout_5">
-                    <item>
-                     <widget class="QgsMapLayerComboBox" name="MapLayerComboBox">
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
-                      <property name="minimumSize">
-                       <size>
-                        <width>0</width>
-                        <height>0</height>
-                       </size>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QGroupBox" name="groupBox">
-                   <property name="title">
-                    <string>From file</string>
-                   </property>
-                   <layout class="QHBoxLayout" name="horizontalLayout_8">
-                    <item>
-                     <widget class="QToolButton" name="pushButton_load_file">
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
-                      <property name="minimumSize">
-                       <size>
-                        <width>0</width>
-                        <height>0</height>
-                       </size>
-                      </property>
-                      <property name="toolTip">
-                       <string>Create/Load from a file</string>
-                      </property>
-                      <property name="statusTip">
-                       <string/>
-                      </property>
-                      <property name="whatsThis">
-                       <string/>
-                      </property>
-                      <property name="text">
-                       <string>...</string>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </widget>
-                 </item>
-                </layout>
                </widget>
-               <widget class="QGroupBox" name="FeatureFolderGroupBox">
-                <property name="title">
-                 <string>Feature Folder</string>
+              </item>
+              <item row="0" column="1">
+               <widget class="QPushButton" name="pushButton_bg">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
-                <property name="alignment">
-                 <set>Qt::AlignHCenter|Qt::AlignTop</set>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
                 </property>
-                <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0,0">
-                 <item>
-                  <widget class="QgsFileWidget" name="QgsFile_feature">
-                   <property name="toolTip">
-                    <string>Input or choose the image feature folder to load</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="pushButton_load_feature">
-                   <property name="sizePolicy">
-                    <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                     <horstretch>0</horstretch>
-                     <verstretch>0</verstretch>
-                    </sizepolicy>
-                   </property>
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>0</height>
-                    </size>
-                   </property>
-                   <property name="toolTip">
-                    <string>Press to load the image feature</string>
-                   </property>
-                   <property name="text">
-                    <string>Load</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
+                <property name="toolTip">
+                 <string>Add background points (Tab)</string>
+                </property>
+                <property name="text">
+                 <string>BG</string>
+                </property>
                </widget>
-              </widget>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="groupBox_2">
-               <property name="toolTip">
-                <string>Preview SAM reslut while moving mouse (H)</string>
-               </property>
-               <property name="title">
-                <string>Preview mode</string>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_11">
-                <item row="0" column="0">
-                 <widget class="QRadioButton" name="radioButton_exe_hover">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="toolTip">
-                   <string>Preview SAM reslut while moving mouse (P)</string>
-                  </property>
-                  <property name="text">
-                   <string>Enable</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="EditModeGroupBox">
-               <property name="toolTip">
-                <string>Toggle to enable/disable the labelling tool</string>
-               </property>
-               <property name="title">
-                <string>Editable</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignHCenter|Qt::AlignTop</set>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_4">
-                <item row="0" column="0">
-                 <widget class="QRadioButton" name="radioButton_enable">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <property name="toolTip">
-                   <string>Toggle to enable/disable the labelling tool</string>
-                  </property>
-                  <property name="text">
-                   <string>Enable</string>
-                  </property>
-                  <property name="checked">
-                   <bool>false</bool>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-         </layout>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="addBBoxGroupBox">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="toolTip">
+              <string>Press &quot;Tab&quot; to loop prompts (shortcut)</string>
+             </property>
+             <property name="title">
+              <string>Add BBox</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_7">
+              <item row="0" column="0">
+               <widget class="QPushButton" name="pushButton_rect">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Add bounding box (Tab)</string>
+                </property>
+                <property name="text">
+                 <string>BBox</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="ClearPromptGroupBox">
+             <property name="toolTip">
+              <string>Press &quot;C&quot; to clear all prompts, &quot;Z&quot; to undo last prompt </string>
+             </property>
+             <property name="title">
+              <string>Clear/Undo Prompts</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_6" columnstretch="1,1">
+              <property name="leftMargin">
+               <number>9</number>
+              </property>
+              <property name="rightMargin">
+               <number>9</number>
+              </property>
+              <property name="horizontalSpacing">
+               <number>4</number>
+              </property>
+              <item row="0" column="1">
+               <widget class="QPushButton" name="pushButton_undo">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Undo last prompt (Z)</string>
+                </property>
+                <property name="text">
+                 <string>Undo</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QPushButton" name="pushButton_clear">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Clear all prompts (C)</string>
+                </property>
+                <property name="text">
+                 <string>Clear</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="groupBox_14">
+             <property name="title">
+              <string>Set Minimum Pixels</string>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_15">
+              <property name="horizontalSpacing">
+               <number>4</number>
+              </property>
+              <item row="0" column="0">
+               <widget class="QDoubleSpinBox" name="Box_min_pixel">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="decimals">
+                 <number>0</number>
+                </property>
+                <property name="maximum">
+                 <double>100.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="PolygonGroupBox">
+             <property name="toolTip">
+              <string>Press &quot;S&quot; to save current segementation results</string>
+             </property>
+             <property name="title">
+              <string>Save Results</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_3">
+              <item row="0" column="0">
+               <widget class="QPushButton" name="pushButton_save">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Save current segmentation results (S)</string>
+                </property>
+                <property name="text">
+                 <string>Save</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="EditModeGroupBox">
+             <property name="toolTip">
+              <string>Toggle to enable/disable the labelling tool</string>
+             </property>
+             <property name="title">
+              <string>Enable Plugin</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_4">
+              <property name="horizontalSpacing">
+               <number>4</number>
+              </property>
+              <item row="0" column="0">
+               <widget class="QRadioButton" name="radioButton_enable">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Toggle to enable/disable the labelling tool</string>
+                </property>
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+                <property name="checked">
+                 <bool>false</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="Settings">
+      <widget class="QWidget" name="Features">
        <attribute name="title">
-        <string>Settings</string>
+        <string>Features</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_6" stretch="3,2">
+       <layout class="QVBoxLayout" name="verticalLayout_12">
         <item>
-         <widget class="QGroupBox" name="groupBox_5">
-          <property name="title">
-           <string>Colors</string>
+         <widget class="QFrame" name="frame">
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
           </property>
-          <layout class="QGridLayout" name="gridLayout_5" rowstretch="1,1" columnstretch="1,1,1" rowminimumheight="1,1" columnminimumwidth="1,1,1">
-           <item row="0" column="0">
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <property name="spacing">
+            <number>1</number>
+           </property>
+           <property name="leftMargin">
+            <number>3</number>
+           </property>
+           <property name="topMargin">
+            <number>3</number>
+           </property>
+           <property name="rightMargin">
+            <number>3</number>
+           </property>
+           <property name="bottomMargin">
+            <number>3</number>
+           </property>
+           <item>
+            <widget class="QSplitter" name="splitter">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <widget class="QGroupBox" name="OutShapefileGroupBox">
+              <property name="title">
+               <string>Choose Output Layer or File</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              </property>
+              <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="8,1">
+               <property name="spacing">
+                <number>1</number>
+               </property>
+               <property name="leftMargin">
+                <number>3</number>
+               </property>
+               <property name="topMargin">
+                <number>3</number>
+               </property>
+               <property name="rightMargin">
+                <number>3</number>
+               </property>
+               <property name="bottomMargin">
+                <number>3</number>
+               </property>
+               <item>
+                <widget class="QgsMapLayerComboBox" name="MapLayerComboBox">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>0</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QToolButton" name="pushButton_load_file">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>0</height>
+                  </size>
+                 </property>
+                 <property name="toolTip">
+                  <string>Create/Load from a file</string>
+                 </property>
+                 <property name="statusTip">
+                  <string/>
+                 </property>
+                 <property name="whatsThis">
+                  <string/>
+                 </property>
+                 <property name="text">
+                  <string>...</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+             <widget class="QGroupBox" name="FeatureFolderGroupBox">
+              <property name="title">
+               <string>Load Feature Folder</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              </property>
+              <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="5,1">
+               <property name="spacing">
+                <number>1</number>
+               </property>
+               <property name="leftMargin">
+                <number>3</number>
+               </property>
+               <property name="topMargin">
+                <number>3</number>
+               </property>
+               <property name="rightMargin">
+                <number>3</number>
+               </property>
+               <property name="bottomMargin">
+                <number>3</number>
+               </property>
+               <item>
+                <widget class="QgsFileWidget" name="QgsFile_feature">
+                 <property name="toolTip">
+                  <string>Input or choose the image feature folder to load</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButton_load_feature">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>0</height>
+                  </size>
+                 </property>
+                 <property name="toolTip">
+                  <string>Press to load the image feature</string>
+                 </property>
+                 <property name="text">
+                  <string>Load</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="Styles">
+       <attribute name="title">
+        <string>Styles</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_15">
+        <item>
+         <widget class="QFrame" name="frame_5">
+          <layout class="QHBoxLayout" name="horizontalLayout_5">
+           <property name="spacing">
+            <number>1</number>
+           </property>
+           <property name="leftMargin">
+            <number>3</number>
+           </property>
+           <property name="topMargin">
+            <number>3</number>
+           </property>
+           <property name="rightMargin">
+            <number>3</number>
+           </property>
+           <property name="bottomMargin">
+            <number>3</number>
+           </property>
+           <item>
+            <widget class="QGroupBox" name="groupBox_18">
+             <property name="title">
+              <string>Piont Size</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_10">
+              <item>
+               <widget class="QgsDoubleSpinBox" name="mQgsDoubleSpinBoxPtSize">
+                <property name="decimals">
+                 <number>0</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="groupBox_17">
+             <property name="title">
+              <string>Point Icon Type</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_11">
+              <item>
+               <widget class="QComboBox" name="comboBoxIcon"/>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
             <widget class="QGroupBox" name="groupBox_9">
              <property name="title">
-              <string>Foreground Point</string>
+              <string>FG Point Color</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_2">
               <item>
@@ -611,10 +626,10 @@
              </layout>
             </widget>
            </item>
-           <item row="1" column="0">
+           <item>
             <widget class="QGroupBox" name="groupBox_6">
              <property name="title">
-              <string>Background Point</string>
+              <string>BG Point Color</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_7">
               <item>
@@ -636,10 +651,10 @@
              </layout>
             </widget>
            </item>
-           <item row="0" column="1">
+           <item>
             <widget class="QGroupBox" name="groupBox_7">
              <property name="title">
-              <string>BBox</string>
+              <string>BBox Color</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_8">
               <item>
@@ -661,35 +676,10 @@
              </layout>
             </widget>
            </item>
-           <item row="1" column="1">
-            <widget class="QGroupBox" name="groupBox_8">
-             <property name="title">
-              <string>Boundary</string>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_9">
-              <item>
-               <widget class="QgsColorButton" name="ColorButton_extent">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimumSize">
-                 <size>
-                  <width>15</width>
-                  <height>16</height>
-                 </size>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item row="0" column="2">
+           <item>
             <widget class="QGroupBox" name="groupBox_12">
              <property name="title">
-              <string>Prompt Polygon</string>
+              <string>Polygon Color</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
               <item>
@@ -711,10 +701,10 @@
              </layout>
             </widget>
            </item>
-           <item row="1" column="2">
+           <item>
             <widget class="QGroupBox" name="groupBox_13">
              <property name="title">
-              <string>Preview Polygon</string>
+              <string>Preview Color</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_4">
               <item>
@@ -736,25 +726,97 @@
              </layout>
             </widget>
            </item>
+           <item>
+            <widget class="QGroupBox" name="groupBox_8">
+             <property name="title">
+              <string>Boundary Color</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_9">
+              <item>
+               <widget class="QgsColorButton" name="ColorButton_extent">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>15</width>
+                  <height>16</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
           </layout>
          </widget>
         </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="Options">
+       <attribute name="title">
+        <string>Options</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_18">
         <item>
-         <widget class="QGroupBox" name="groupBox_4">
-          <property name="title">
-           <string>Others</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_8" columnstretch="1,1" columnminimumwidth="1,1">
-           <item row="1" column="0">
+         <widget class="QFrame" name="frame_4">
+          <layout class="QHBoxLayout" name="horizontalLayout_6">
+           <property name="spacing">
+            <number>1</number>
+           </property>
+           <property name="leftMargin">
+            <number>3</number>
+           </property>
+           <property name="topMargin">
+            <number>3</number>
+           </property>
+           <property name="rightMargin">
+            <number>3</number>
+           </property>
+           <property name="bottomMargin">
+            <number>3</number>
+           </property>
+           <item>
+            <widget class="QGroupBox" name="groupBox_2">
+             <property name="toolTip">
+              <string>Preview SAM reslut while moving mouse (H)</string>
+             </property>
+             <property name="title">
+              <string>Preview Masks</string>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_11">
+              <item row="0" column="0">
+               <widget class="QRadioButton" name="radioButton_exe_hover">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="toolTip">
+                 <string>Preview SAM reslut while moving mouse (P)</string>
+                </property>
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
             <widget class="QGroupBox" name="groupBox_15">
              <property name="title">
-              <string>Load Demo</string>
+              <string>Load Demo Image</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_5">
               <item>
                <widget class="QRadioButton" name="radioButton_load_demo">
                 <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
@@ -770,13 +832,13 @@
              </layout>
             </widget>
            </item>
-           <item row="2" column="0">
+           <item>
             <widget class="QGroupBox" name="groupBox_10">
              <property name="title">
               <string>Show Boundary</string>
              </property>
-             <layout class="QGridLayout" name="gridLayout_13">
-              <item row="0" column="0">
+             <layout class="QVBoxLayout" name="verticalLayout_14">
+              <item>
                <widget class="QRadioButton" name="radioButton_show_extent">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -804,26 +866,66 @@
              </layout>
             </widget>
            </item>
-           <item row="1" column="1">
-            <widget class="QGroupBox" name="groupBox_11">
+           <item>
+            <widget class="QGroupBox" name="groupBox_19">
              <property name="title">
-              <string>Default Minimum Pixels</string>
+              <string>Zoom to Extent</string>
              </property>
-             <layout class="QGridLayout" name="gridLayout_12">
-              <item row="0" column="0">
-               <widget class="QDoubleSpinBox" name="Box_min_pixel_default">
-                <property name="decimals">
-                 <number>3</number>
+             <layout class="QVBoxLayout" name="verticalLayout_16">
+              <item>
+               <widget class="QRadioButton" name="radioButton_set_extent">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
-                <property name="maximum">
-                 <double>10000000000000000000000.000000000000000</double>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Toggle to show the extent of the image features (operable extent )</string>
+                </property>
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+                <property name="checked">
+                 <bool>false</bool>
                 </property>
                </widget>
               </item>
              </layout>
             </widget>
            </item>
-           <item row="2" column="1">
+           <item>
+            <widget class="QGroupBox" name="groupBox_11">
+             <property name="title">
+              <string>Default Minimum Pixels</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_13">
+              <item>
+               <widget class="QDoubleSpinBox" name="Box_min_pixel_default">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="decimals">
+                 <number>0</number>
+                </property>
+                <property name="maximum">
+                 <double>100.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
             <widget class="QGroupBox" name="groupBox_16">
              <property name="title">
               <string>Reset To Default</string>
@@ -863,12 +965,6 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QgsCollapsibleGroupBox</class>
-   <extends>QGroupBox</extends>
-   <header>qgscollapsiblegroupbox.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>QgsColorButton</class>
    <extends>QToolButton</extends>
    <header>qgscolorbutton.h</header>
@@ -878,6 +974,11 @@
    <extends>QDockWidget</extends>
    <header>qgsdockwidget.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsDoubleSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>qgsdoublespinbox.h</header>
   </customwidget>
   <customwidget>
    <class>QgsFileWidget</class>
