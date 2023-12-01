@@ -8,7 +8,7 @@ from PyQt5.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
 from qgis.core import (QgsFeature, QgsField, QgsFields, QgsFillSymbol,
                        QgsGeometry, QgsPointXY, QgsProject, QgsRectangle,
-                       QgsVectorFileWriter, QgsVectorLayer, QgsWkbTypes)
+                       QgsVectorFileWriter, QgsVectorLayer, QgsWkbTypes, QgsVectorLayerUtils)
 from qgis.gui import (QgsMapCanvas, QgsMapTool, QgsMapToolEmitPoint,
                       QgsRubberBand, QgsVertexMarker)
 from qgis.PyQt.QtCore import QVariant
@@ -716,6 +716,7 @@ class SAM_PolygonFeature:
         MessageTool.MessageLog(
             f"old feature fields: {SAM_Feature_QgsFields.names()}")
 
+        return True
         if len(set(SAM_Feature_QgsFields.names()) - set(fields)) > 0:
             MessageTool.MessageBoxOK(
                 'The fields of this vector do not match the SAM feature fields.'
@@ -792,7 +793,7 @@ class SAM_PolygonFeature:
         layer_list = QgsProject.instance().mapLayersByName(self.layer_name)
         if layer_list:
             self.layer = layer_list[0]
-            self.layer.commitChanges()
+            self.commit_changes()
             MessageTool.MessageBar(
                 "Note:",
                 f"Using vector layer: '{self.default_name}' to store the output polygons.",
@@ -811,11 +812,12 @@ class SAM_PolygonFeature:
             self.layer.setCrs(self.img_crs_manager.img_crs)
             self.show_layer()
 
-        # TODO: if field exists, whether need to add it again?
-        # Set the provider to accept the data source
-        prov = self.layer.dataProvider()
-        prov.addAttributes(SAM_Feature_Fields)
-        self.layer.updateFields()
+            # TODO: if field exists, whether need to add it again?
+            # Set the provider to accept the data source
+            # change by Joey, if layer exist keep the layer untouched.
+            prov = self.layer.dataProvider()
+            prov.addAttributes(SAM_Feature_Fields)
+            self.layer.updateFields()
 
         self.ensure_edit_mode()
 
@@ -928,21 +930,34 @@ class SAM_PolygonFeature:
             self.canvas_preview_polygon.addPolygon(geometry)
 
             # add geometry to shapefile
-            feature = QgsFeature()
-            feature.setGeometry(geometry)
-            feature.setAttributes(
-                [group_ulid,
-                 0,
-                 num_polygons+idx+1,
-                 geometry_area,
-                 prompt_history.count('fgpt'),
-                 prompt_history.count('bgpt'),
-                 'bbox' in prompt_history]
-            )
+            # feature = QgsFeature()
+            # feature.setGeometry(geometry)
+            sam_attribute_list = [
+                group_ulid,
+                0,
+                num_polygons+idx+1,
+                geometry_area,
+                prompt_history.count('fgpt'),
+                prompt_history.count('bgpt'),
+                'bbox' in prompt_history
+            ]
+            # attributes_list_write = [SAM_Feature_QgsFields.names().index(field) for field in self.layer.fields().names()]
+            attributes_to_write = {}
+            for field, attribute in zip(SAM_Feature_QgsFields.names(), sam_attribute_list):
+                idx = self.layer.fields().indexOf(field)  # 0-based column indexing. The field index if found or -1 in case it cannot be found.
+                if idx > -1:
+                    attributes_to_write[idx] = attribute
+            # Creates a new feature ready for insertion into a layer. Default values and constraints (e.g., unique constraints) will automatically be handled.
+            feature = QgsVectorLayerUtils.createFeature(
+                layer=self.layer, geometry=geometry, attributes=attributes_to_write)
+
+            # feature.setAttributes(sam_attribute_list)
             features.append(feature)
 
-        for feature in features:
-            feature[1] = len(features)
+        idx_n_gm = self.layer.fields().indexOf('N_GM')
+        if idx_n_gm > -1:
+            for feature in features:
+                feature[idx_n_gm] = len(features)
         self.ensure_edit_mode()
         self.layer.addFeatures(features)
         self.layer.updateExtents()
@@ -968,6 +983,6 @@ class SAM_PolygonFeature:
     #     except:
     #         return None
 
-    def commit_changes(self):
+    def commit_changes(self, stop_edit: bool=False):
         '''Commit the changes'''
-        self.layer.commitChanges()
+        self.layer.commitChanges(stopEditing=stop_edit)
