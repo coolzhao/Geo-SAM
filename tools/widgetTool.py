@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import rasterio
+from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QKeySequence
 from PyQt5.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
@@ -721,18 +722,25 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_bg.toggle()
         self.prompt_type = 'bbox'
 
-    def set_vector_layer(self, reset=False):
+    @QtCore.pyqtSlot()
+    def set_vector_layer(self, reset: bool = False):
         '''set sam output vector layer'''
         new_layer = self.wdg_sel.MapLayerComboBox.currentLayer()
+        MessageTool.MessageLog(
+            f'reset value: {reset}, sender: {self.sender()}')
+        # TODO: figure out why the default value is not set when triggering by signal
 
         # parse whether the new selected layer is same as current layer
         if hasattr(self, "polygon"):
             old_layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
             if (old_layer and new_layer and
                     old_layer.id() == new_layer.id()):
+                MessageTool.MessageLog(
+                    f'vector layer not changed')
                 return None
             else:
-                if reset:
+                # MessageTool.MessageLog(new_layer.name())
+                if reset is True:
                     new_layer = None
                 self.polygon.reset_layer(new_layer)
                 MessageTool.MessageLog(
@@ -740,7 +748,8 @@ class Selector(QDockWidget):
             # if not self.polygon.reset_layer(new_layer):
             #     self.wdg_sel.MapLayerComboBox.setLayer(None)
         else:
-            if reset:
+            # MessageTool.MessageLog(new_layer.name())
+            if reset is True:
                 new_layer = None
             self.polygon = SAM_PolygonFeature(
                 self.img_crs_manager, layer=new_layer,
