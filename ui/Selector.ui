@@ -294,7 +294,7 @@
                  <number>0</number>
                 </property>
                 <property name="maximum">
-                 <double>100.000000000000000</double>
+                 <double>10000.000000000000000</double>
                 </property>
                </widget>
               </item>
@@ -576,13 +576,19 @@
            <item>
             <widget class="QGroupBox" name="groupBox_18">
              <property name="title">
-              <string>Piont Size</string>
+              <string>Point Size</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_10">
               <item>
-               <widget class="QgsDoubleSpinBox" name="mQgsDoubleSpinBoxPtSize">
+               <widget class="QgsDoubleSpinBox" name="SpinBoxPtSize">
                 <property name="decimals">
-                 <number>0</number>
+                 <number>1</number>
+                </property>
+                <property name="minimum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="singleStep">
+                 <double>0.500000000000000</double>
                 </property>
                </widget>
               </item>
@@ -596,7 +602,7 @@
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_11">
               <item>
-               <widget class="QComboBox" name="comboBoxIcon"/>
+               <widget class="QComboBox" name="comboBoxIconType"/>
               </item>
              </layout>
             </widget>
@@ -918,7 +924,7 @@
                  <number>0</number>
                 </property>
                 <property name="maximum">
-                 <double>100.000000000000000</double>
+                 <double>10000.000000000000000</double>
                 </property>
                </widget>
               </item>

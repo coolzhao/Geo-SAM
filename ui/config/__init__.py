@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 
 from PyQt5.QtGui import QColor
+from qgis.gui import QgsVertexMarker
 
-__all__ = ['Settings', "DefaultSettings", "save_user_settings"]
+__all__ = ['Settings', "DefaultSettings", "save_user_settings", "ICON_TYPE"]
 
 cwd = Path(__file__).parent.absolute()
 
@@ -23,6 +24,17 @@ color_list = [
     "prompt_color",
     "preview_color"
 ]
+
+ICON_TYPE = {
+    "Cross": QgsVertexMarker.ICON_CROSS,
+    "X": QgsVertexMarker.ICON_X,
+    "Box": QgsVertexMarker.ICON_BOX,
+    "Circle": QgsVertexMarker.ICON_CIRCLE,
+    "D_triangle": QgsVertexMarker.ICON_DOUBLE_TRIANGLE,
+    "Triangle": QgsVertexMarker.ICON_TRIANGLE,
+    "Rhombus": QgsVertexMarker.ICON_RHOMBUS,
+    "I_triangle": QgsVertexMarker.ICON_INVERTED_TRIANGLE,
+}
 
 Settings = DefaultSettings.copy()
 Settings.update(UserSettings)

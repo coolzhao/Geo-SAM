@@ -18,7 +18,7 @@ from torchgeo.datasets import BoundingBox
 from torchgeo.samplers import Units
 
 from ..ui import (DefaultSettings, Settings, UI_EncoderCopilot, UI_Selector,
-                  save_user_settings)
+                  save_user_settings, ICON_TYPE)
 from .canvasTool import (Canvas_Extent, Canvas_Points, Canvas_Rectangle,
                          ClickTool, RectangleMapTool, SAM_PolygonFeature)
 from .geoTool import ImageCRSManager
@@ -193,9 +193,9 @@ class Selector(QDockWidget):
                 self.load_default_t_area)
 
             self.wdg_sel.ColorButton_bgpt.colorChanged.connect(
-                self.reset_background_color)
+                self.reset_points_bg)
             self.wdg_sel.ColorButton_fgpt.colorChanged.connect(
-                self.reset_foreground_color)
+                self.reset_points_fg)
             self.wdg_sel.ColorButton_bbox.colorChanged.connect(
                 self.reset_rectangular_color)
             self.wdg_sel.ColorButton_extent.colorChanged.connect(
@@ -206,6 +206,14 @@ class Selector(QDockWidget):
                 self.reset_preview_polygon_color)
             self.wdg_sel.radioButton_load_demo.toggled.connect(
                 self.toggle_load_demo_img)
+
+            self.wdg_sel.SpinBoxPtSize.valueChanged.connect(
+                self.reset_points_size)
+            # self.wdg_sel.comboBoxIconType.clear()
+            self.wdg_sel.comboBoxIconType.addItems(list(ICON_TYPE.keys()))
+            # self.wdg_sel.comboBoxIconType.setCurrentText("Circle")
+            self.wdg_sel.comboBoxIconType.currentTextChanged.connect(
+                self.reset_points_icon)
 
             # If a signal is connected to several slots,
             # the slots are activated in the same order in which the connections were made, when the signal is emitted.
@@ -270,13 +278,20 @@ class Selector(QDockWidget):
     def alpha_color(self, color: QColor, alpha: float) -> QColor:
         return QColor(color.red(), color.green(), color.blue(), alpha)
 
-    def set_user_settings_color(self):
-        self.wdg_sel.ColorButton_bgpt.setColor(Settings["bg_color"])
-        self.wdg_sel.ColorButton_fgpt.setColor(Settings["fg_color"])
-        self.wdg_sel.ColorButton_bbox.setColor(Settings["bbox_color"])
-        self.wdg_sel.ColorButton_extent.setColor(Settings["extent_color"])
-        self.wdg_sel.ColorButton_prompt.setColor(Settings["prompt_color"])
-        self.wdg_sel.ColorButton_preview.setColor(Settings["preview_color"])
+    def set_styles_settings(self, settings):
+        self.wdg_sel.ColorButton_bgpt.setColor(settings["bg_color"])
+        self.wdg_sel.ColorButton_fgpt.setColor(settings["fg_color"])
+        self.wdg_sel.ColorButton_bbox.setColor(settings["bbox_color"])
+        self.wdg_sel.ColorButton_extent.setColor(settings["extent_color"])
+        self.wdg_sel.ColorButton_prompt.setColor(settings["prompt_color"])
+        self.wdg_sel.ColorButton_preview.setColor(settings["preview_color"])
+
+        self.wdg_sel.Box_min_pixel_default.setValue(
+            settings["default_minimum_pixels"])
+        self.wdg_sel.SpinBoxPtSize.setValue(
+            settings["pt_size"])
+
+        self.wdg_sel.comboBoxIconType.setCurrentText(settings["icon_type"])
 
     def set_user_settings(self):
         if Settings["load_demo"]:
@@ -285,11 +300,12 @@ class Selector(QDockWidget):
             self._set_feature_related()
             self.load_demo_img()
 
+        # TODO: show boundary issues
         if Settings["show_boundary"]:
             self.wdg_sel.radioButton_show_extent.setChecked(True)
             self._set_feature_related()
 
-        self.set_user_settings_color()
+        self.set_styles_settings(Settings)
 
     def reset_default_settings(self):
         save_user_settings({}, mode='overwrite')
@@ -303,19 +319,7 @@ class Selector(QDockWidget):
             self.wdg_sel.radioButton_show_extent.setChecked(True)
             self._set_feature_related()
 
-        self.wdg_sel.Box_min_pixel_default.setValue(
-            DefaultSettings["default_minimum_pixels"])
-
-        # set default color
-        self.wdg_sel.ColorButton_bgpt.setColor(DefaultSettings["bg_color"])
-        self.wdg_sel.ColorButton_fgpt.setColor(DefaultSettings["fg_color"])
-        self.wdg_sel.ColorButton_bbox.setColor(DefaultSettings["bbox_color"])
-        self.wdg_sel.ColorButton_extent.setColor(
-            DefaultSettings["extent_color"])
-        self.wdg_sel.ColorButton_prompt.setColor(
-            DefaultSettings["prompt_color"])
-        self.wdg_sel.ColorButton_preview.setColor(
-            DefaultSettings["preview_color"])
+        self.set_styles_settings(DefaultSettings)
 
     def disconnect_safely(self, item):
         try:
@@ -526,6 +530,7 @@ class Selector(QDockWidget):
             if not hasattr(self, "canvas_extent"):
                 return None
             self.canvas_extent.clear()
+            MessageTool.MessageLog('extent cleared')
             show_extent = False
         save_user_settings({"show_boundary": show_extent}, mode='update')
 
@@ -923,31 +928,63 @@ class Selector(QDockWidget):
         else:
             return MessageTool.MessageBoxOK('Point/rectangle is located outside of the feature boundary, click OK to undo last prompt.')
 
-    def reset_background_color(self):
-        '''Reset background color'''
-        color = self.wdg_sel.ColorButton_bgpt.color()
+    def reset_points_fg(self):
+        '''Reset point prompt style'''
+        fg_color = self.wdg_sel.ColorButton_fgpt.color()
         save_user_settings(
-            {"bg_color": color.name()},
+            {
+                "fg_color": fg_color.name(),
+            },
             mode='update'
         )
         if not hasattr(self, "canvas_points"):
             return None
-        self.canvas_points.background_color = color
-        self.canvas_points.flush_points_color()
-        self.tool_click_bg.reset_cursor_color(color.name())
+        self.canvas_points.foreground_color = fg_color
+        self.canvas_points.flush_points_style()
+        self.tool_click_fg.reset_cursor_color(fg_color.name())
 
-    def reset_foreground_color(self):
-        '''Reset foreground color'''
-        color = self.wdg_sel.ColorButton_fgpt.color()
+    def reset_points_bg(self):
+        '''Reset point prompt style'''
+        bg_color = self.wdg_sel.ColorButton_bgpt.color()
         save_user_settings(
-            {"fg_color": color.name()},
+            {
+                "bg_color": bg_color.name(),
+            },
             mode='update'
         )
         if not hasattr(self, "canvas_points"):
             return None
-        self.canvas_points.foreground_color = color
-        self.canvas_points.flush_points_color()
-        self.tool_click_fg.reset_cursor_color(color.name())
+        self.canvas_points.background_color = bg_color
+        self.canvas_points.flush_points_style()
+        self.tool_click_bg.reset_cursor_color(bg_color.name())
+
+    def reset_points_size(self):
+        '''Reset point prompt style'''
+        pt_size = self.wdg_sel.SpinBoxPtSize.value()
+        save_user_settings(
+            {
+                "pt_size": pt_size,
+            },
+            mode='update'
+        )
+        if not hasattr(self, "canvas_points"):
+            return None
+        self.canvas_points.point_size = pt_size
+        self.canvas_points.flush_points_style()
+
+    def reset_points_icon(self):
+        '''Reset point prompt style'''
+        pt_icon_type = self.wdg_sel.comboBoxIconType.currentText()
+        save_user_settings(
+            {
+                "icon_type": pt_icon_type,
+            },
+            mode='update'
+        )
+        if not hasattr(self, "canvas_points"):
+            return None
+        self.canvas_points.icon_type = ICON_TYPE[pt_icon_type]
+        self.canvas_points.flush_points_style()
 
     def reset_rectangular_color(self):
         '''Reset rectangular color'''

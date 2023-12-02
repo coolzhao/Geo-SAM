@@ -395,6 +395,8 @@ class Canvas_Points:
         self.labels: List[bool] = []
         self.foreground_color = QColor(0, 0, 255)
         self.background_color = QColor(255, 0, 0)
+        self.point_size = 1
+        self.icon_type = QgsVertexMarker.ICON_CIRCLE # enum type: circle = 4, https://api.qgis.org/api/qgsvertexmarker_8h_source.html
 
     @property
     def project_crs(self):
@@ -419,8 +421,8 @@ class Canvas_Points:
                 m.setColor(self.background_color)
                 m.setFillColor(self.background_color)
             # m.setIconSize(12)
-            m.setIconSize(round(UI_SCALE/3))
-            m.setIconType(QgsVertexMarker.ICON_CIRCLE)
+            m.setIconSize(round(UI_SCALE*self.point_size/3))
+            m.setIconType(self.icon_type)
 
         # add to markers and labels
         self.markers.append(m)
@@ -431,15 +433,19 @@ class Canvas_Points:
 
         self._update_extent()
 
-    def flush_points_color(self):
+    def flush_points_style(self):
         '''Flush the color of points'''
         for i, m in enumerate(self.markers):
             if self.labels[i]:
                 m.setColor(self.foreground_color)
                 m.setFillColor(self.foreground_color)
+                m.setIconSize(round(UI_SCALE*self.point_size/3))
+                m.setIconType(self.icon_type)
             else:
                 m.setColor(self.background_color)
                 m.setFillColor(self.background_color)
+                m.setIconSize(round(UI_SCALE*self.point_size/3))
+                m.setIconType(self.icon_type)
 
     def popPoint(self):
         """remove the last marker"""
