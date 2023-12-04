@@ -3,6 +3,7 @@ from pathlib import Path
 
 from PyQt5.QtGui import QColor
 from qgis.gui import QgsVertexMarker
+from ...tools.messageTool import MessageTool
 
 __all__ = ['Settings', "DefaultSettings", "save_user_settings", "ICON_TYPE"]
 
@@ -36,7 +37,7 @@ ICON_TYPE = {
     "I_triangle": QgsVertexMarker.ICON_INVERTED_TRIANGLE,
 }
 
-Settings = DefaultSettings.copy()
+Settings: dict = DefaultSettings.copy()
 Settings.update(UserSettings)
 
 for color in color_list:
@@ -56,8 +57,9 @@ def save_user_settings(settings, mode='update'):
         settings, by default 'update'
     '''
     if mode == 'update':
-        with open(setting_user_file) as f:
+        with open(setting_user_file, "r") as f:
             _new_settings = json.load(f)
+            # MessageTool.MessageLog(f"settings read: {_new_settings}")
     elif mode == 'overwrite':
         _new_settings = {}
     else:
@@ -72,4 +74,7 @@ def save_user_settings(settings, mode='update'):
                         continue
                 user_st[st] = settings[st]
         _new_settings.update(user_st)
+        Settings.update(user_st)  # record all setting items
+        # MessageTool.MessageLog(f"settings input: {settings}")
+        # MessageTool.MessageLog(f"settings to write: {_new_settings}")
         json.dump(_new_settings, f, indent=4)
