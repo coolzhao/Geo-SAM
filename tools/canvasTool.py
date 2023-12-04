@@ -339,6 +339,8 @@ class Canvas_Extent:
     def set_color(self, color: QColor):
         '''Set the color of the extent'''
         self.color = color
+        for canvas_rect in self.canvas_rect_list:
+            canvas_rect.set_line_color(self.color)
 
     def add_extent(self, extent: QgsRectangle,
                    use_type: str = 'extent',
@@ -396,7 +398,8 @@ class Canvas_Points:
         self.foreground_color = QColor(0, 0, 255)
         self.background_color = QColor(255, 0, 0)
         self.point_size = 1
-        self.icon_type = QgsVertexMarker.ICON_CIRCLE # enum type: circle = 4, https://api.qgis.org/api/qgsvertexmarker_8h_source.html
+        # enum type: circle = 4, https://api.qgis.org/api/qgsvertexmarker_8h_source.html
+        self.icon_type = QgsVertexMarker.ICON_CIRCLE
 
     @property
     def project_crs(self):
@@ -950,7 +953,8 @@ class SAM_PolygonFeature:
             # attributes_list_write = [SAM_Feature_QgsFields.names().index(field) for field in self.layer.fields().names()]
             attributes_to_write = {}
             for field, attribute in zip(SAM_Feature_QgsFields.names(), sam_attribute_list):
-                idx = self.layer.fields().indexOf(field)  # 0-based column indexing. The field index if found or -1 in case it cannot be found.
+                # 0-based column indexing. The field index if found or -1 in case it cannot be found.
+                idx = self.layer.fields().indexOf(field)
                 if idx > -1:
                     attributes_to_write[idx] = attribute
             # Creates a new feature ready for insertion into a layer. Default values and constraints (e.g., unique constraints) will automatically be handled.
@@ -989,6 +993,6 @@ class SAM_PolygonFeature:
     #     except:
     #         return None
 
-    def commit_changes(self, stop_edit: bool=False):
+    def commit_changes(self, stop_edit: bool = False):
         '''Commit the changes'''
         self.layer.commitChanges(stopEditing=stop_edit)

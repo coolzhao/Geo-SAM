@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>952</width>
-    <height>174</height>
+    <width>927</width>
+    <height>192</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -399,10 +399,7 @@
           <property name="frameShadow">
            <enum>QFrame::Raised</enum>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout">
-           <property name="spacing">
-            <number>1</number>
-           </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_3">
            <property name="leftMargin">
             <number>3</number>
            </property>
@@ -496,10 +493,7 @@
               <property name="alignment">
                <set>Qt::AlignHCenter|Qt::AlignTop</set>
               </property>
-              <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="5,1">
-               <property name="spacing">
-                <number>1</number>
-               </property>
+              <layout class="QHBoxLayout" name="horizontalLayout" stretch="15,3,4">
                <property name="leftMargin">
                 <number>3</number>
                </property>
@@ -541,6 +535,28 @@
                  </property>
                 </widget>
                </item>
+               <item>
+                <widget class="QPushButton" name="pushButton_zoom_to_extent">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>0</height>
+                  </size>
+                 </property>
+                 <property name="toolTip">
+                  <string>Zoom to encoded feature extent</string>
+                 </property>
+                 <property name="text">
+                  <string>Zoom to</string>
+                 </property>
+                </widget>
+               </item>
               </layout>
              </widget>
             </widget>
@@ -578,6 +594,9 @@
              <property name="title">
               <string>Point Size</string>
              </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+             </property>
              <layout class="QVBoxLayout" name="verticalLayout_10">
               <item>
                <widget class="QgsDoubleSpinBox" name="SpinBoxPtSize">
@@ -586,6 +605,9 @@
                 </property>
                 <property name="minimum">
                  <double>1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>99.000000000000000</double>
                 </property>
                 <property name="singleStep">
                  <double>0.500000000000000</double>
@@ -598,7 +620,10 @@
            <item>
             <widget class="QGroupBox" name="groupBox_17">
              <property name="title">
-              <string>Point Icon Type</string>
+              <string>Pt Icon Type</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_11">
               <item>
@@ -610,7 +635,10 @@
            <item>
             <widget class="QGroupBox" name="groupBox_9">
              <property name="title">
-              <string>FG Point Color</string>
+              <string>FG Pt Color</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_2">
               <item>
@@ -635,7 +663,10 @@
            <item>
             <widget class="QGroupBox" name="groupBox_6">
              <property name="title">
-              <string>BG Point Color</string>
+              <string>BG Pt Color</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_7">
               <item>
@@ -662,6 +693,9 @@
              <property name="title">
               <string>BBox Color</string>
              </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+             </property>
              <layout class="QVBoxLayout" name="verticalLayout_8">
               <item>
                <widget class="QgsColorButton" name="ColorButton_bbox">
@@ -686,6 +720,9 @@
             <widget class="QGroupBox" name="groupBox_12">
              <property name="title">
               <string>Polygon Color</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
               <item>
@@ -712,6 +749,9 @@
              <property name="title">
               <string>Preview Color</string>
              </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+             </property>
              <layout class="QVBoxLayout" name="verticalLayout_4">
               <item>
                <widget class="QgsColorButton" name="ColorButton_preview">
@@ -735,7 +775,10 @@
            <item>
             <widget class="QGroupBox" name="groupBox_8">
              <property name="title">
-              <string>Boundary Color</string>
+              <string>Extent Color</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignHCenter|Qt::AlignTop</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_9">
               <item>
@@ -860,40 +903,6 @@
                 </property>
                 <property name="toolTip">
                  <string>Toggle to show the extent of SAM features (operable area )</string>
-                </property>
-                <property name="text">
-                 <string>Enable</string>
-                </property>
-                <property name="checked">
-                 <bool>false</bool>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
-            <widget class="QGroupBox" name="groupBox_19">
-             <property name="title">
-              <string>Zoom to Extent</string>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_16">
-              <item>
-               <widget class="QRadioButton" name="radioButton_set_extent">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>0</height>
-                 </size>
-                </property>
-                <property name="toolTip">
-                 <string>Zoom to the extent of SAM features when loaded</string>
                 </property>
                 <property name="text">
                  <string>Enable</string>
