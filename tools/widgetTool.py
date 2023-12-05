@@ -114,17 +114,6 @@ class Selector(QDockWidget):
         self.t_area_default: float = 0.0
         self.need_execute_sam_toggle_mode: bool = True
         self.need_execute_sam_filter_area: bool = True
-        # colors
-        self.style_preview_polygon: Dict[str, Any] = {
-            "line_color": Settings["preview_color"],
-            "fill_color": self.alpha_color(Settings["preview_color"], 10),
-            "line_width": 2,
-        }
-        self.style_prompt_polygon: Dict[str, Any] = {
-            "line_color": Settings["prompt_color"],
-            "fill_color": self.alpha_color(Settings["prompt_color"], 10),
-            "line_width": 3,
-        }
 
     def open_widget(self):
         '''Create widget selector'''
@@ -282,12 +271,12 @@ class Selector(QDockWidget):
         return QColor(color.red(), color.green(), color.blue(), alpha)
 
     def set_styles_settings(self, settings):
-        self.wdg_sel.ColorButton_bgpt.setColor(settings["bg_color"])
-        self.wdg_sel.ColorButton_fgpt.setColor(settings["fg_color"])
-        self.wdg_sel.ColorButton_bbox.setColor(settings["bbox_color"])
-        self.wdg_sel.ColorButton_extent.setColor(settings["extent_color"])
-        self.wdg_sel.ColorButton_prompt.setColor(settings["prompt_color"])
-        self.wdg_sel.ColorButton_preview.setColor(settings["preview_color"])
+        self.wdg_sel.ColorButton_bgpt.setColor(QColor(settings["bg_color"]))
+        self.wdg_sel.ColorButton_fgpt.setColor(QColor(settings["fg_color"]))
+        self.wdg_sel.ColorButton_bbox.setColor(QColor(settings["bbox_color"]))
+        self.wdg_sel.ColorButton_extent.setColor(QColor(settings["extent_color"]))
+        self.wdg_sel.ColorButton_prompt.setColor(QColor(settings["prompt_color"]))
+        self.wdg_sel.ColorButton_preview.setColor(QColor(settings["preview_color"]))
 
         self.wdg_sel.Box_min_pixel_default.setValue(
             settings["default_minimum_pixels"])
@@ -295,6 +284,18 @@ class Selector(QDockWidget):
             settings["pt_size"])
 
         self.wdg_sel.comboBoxIconType.setCurrentText(settings["icon_type"])
+        # colors
+        self.style_preview_polygon: Dict[str, Any] = {
+            "line_color": QColor(Settings["preview_color"]),
+            "fill_color": self.alpha_color(QColor(Settings["preview_color"]), 10),
+            "line_width": 2,
+        }
+        self.style_prompt_polygon: Dict[str, Any] = {
+            "line_color": QColor(Settings["prompt_color"]),
+            "fill_color": self.alpha_color(QColor(Settings["prompt_color"]), 10),
+            "line_width": 3,
+        }
+
 
     def set_user_settings(self):
         MessageTool.MessageLog(f"user setting: {Settings}")

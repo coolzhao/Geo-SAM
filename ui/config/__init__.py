@@ -40,9 +40,9 @@ ICON_TYPE = {
 Settings: dict = DefaultSettings.copy()
 Settings.update(UserSettings)
 
-for color in color_list:
-    Settings[color] = QColor(Settings[color])
-    DefaultSettings[color] = QColor(DefaultSettings[color])
+# for color in color_list:
+#     Settings[color] = QColor(Settings[color])
+#     DefaultSettings[color] = QColor(DefaultSettings[color])
 
 
 def save_user_settings(settings, mode='update'):
@@ -68,10 +68,10 @@ def save_user_settings(settings, mode='update'):
         user_st = {}
         for st in settings:
             if settings[st] != Settings[st]:
-                # skip for same color case
-                if st in color_list:
-                    if settings[st] == Settings[st].name():
-                        continue
+                # # skip for same color case
+                # if st in color_list:
+                #     if settings[st] == Settings[st].name():
+                #         continue
                 user_st[st] = settings[st]
         _new_settings.update(user_st)
         Settings.update(user_st)  # record all setting items
