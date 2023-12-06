@@ -581,6 +581,7 @@ class Selector(QDockWidget):
             self.tool_click_fg.clear_hover_prompt()
             self.tool_click_bg.clear_hover_prompt()
             self.tool_click_rect.clear_hover_prompt()
+            self.polygon.canvas_preview_polygon.clear()
 
         if self.need_execute_sam_toggle_mode:
             self.execute_SAM.emit()
