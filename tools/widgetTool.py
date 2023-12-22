@@ -598,9 +598,10 @@ class Selector(QDockWidget):
         if not self.need_execute_sam_filter_area:
             return None
 
-        t_area = self.wdg_sel.Box_min_pixel.value() * self.res ** 2
         if not hasattr(self, "polygon"):
             return None
+
+        t_area = self.wdg_sel.Box_min_pixel.value() * self.res ** 2
 
         # clear SAM canvas result
         self.polygon.canvas_prompt_polygon.clear()
@@ -618,8 +619,8 @@ class Selector(QDockWidget):
 
     def load_default_t_area(self):
         min_pixel = self.wdg_sel.Box_min_pixel_default.value()
-        self.t_area_default = min_pixel * self.res ** 2
-        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
+        # self.t_area_default = min_pixel * self.res ** 2
+        self.wdg_sel.Box_min_pixel.setValue(min_pixel)
         save_user_settings(
             {"default_minimum_pixels": min_pixel}, mode='update')
 
@@ -910,7 +911,9 @@ class Selector(QDockWidget):
 
         # avoid execute sam when reset min pixel to default value
         self.need_execute_sam_filter_area = False
-        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
+        # reset to default min_pixel filter value after saving previous results
+        min_pixel = self.wdg_sel.Box_min_pixel_default.value()
+        self.wdg_sel.Box_min_pixel.setValue(min_pixel)
         self.need_execute_sam_filter_area = True
 
     def reset_prompt_type(self):
