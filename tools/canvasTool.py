@@ -799,28 +799,28 @@ class SAM_PolygonFeature:
 
     def _init_layer(self,):
         '''Initialize the layer. If the layer exists, load it. If not, create a new one on memory'''
-        layer_list = QgsProject.instance().mapLayersByName(self.layer_name)
+        layer_list = QgsProject.instance().mapLayersByName(self.default_name)
         if layer_list:
             self.layer = layer_list[0]
             self.commit_changes()
             MessageTool.MessageBar(
                 "Note:",
-                f"Using vector layer: '{self.default_name}' to store the output polygons.",
+                f"Using vector layer: '{self.layer_name}' to store the output polygons.",
                 duration=30
             )
         else:
-            MessageTool.MessageBar(
-                "Note:",
-                "Output Shapefile is not specified. "
-                f"A temporal layer: '{self.default_name}' is created, "
-                "remember to save it before quit.",
-                duration=30
-            )
             self.layer = QgsVectorLayer('Polygon', self.default_name, 'memory')
             # self.layer.setCrs(self.qgis_project.crs())
             self.layer.setCrs(self.img_crs_manager.img_crs)
             self.show_layer()
 
+            MessageTool.MessageBar(
+                "Note:",
+                "Output Shapefile is not specified. "
+                f"A temporal layer: '{self.layer_name}' is created, "
+                "remember to save it before quit.",
+                duration=30
+            )
             # TODO: if field exists, whether need to add it again?
             # Set the provider to accept the data source
             # change by Joey, if layer exist keep the layer untouched.
