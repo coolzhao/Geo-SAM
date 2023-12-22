@@ -263,7 +263,6 @@ class Selector(QDockWidget):
 
         self.toggle_edit_mode()
         # self.toggle_encoding_extent()
-        self._ensure_feature_crs()
 
         # if not self.wdg_sel.isUserVisible():
         #     self.wdg_sel.setUserVisible(True)
@@ -416,17 +415,6 @@ class Selector(QDockWidget):
             self.polygon.clear_canvas_polygons()
         self.canvas.refresh()
 
-    def _ensure_feature_crs(self):
-        if not hasattr(self, "sam_model"):
-            return None
-        if self.sam_model.img_qgs_crs != self.crs_project:
-            self.project.setCrs(self.sam_model.img_qgs_crs)
-            MessageTool.MessageBar(
-                "Note:",
-                "Project CRS has been changed to Feature CRS temporarily, "
-                "and will be reset to original CRS when this widget is closed.",
-                duration=30
-            )
 
     def _set_feature_related(self):
         '''Init or reload feature related objects'''
@@ -445,8 +433,6 @@ class Selector(QDockWidget):
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
         self.canvas_extent = Canvas_Extent(self.canvas, self.img_crs_manager)
-
-        self._ensure_feature_crs()
 
         # reset canvas extent
         self.sam_extent_canvas_crs = self.img_crs_manager.img_extent_to_crs(
@@ -581,6 +567,7 @@ class Selector(QDockWidget):
             self.tool_click_fg.clear_hover_prompt()
             self.tool_click_bg.clear_hover_prompt()
             self.tool_click_rect.clear_hover_prompt()
+            self.polygon.canvas_preview_polygon.clear()
 
         if self.need_execute_sam_toggle_mode:
             self.execute_SAM.emit()

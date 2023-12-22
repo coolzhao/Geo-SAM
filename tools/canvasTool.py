@@ -870,7 +870,7 @@ class SAM_PolygonFeature:
                 # transform pointXY from img_crs to polygon layer crs, if not match
                 point = QgsPointXY(*coord)
                 point = self.img_crs_manager.img_point_to_crs(
-                    point, self.layer.crs())
+                    point, self.qgis_project.crs())
                 points.append(point)
 
             geometry = QgsGeometry.fromPolygonXY([points])
