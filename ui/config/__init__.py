@@ -3,17 +3,23 @@ from pathlib import Path
 
 from PyQt5.QtGui import QColor
 from qgis.gui import QgsVertexMarker
+
 from ...tools.messageTool import MessageTool
 
-__all__ = ['Settings', "DefaultSettings", "save_user_settings", "ICON_TYPE"]
+__all__ = ["Settings", "DefaultSettings", "save_user_settings", "ICON_TYPE"]
 
 cwd = Path(__file__).parent.absolute()
 
-setting_default_file = cwd / 'default.json'
-setting_user_file = cwd / 'user.json'
+setting_default_file = cwd / "default.json"
+setting_user_file = cwd / "user.json"
+
+if not setting_user_file.exists():
+    with open(setting_user_file, "w") as f:
+        json.dump({}, f, indent=4)
 
 with open(setting_default_file) as f:
     DefaultSettings = json.load(f)
+
 with open(setting_user_file) as f:
     UserSettings = json.load(f)
 
@@ -23,7 +29,7 @@ color_list = [
     "bbox_color",
     "extent_color",
     "prompt_color",
-    "preview_color"
+    "preview_color",
 ]
 
 ICON_TYPE = {
@@ -45,8 +51,8 @@ Settings.update(UserSettings)
 #     DefaultSettings[color] = QColor(DefaultSettings[color])
 
 
-def save_user_settings(settings, mode='update'):
-    '''Save user settings to file
+def save_user_settings(settings, mode="update"):
+    """Save user settings to file
 
     Parameters
     ----------
@@ -55,16 +61,16 @@ def save_user_settings(settings, mode='update'):
     mode : str, one of {'update', 'overwrite'}, optional
         'update' to update existing settings, 'overwrite' to overwrite all
         settings, by default 'update'
-    '''
-    if mode == 'update':
+    """
+    if mode == "update":
         with open(setting_user_file, "r") as f:
             _new_settings = json.load(f)
             # MessageTool.MessageLog(f"settings read: {_new_settings}")
-    elif mode == 'overwrite':
+    elif mode == "overwrite":
         _new_settings = {}
     else:
         raise ValueError("mode must be either 'update' or 'overwrite'")
-    with open(setting_user_file, 'w') as f:
+    with open(setting_user_file, "w") as f:
         user_st = {}
         for st in settings:
             if settings[st] != Settings[st]:
