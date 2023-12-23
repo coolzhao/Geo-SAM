@@ -740,21 +740,6 @@ class SAM_PolygonFeature:
         except:
             return None
 
-    def layer_fields_correct(self, layer: QgsVectorLayer):
-        fields = layer.fields().names()
-        MessageTool.MessageLog(f"New layer fields: {fields}")
-        MessageTool.MessageLog(f"old feature fields: {SAM_Feature_QgsFields.names()}")
-
-        return True
-        if len(set(SAM_Feature_QgsFields.names()) - set(fields)) > 0:
-            MessageTool.MessageBoxOK(
-                "The fields of this vector do not match the SAM feature fields."
-                " Please select a correct existed file or a new file to create it."
-            )
-            return False
-        else:
-            return True
-
     def reset_geojson(self):
         self.geojson_canvas_preview = {}
         self.geojson_canvas_prompt = {}
@@ -772,14 +757,12 @@ class SAM_PolygonFeature:
         bool: whether reset successfully
         """
         if layer:
-            if not self.layer_fields_correct(layer):
-                return False
             self.layer = layer
         else:
             self._init_layer()
 
         self.reset_geojson()
-        self.show_layer()
+        # self.show_layer()
         self.ensure_edit_mode()
         return True
 
@@ -810,11 +793,9 @@ class SAM_PolygonFeature:
             del writer
 
         layer = QgsVectorLayer(shapefile, Path(shapefile).stem, "ogr")
-        if not self.layer_fields_correct(layer):
-            return False
 
         self.layer = layer
-        self.show_layer()
+        # self.show_layer()
         self.ensure_edit_mode()
 
     def _init_layer(
