@@ -4,3 +4,4 @@ rasters/**/*.aux.xml
 .vscode/settings.json
 .tmp.driveupload/*
 docs/build
+ui/config/user.json
