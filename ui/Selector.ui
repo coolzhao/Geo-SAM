@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1234</width>
-    <height>201</height>
+    <width>871</width>
+    <height>198</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -276,7 +276,7 @@
            <item>
             <widget class="QGroupBox" name="groupBox_14">
              <property name="title">
-              <string>Set Minimum Pixels</string>
+              <string>Minimum Pixels</string>
              </property>
              <layout class="QGridLayout" name="gridLayout_15">
               <property name="horizontalSpacing">
@@ -386,9 +386,9 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="Features">
+      <widget class="QWidget" name="Paths">
        <attribute name="title">
-        <string>Features</string>
+        <string>I/O Paths</string>
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout_12">
         <item>
@@ -419,7 +419,7 @@
              </property>
              <widget class="QGroupBox" name="OutShapefileGroupBox">
               <property name="title">
-               <string>Choose Output Layer or File</string>
+               <string>Output Layer or File</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignHCenter|Qt::AlignTop</set>
@@ -488,7 +488,7 @@
              </widget>
              <widget class="QGroupBox" name="FeatureFolderGroupBox">
               <property name="title">
-               <string>Load Feature Folder</string>
+               <string>Input Feature Folder</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignHCenter|Qt::AlignTop</set>
@@ -834,7 +834,7 @@
               <string>Preview SAM reslut while moving mouse (H)</string>
              </property>
              <property name="title">
-              <string>Preview Masks</string>
+              <string>Preview Mode</string>
              </property>
              <layout class="QGridLayout" name="gridLayout_11">
               <item row="0" column="0">
@@ -850,6 +850,65 @@
                 </property>
                 <property name="text">
                  <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="groupBox_19">
+             <property name="title">
+              <string>Only Keep Max Object</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_16">
+              <item>
+               <widget class="QRadioButton" name="radioButton_only_max_object">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Toggle to show the extent of SAM features (operable area )</string>
+                </property>
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+                <property name="checked">
+                 <bool>false</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="groupBox_11">
+             <property name="title">
+              <string>Default Minimum Pixels</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_13">
+              <item>
+               <widget class="QDoubleSpinBox" name="Box_min_pixel_default">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="decimals">
+                 <number>0</number>
+                </property>
+                <property name="maximum">
+                 <double>10000.000000000000000</double>
                 </property>
                </widget>
               </item>
@@ -916,31 +975,6 @@
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_11">
-             <property name="title">
-              <string>Default Minimum Pixels</string>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_13">
-              <item>
-               <widget class="QDoubleSpinBox" name="Box_min_pixel_default">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="decimals">
-                 <number>0</number>
-                </property>
-                <property name="maximum">
-                 <double>10000.000000000000000</double>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
             <widget class="QGroupBox" name="groupBox_16">
              <property name="title">
               <string>Reset To Default</string>
@@ -989,7 +1023,7 @@
       <property name="frameShadow">
        <enum>QFrame::Raised</enum>
       </property>
-      <layout class="QHBoxLayout" name="horizontalLayout_7" stretch="0,3,0,3,0,3,0">
+      <layout class="QHBoxLayout" name="horizontalLayout_7" stretch="3,3,3">
        <property name="spacing">
         <number>0</number>
        </property>
@@ -1006,26 +1040,12 @@
         <number>0</number>
        </property>
        <item>
-        <widget class="Line" name="line_3">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-        </widget>
-       </item>
-       <item>
         <widget class="QLabel" name="labelPrompts">
          <property name="lineWidth">
           <number>0</number>
          </property>
          <property name="text">
-          <string>TextLabel</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="Line" name="line">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
+          <string>FG Num: 0 | BG Num: 0 | BBox Num: 0</string>
          </property>
         </widget>
        </item>
@@ -1035,31 +1055,26 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>TextLabel</string>
+          <string>Polygon Num: 0</string>
          </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="Line" name="line_2">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
          </property>
         </widget>
        </item>
        <item>
         <widget class="QLabel" name="labelModes">
+         <property name="layoutDirection">
+          <enum>Qt::LeftToRight</enum>
+         </property>
          <property name="lineWidth">
           <number>0</number>
          </property>
          <property name="text">
-          <string>TextLabel</string>
+          <string>Preview Mode: Off</string>
          </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="Line" name="line_4">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
+         <property name="alignment">
+          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
          </property>
         </widget>
        </item>
@@ -1067,6 +1082,8 @@
      </widget>
     </item>
    </layout>
+   <zorder>Status</zorder>
+   <zorder>tabWidget</zorder>
   </widget>
  </widget>
  <customwidgets>
