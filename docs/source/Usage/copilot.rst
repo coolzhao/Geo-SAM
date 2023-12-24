@@ -30,7 +30,7 @@ When the parameters are determined, the user can directly click the ``Copy Setti
 Export Settings into a file
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Users can also export the settings to a json file by click ``Export Settings`` button. This is useful to pass parameters to the :ref:`GeoSAM-Image-Encoder <Geo-SAM Image Encoder>` package.
+Users can also export the settings to a json file by click ``Export Settings`` button. This is useful to pass parameters to the `GeoSAM-Image-Encoder <https://github.com/Fanchengyan/GeoSAM-Image-Encoder>`_ package.
 
 Demo Animation
 --------------

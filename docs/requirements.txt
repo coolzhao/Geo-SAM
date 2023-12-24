@@ -1,6 +1,6 @@
 recommonmark
-sphinx==3.5.3
+sphinx
 myst-parser
 sphinxcontrib-video
 sphinx_rtd_theme
-Jinja2<3.1
+Jinja2

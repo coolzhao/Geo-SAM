@@ -15,7 +15,7 @@ Welcome to Geo-SAM's documentation!
     :target: https://geo-sam.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
-By `Joey <https://github.com/coolzhao>`_ and `Fancy <https://github.com/Fanchengyan>`_ from `Cryosphere Lab <https://cryocuhk.github.io/>`_, ESSC, CUHK.
+By `Zhuoyi Zhao (Joey) <https://github.com/coolzhao>`_ and `Chengyan Fan (Fancy) <https://github.com/Fanchengyan>`_ from `Cryosphere Lab <https://cryocuhk.github.io/>`_, ESSC, CUHK.
 
 Introduction
 ------------
