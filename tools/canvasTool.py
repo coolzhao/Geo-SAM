@@ -6,12 +6,27 @@ import numpy as np
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
-from qgis.core import (QgsFeature, QgsField, QgsFields, QgsFillSymbol,
-                       QgsGeometry, QgsPointXY, QgsProject, QgsRectangle,
-                       QgsVectorFileWriter, QgsVectorLayer,
-                       QgsVectorLayerUtils, QgsWkbTypes)
-from qgis.gui import (QgsMapCanvas, QgsMapTool, QgsMapToolEmitPoint,
-                      QgsRubberBand, QgsVertexMarker)
+from qgis.core import (
+    QgsFeature,
+    QgsField,
+    QgsFields,
+    QgsFillSymbol,
+    QgsGeometry,
+    QgsPointXY,
+    QgsProject,
+    QgsRectangle,
+    QgsVectorFileWriter,
+    QgsVectorLayer,
+    QgsVectorLayerUtils,
+    QgsWkbTypes,
+)
+from qgis.gui import (
+    QgsMapCanvas,
+    QgsMapTool,
+    QgsMapToolEmitPoint,
+    QgsRubberBand,
+    QgsVertexMarker,
+)
 from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
 from rasterio.transform import Affine, rowcol
@@ -19,9 +34,15 @@ from rasterio.transform import Affine, rowcol
 if TYPE_CHECKING:
     from .widgetTool import Selector
 
-from ..ui.cursors import (UI_SCALE, CursorPointBG, CursorPointFG, CursorRect,
-                          customize_bbox_cursor, customize_bg_point_cursor,
-                          customize_fg_point_cursor)
+from ..ui.cursors import (
+    UI_SCALE,
+    CursorPointBG,
+    CursorPointFG,
+    CursorRect,
+    customize_bbox_cursor,
+    customize_bg_point_cursor,
+    customize_fg_point_cursor,
+)
 from .geoTool import ImageCRSManager, LayerExtent
 from .messageTool import MessageTool
 from .ulid import GroupId
@@ -877,7 +898,7 @@ class SAM_PolygonFeature:
                 if overwrite_geojson:
                     self.geojson_canvas_prompt = geojson
 
-        if selector.max_object_mode:
+        if selector.max_polygon_mode:
             if len(areas) == 0:
                 return None
             idx = np.argmax(areas)
@@ -901,7 +922,7 @@ class SAM_PolygonFeature:
         geojson: Dict,
         t_area: float = 0,
         prompt_history: List = [],
-        max_object_mode: bool = False,
+        max_polygon_mode: bool = False,
         overwrite_geojson: bool = False,
     ):
         """Add a geojson feature to the layer
@@ -914,7 +935,7 @@ class SAM_PolygonFeature:
             the threshold of area
         prompt_history: List
             the prompt history of the feature
-        max_object_mode: bool
+        max_polygon_mode: bool
             whether only keep the max object in the geojson
         overwrite_geojson: bool
             whether overwrite the geojson of this class.
@@ -976,7 +997,7 @@ class SAM_PolygonFeature:
             # feature.setAttributes(sam_attribute_list)
             features.append(feature)
 
-        if max_object_mode:
+        if max_polygon_mode:
             if len(areas) == 0:
                 return None
             idx_max = np.argmax(areas)

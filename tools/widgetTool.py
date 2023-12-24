@@ -9,34 +9,18 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QKeySequence
 from PyQt5.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
-from qgis.core import (
-    QgsCoordinateReferenceSystem,
-    QgsMapLayerProxyModel,
-    QgsProject,
-    QgsRasterLayer,
-    QgsRectangle,
-)
-from qgis.gui import QgisInterface, QgsDoubleSpinBox, QgsFileWidget, QgsMapToolPan
+from qgis.core import (QgsCoordinateReferenceSystem, QgsMapLayerProxyModel,
+                       QgsProject, QgsRasterLayer, QgsRectangle)
+from qgis.gui import (QgisInterface, QgsDoubleSpinBox, QgsFileWidget,
+                      QgsMapToolPan)
 from rasterio.windows import from_bounds as window_from_bounds
 from torchgeo.datasets import BoundingBox
 from torchgeo.samplers import Units
 
-from ..ui import (
-    ICON_TYPE,
-    DefaultSettings,
-    Settings,
-    UI_EncoderCopilot,
-    UI_Selector,
-    save_user_settings,
-)
-from .canvasTool import (
-    Canvas_Extent,
-    Canvas_Points,
-    Canvas_Rectangle,
-    ClickTool,
-    RectangleMapTool,
-    SAM_PolygonFeature,
-)
+from ..ui import (ICON_TYPE, DefaultSettings, Settings, UI_EncoderCopilot,
+                  UI_Selector, save_user_settings)
+from .canvasTool import (Canvas_Extent, Canvas_Points, Canvas_Rectangle,
+                         ClickTool, RectangleMapTool, SAM_PolygonFeature)
 from .geoTool import ImageCRSManager
 from .messageTool import MessageTool
 from .SAMTool import SAM_Model
@@ -126,7 +110,7 @@ class Selector(QDockWidget):
         self.preview_mode: bool = False
         self.t_area: float = 0.0
         self.t_area_default: float = 0.0
-        self.max_object_mode: bool = False
+        self.max_polygon_mode: bool = False
         self.need_execute_sam_toggle_mode: bool = True
         self.need_execute_sam_filter_area: bool = True
 
@@ -194,8 +178,8 @@ class Selector(QDockWidget):
             )
 
             # only keep max object mode
-            self.wdg_sel.radioButton_max_object_mode.toggled.connect(
-                self.toggle_max_object_mode
+            self.wdg_sel.radioButton_max_polygon_mode.toggled.connect(
+                self.toggle_max_polygon_mode
             )
 
             self.wdg_sel.ColorButton_bgpt.colorChanged.connect(self.reset_points_bg)
@@ -317,12 +301,25 @@ class Selector(QDockWidget):
             # self._set_feature_related()
             # self.load_demo_img()
             MessageTool.MessageLog("Demo loaded")
+        else:
+            self.wdg_sel.radioButton_load_demo.setChecked(False)
+            MessageTool.MessageLog("not load Demo")
 
         # TODO: show boundary issues
         if Settings["show_boundary"]:
             self.wdg_sel.radioButton_show_extent.setChecked(True)
             # self._set_feature_related()
             MessageTool.MessageLog("Boundary showed")
+        else:
+            self.wdg_sel.radioButton_show_extent.setChecked(False)
+            MessageTool.MessageLog("not show Boundary")
+
+        if Settings["max_polygon_only"]:
+            self.wdg_sel.radioButton_max_polygon_mode.setChecked(True)
+            MessageTool.MessageLog("Max object mode on")
+        else:
+            self.wdg_sel.radioButton_max_polygon_mode.setChecked(False)
+            MessageTool.MessageLog("Max object mode off")
 
     def reset_default_settings(self):
         save_user_settings({}, mode="overwrite")
@@ -339,6 +336,8 @@ class Selector(QDockWidget):
         ):
             self.wdg_sel.radioButton_show_extent.setChecked(True)
             # self._set_feature_related()
+        if not DefaultSettings["max_polygon_only"]:
+            self.wdg_sel.radioButton_max_polygon_mode.setChecked(False)
 
         self.set_styles_settings(DefaultSettings)
 
@@ -584,15 +583,18 @@ class Selector(QDockWidget):
         if self.need_execute_sam_toggle_mode:
             self.execute_SAM.emit()
 
-    def toggle_max_object_mode(self):
-        if self.wdg_sel.radioButton_max_object_mode.isChecked():
-            self.max_object_mode = True
+    def toggle_max_polygon_mode(self):
+        if self.wdg_sel.radioButton_max_polygon_mode.isChecked():
+            self.max_polygon_mode = True
+
             self.wdg_sel.Box_min_pixel.setEnabled(False)
             self.wdg_sel.Box_min_pixel_default.setEnabled(False)
+
         else:
-            self.max_object_mode = False
+            self.max_polygon_mode = False
             self.wdg_sel.Box_min_pixel.setEnabled(True)
             self.wdg_sel.Box_min_pixel_default.setEnabled(True)
+        save_user_settings({"max_polygon_only": self.max_polygon_mode}, mode="update")
 
     def is_pressed_prompt(self):
         """Check if the prompt is clicked or hovered"""
@@ -902,7 +904,7 @@ class Selector(QDockWidget):
                 self.polygon.geojson_canvas_prompt,
                 self.t_area,
                 self.prompt_history,
-                self.max_object_mode,
+                self.max_polygon_mode,
             )
 
             self.polygon.commit_changes()

@@ -921,7 +921,7 @@
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_16">
               <item>
-               <widget class="QRadioButton" name="radioButton_max_object_mode">
+               <widget class="QRadioButton" name="radioButton_max_polygon_mode">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                   <horstretch>0</horstretch>
