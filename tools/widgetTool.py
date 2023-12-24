@@ -619,14 +619,12 @@ class Selector(QDockWidget):
             self.polygon.canvas_preview_polygon.clear()
 
         # filter feature by new area, only show in prompt canvas
+        self.t_area = t_area
         self.polygon.add_geojson_feature_to_canvas(
             self.polygon.geojson_canvas_prompt,
-            t_area,
-            max_object_mode=self.max_object_mode,
+            self,
             target="prompt",
         )
-
-        self.t_area = t_area
 
     def load_default_t_area(self):
         min_pixel = self.wdg_sel.Box_min_pixel_default.value()
@@ -640,6 +638,30 @@ class Selector(QDockWidget):
             if layer:
                 return None
         self.set_vector_layer(reset=True)
+
+    def update_status_labels(self, num_polygon: int) -> None:
+        """Update status labels in status bar
+
+        Parameters
+        ----------
+        num_polygon : int
+            Number of polygons in canvas
+        """
+        # retrieve status of prompt
+        n_fg = self.prompt_history.count("fgpt")
+        n_bg = self.prompt_history.count("bgpt")
+        bbox = "bbox" in self.prompt_history
+
+        # construct status labels
+        prompt = f"FG Num: {n_fg} | BG Num: {n_bg}, BBox: {bbox}"
+        polygon = f"Polygon Num: {num_polygon}"
+        _preview = "On" if self.preview_mode else "Off"
+        preview = f"Preview Mode: {_preview}"
+
+        # update labels in status bar
+        self.wdg_sel.labelPrompts.setText(prompt)
+        self.wdg_sel.labelPolygons.setText(polygon)
+        self.wdg_sel.labelPreview.setText(preview)
 
     def execute_segmentation(self) -> bool:
         # check prompt inside feature extent and add last id to history for new prompt
@@ -682,14 +704,7 @@ class Selector(QDockWidget):
             self.polygon.canvas_prompt_polygon.clear()
 
         # execute segmentation
-        if not self.sam_model.sam_predict(
-            self.canvas_points,
-            self.canvas_rect,
-            self.polygon,
-            self.preview_mode,
-            self.t_area,
-            self.max_object_mode,
-        ):
+        if not self.sam_model.sam_predict(self):
             # out of extent and not in preview mode
             self.undo_last_prompt()
 
@@ -697,8 +712,7 @@ class Selector(QDockWidget):
         if self.preview_mode and self.is_pressed_prompt():
             self.polygon.add_geojson_feature_to_canvas(
                 self.polygon.geojson_canvas_preview,  # update with canvas polygon
-                self.t_area,
-                max_object_mode=self.max_object_mode,
+                self,
                 target="prompt",
                 overwrite_geojson=True,
             )
@@ -868,6 +882,7 @@ class Selector(QDockWidget):
         if hasattr(self, "polygon"):
             self.polygon.clear_canvas_polygons()
         self.prompt_history.clear()
+        self.update_status_labels(0)
 
     def save_shp_file(self):
         """save sam result into shapefile layer"""
@@ -914,6 +929,8 @@ class Selector(QDockWidget):
         self.clear_canvas_layers_safely()
         self.prompt_history.clear()
         self.polygon.reset_geojson()
+
+        self.update_status_labels(0)
 
         # avoid execute sam when reset min pixel to default value
         self.need_execute_sam_filter_area = False

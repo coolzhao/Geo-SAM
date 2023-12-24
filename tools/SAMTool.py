@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import List
+from typing import TYPE_CHECKING
 
 import numpy as np
 import rasterio
@@ -14,6 +14,9 @@ from .geoTool import LayerExtent
 from .messageTool import MessageTool
 from .sam_ext import SamPredictorNoImgEncoder, build_sam_no_encoder
 from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
+
+if TYPE_CHECKING:
+    from .widgetTool import Selector
 
 
 class SAM_Model:
@@ -54,17 +57,9 @@ class SAM_Model:
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3]
         )
 
-    def sam_predict(
-        self,
-        canvas_points: Canvas_Points,
-        canvas_rect: Canvas_Rectangle,
-        sam_polygon: SAM_PolygonFeature,
-        preview_mode: bool = False,
-        t_area: float = 0.0,
-        max_object_mode: bool = False,
-    ) -> bool:
+    def sam_predict(self, selector: "Selector") -> bool:
         extent_union = LayerExtent.union_extent(
-            canvas_points.extent, canvas_rect.extent
+            selector.canvas_points.extent, selector.canvas_rect.extent
         )
 
         if extent_union is None:
@@ -86,7 +81,7 @@ class SAM_Model:
 
         # if preview mode, check if the hover location is outside the image
         if len(test_sampler) == 0:
-            if preview_mode:
+            if selector.preview_mode:
                 MessageTool.MessageLog(
                     "Hover location outside the boundary of the image",
                     "warning",
@@ -127,11 +122,11 @@ class SAM_Model:
             MessageTool.MessageLog("Load new feature")
             break
 
-        input_point, input_label = canvas_points.get_points_and_labels(
+        input_point, input_label = selector.canvas_points.get_points_and_labels(
             self.img_clip_transform
         )
 
-        input_box = canvas_rect.get_img_box(self.img_clip_transform)
+        input_box = selector.canvas_rect.get_img_box(self.img_clip_transform)
         # TODO: Points or rectangles can be negative or exceed 1024, should be regulated
         # also may consider remove those points after checking
         masks, scores, logits = self.predictor.predict(
@@ -165,19 +160,18 @@ class SAM_Model:
             for polygon, value in shape_generator
         ]
 
-        sam_polygon.canvas_preview_polygon.clear()
-        sam_polygon.canvas_preview_polygon.clear()
+        selector.polygon.canvas_preview_polygon.clear()
+        selector.polygon.canvas_preview_polygon.clear()
 
-        if preview_mode:
-            sam_polygon.add_geojson_feature_to_canvas(
-                geojson, t_area, max_object_mode=max_object_mode, overwrite_geojson=True
-            )
-        else:
-            sam_polygon.add_geojson_feature_to_canvas(
-                geojson,
-                t_area,
-                max_object_mode=max_object_mode,
-                target="prompt",
-                overwrite_geojson=True,
-            )
+        target = "prompt"
+        if selector.preview_mode:
+            target = "preview"
+
+        # overwrite geojson using the new one
+        selector.polygon.add_geojson_feature_to_canvas(
+            geojson,
+            selector,
+            target=target,
+            overwrite_geojson=True,
+        )
         return True

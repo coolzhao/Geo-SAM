@@ -1,45 +1,27 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 import numpy as np
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
-from qgis.core import (
-    QgsFeature,
-    QgsField,
-    QgsFields,
-    QgsFillSymbol,
-    QgsGeometry,
-    QgsPointXY,
-    QgsProject,
-    QgsRectangle,
-    QgsVectorFileWriter,
-    QgsVectorLayer,
-    QgsVectorLayerUtils,
-    QgsWkbTypes,
-)
-from qgis.gui import (
-    QgsMapCanvas,
-    QgsMapTool,
-    QgsMapToolEmitPoint,
-    QgsRubberBand,
-    QgsVertexMarker,
-)
+from qgis.core import (QgsFeature, QgsField, QgsFields, QgsFillSymbol,
+                       QgsGeometry, QgsPointXY, QgsProject, QgsRectangle,
+                       QgsVectorFileWriter, QgsVectorLayer,
+                       QgsVectorLayerUtils, QgsWkbTypes)
+from qgis.gui import (QgsMapCanvas, QgsMapTool, QgsMapToolEmitPoint,
+                      QgsRubberBand, QgsVertexMarker)
 from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
 from rasterio.transform import Affine, rowcol
 
-from ..ui.cursors import (
-    UI_SCALE,
-    CursorPointBG,
-    CursorPointFG,
-    CursorRect,
-    customize_bbox_cursor,
-    customize_bg_point_cursor,
-    customize_fg_point_cursor,
-)
+if TYPE_CHECKING:
+    from .widgetTool import Selector
+
+from ..ui.cursors import (UI_SCALE, CursorPointBG, CursorPointFG, CursorRect,
+                          customize_bbox_cursor, customize_bg_point_cursor,
+                          customize_fg_point_cursor)
 from .geoTool import ImageCRSManager, LayerExtent
 from .messageTool import MessageTool
 from .ulid import GroupId
@@ -847,21 +829,18 @@ class SAM_PolygonFeature:
     def add_geojson_feature_to_canvas(
         self,
         geojson: Dict,
-        t_area: float,
-        max_object_mode: bool = False,
+        selector: "Selector",
         target: str = "preview",
         overwrite_geojson: bool = False,
-    ):
-        """Add a geojson feature to the layer
+    ) -> None:
+        """Add a geojson feature to the layer and update the status labels
 
         Parameters:
         ----------
         geojson: Dict
             features in geojson format
-        t_area: float
-            the threshold of area
-        max_object_mode: bool
-            whether only keep the max object in the geojson
+        selector: Selector
+            The Geo SAM Selector object
         target: str, one of ['preview', 'prompt']
             the target of the geojson, default 'preview'
         overwrite_geojson: bool
@@ -898,19 +877,24 @@ class SAM_PolygonFeature:
                 if overwrite_geojson:
                     self.geojson_canvas_prompt = geojson
 
-        if max_object_mode:
+        if selector.max_object_mode:
             if len(areas) == 0:
                 return None
             idx = np.argmax(areas)
             geometry = geometries[idx]
             process_geometry()
+            num_polygon = 1
         else:
+            num_polygon = 0
             for geometry, geometry_area in zip(geometries, areas):
                 # if the area of the feature is less than t_area,
                 # it will not be added to the layer
-                if geometry_area < t_area:
+                if geometry_area < selector.t_area:
                     continue
                 process_geometry()
+                num_polygon += 1
+
+        selector.update_status_labels(num_polygon)
 
     def add_geojson_feature_to_layer(
         self,
