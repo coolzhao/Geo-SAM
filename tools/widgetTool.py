@@ -1054,10 +1054,11 @@ class Selector(QDockWidget):
         self.canvas_extent.set_color(color)
         save_user_settings({"extent_color": color.name()}, mode="update")
 
-        # if self.wdg_sel.radioButton_show_extent.isChecked():
-        #     self.canvas_extent.clear()
-        #     if hasattr(self, "sam_extent_canvas_crs"):
-        #         self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
+        if self.wdg_sel.radioButton_show_extent.isChecked() and hasattr(
+            self, "sam_extent_canvas_crs"
+        ):
+            self.canvas_extent.clear()
+            self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
 
     def reset_prompt_polygon_color(self):
         """Reset prompt polygon color"""
