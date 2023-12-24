@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>891</width>
+    <width>871</width>
     <height>198</height>
    </rect>
   </property>
@@ -300,7 +300,7 @@
                  <number>0</number>
                 </property>
                 <property name="maximum">
-                 <double>10000.000000000000000</double>
+                 <double>99999999.000000000000000</double>
                 </property>
                </widget>
               </item>
@@ -635,7 +635,7 @@
               <string>Icon Type of FG and BG point</string>
              </property>
              <property name="title">
-              <string>Pt Icon Type</string>
+              <string>Point Type</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignHCenter|Qt::AlignTop</set>
@@ -657,7 +657,7 @@
               <string>Color of FG Point</string>
              </property>
              <property name="title">
-              <string>FG Pt Color</string>
+              <string>FG Color</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignHCenter|Qt::AlignTop</set>
@@ -691,7 +691,7 @@
               <string>Color of BG Point</string>
              </property>
              <property name="title">
-              <string>BG Pt Color</string>
+              <string>BG Color</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignHCenter|Qt::AlignTop</set>
@@ -966,7 +966,7 @@
                  <number>0</number>
                 </property>
                 <property name="maximum">
-                 <double>10000.000000000000000</double>
+                 <double>99999999.000000000000000</double>
                 </property>
                </widget>
               </item>
