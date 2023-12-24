@@ -872,20 +872,30 @@ class SAM_PolygonFeature:
         areas = []
         geometries = []
         for geom in geojson:
-            points = []
+            points_project_crs = []
+            points_layer_crs = []
             coordinates = geom["geometry"]["coordinates"][0]
             for coord in coordinates:
                 # transform pointXY from img_crs to polygon layer crs, if not match
                 point = QgsPointXY(*coord)
-                point = self.img_crs_manager.img_point_to_crs(
+                
+                # show the point on canvas in project crs
+                pt_project_crs = self.img_crs_manager.img_point_to_crs(
                     point, self.qgis_project.crs()
                 )
-                points.append(point)
+                points_project_crs.append(pt_project_crs)
+                
+                # calculate the area in layer crs
+                pt_layer_crs = self.img_crs_manager.img_point_to_crs(
+                    point, self.layer.crs()
+                )
+                points_layer_crs.append(pt_layer_crs)
 
-            geometry = QgsGeometry.fromPolygonXY([points])
-
+            geometry = QgsGeometry.fromPolygonXY([points_project_crs])
             geometries.append(geometry)
-            areas.append(geometry.area())
+
+            geometry_layer_crs = QgsGeometry.fromPolygonXY([points_layer_crs])
+            areas.append(geometry_layer_crs.area())
             # geometry_area = feature.geometry().area()
 
         def process_geometry():
