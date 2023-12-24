@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>871</width>
-    <height>201</height>
+    <width>891</width>
+    <height>198</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -127,7 +127,7 @@
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Add foreground points (Tab)</string>
+                 <string>Add ForeGround points (Tab)</string>
                 </property>
                 <property name="text">
                  <string>FG</string>
@@ -149,7 +149,7 @@
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Add background points (Tab)</string>
+                 <string>Add BackGround points (Tab)</string>
                 </property>
                 <property name="text">
                  <string>BG</string>
@@ -195,7 +195,7 @@
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Add bounding box (Tab)</string>
+                 <string>Add Bounding Box (Tab)</string>
                 </property>
                 <property name="text">
                  <string>BBox</string>
@@ -275,6 +275,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_14">
+             <property name="toolTip">
+              <string>Filter SAM result by pixel number of polygon</string>
+             </property>
              <property name="title">
               <string>Minimum Pixels</string>
              </property>
@@ -290,6 +293,9 @@
                   <verstretch>0</verstretch>
                  </sizepolicy>
                 </property>
+                <property name="toolTip">
+                 <string>Filter SAM result by pixel number of polygon</string>
+                </property>
                 <property name="decimals">
                  <number>0</number>
                 </property>
@@ -304,7 +310,7 @@
            <item>
             <widget class="QGroupBox" name="PolygonGroupBox">
              <property name="toolTip">
-              <string>Press &quot;S&quot; to save current segementation results</string>
+              <string>Save current segmentation results (S)</string>
              </property>
              <property name="title">
               <string>Save Results</string>
@@ -591,6 +597,9 @@
            </property>
            <item>
             <widget class="QGroupBox" name="groupBox_18">
+             <property name="toolTip">
+              <string>Size of FG and BG Point</string>
+             </property>
              <property name="title">
               <string>Point Size</string>
              </property>
@@ -600,6 +609,9 @@
              <layout class="QVBoxLayout" name="verticalLayout_10">
               <item>
                <widget class="QgsDoubleSpinBox" name="SpinBoxPtSize">
+                <property name="toolTip">
+                 <string>Size of FG and BG Point</string>
+                </property>
                 <property name="decimals">
                  <number>1</number>
                 </property>
@@ -619,6 +631,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_17">
+             <property name="toolTip">
+              <string>Icon Type of FG and BG point</string>
+             </property>
              <property name="title">
               <string>Pt Icon Type</string>
              </property>
@@ -627,13 +642,20 @@
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_11">
               <item>
-               <widget class="QComboBox" name="comboBoxIconType"/>
+               <widget class="QComboBox" name="comboBoxIconType">
+                <property name="toolTip">
+                 <string>Icon Type of FG and BG point</string>
+                </property>
+               </widget>
               </item>
              </layout>
             </widget>
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_9">
+             <property name="toolTip">
+              <string>Color of FG Point</string>
+             </property>
              <property name="title">
               <string>FG Pt Color</string>
              </property>
@@ -655,6 +677,9 @@
                   <height>16</height>
                  </size>
                 </property>
+                <property name="toolTip">
+                 <string>Color of FG Point</string>
+                </property>
                </widget>
               </item>
              </layout>
@@ -662,6 +687,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_6">
+             <property name="toolTip">
+              <string>Color of BG Point</string>
+             </property>
              <property name="title">
               <string>BG Pt Color</string>
              </property>
@@ -683,6 +711,9 @@
                   <height>16</height>
                  </size>
                 </property>
+                <property name="toolTip">
+                 <string>Color of BG Point</string>
+                </property>
                </widget>
               </item>
              </layout>
@@ -690,6 +721,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_7">
+             <property name="toolTip">
+              <string>Color of BBox</string>
+             </property>
              <property name="title">
               <string>BBox Color</string>
              </property>
@@ -711,6 +745,9 @@
                   <height>16</height>
                  </size>
                 </property>
+                <property name="toolTip">
+                 <string>Color of BBox</string>
+                </property>
                </widget>
               </item>
              </layout>
@@ -718,6 +755,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_12">
+             <property name="toolTip">
+              <string>Color of SAM result (for pressed prompt)</string>
+             </property>
              <property name="title">
               <string>Polygon Color</string>
              </property>
@@ -739,6 +779,9 @@
                   <height>16</height>
                  </size>
                 </property>
+                <property name="toolTip">
+                 <string>Color of SAM result (for pressed prompt)</string>
+                </property>
                </widget>
               </item>
              </layout>
@@ -746,6 +789,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_13">
+             <property name="toolTip">
+              <string>Color of SAM result (for prompt in Preview Mode)</string>
+             </property>
              <property name="title">
               <string>Preview Color</string>
              </property>
@@ -767,6 +813,9 @@
                   <height>16</height>
                  </size>
                 </property>
+                <property name="toolTip">
+                 <string>Color of SAM result (for prompt in Preview Mode)</string>
+                </property>
                </widget>
               </item>
              </layout>
@@ -774,8 +823,11 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_8">
+             <property name="toolTip">
+              <string>Color of encoded features Boundary (operable area)</string>
+             </property>
              <property name="title">
-              <string>Extent Color</string>
+              <string>Boundary Color</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignHCenter|Qt::AlignTop</set>
@@ -794,6 +846,9 @@
                   <width>15</width>
                   <height>16</height>
                  </size>
+                </property>
+                <property name="toolTip">
+                 <string>Color of encoded features Boundary (operable area)</string>
                 </property>
                </widget>
               </item>
@@ -831,7 +886,7 @@
            <item>
             <widget class="QGroupBox" name="groupBox_2">
              <property name="toolTip">
-              <string>Preview SAM reslut while moving mouse (H)</string>
+              <string>Preview SAM result while moving mouse (P)</string>
              </property>
              <property name="title">
               <string>Preview Mode</string>
@@ -846,7 +901,7 @@
                  </sizepolicy>
                 </property>
                 <property name="toolTip">
-                 <string>Preview mask while hovering mouse (P)</string>
+                 <string>Preview SAM result while moving mouse (P)</string>
                 </property>
                 <property name="text">
                  <string>Enable</string>
@@ -858,6 +913,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_19">
+             <property name="toolTip">
+              <string>Only keep maximum polygon of SAM result</string>
+             </property>
              <property name="title">
               <string>Max Polygon Only</string>
              </property>
@@ -877,7 +935,7 @@
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Toggle to show the extent of SAM features (operable area )</string>
+                 <string>Only keep maximum polygon of SAM result</string>
                 </property>
                 <property name="text">
                  <string>Enable</string>
@@ -917,6 +975,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_15">
+             <property name="toolTip">
+              <string>Load demo features when opening the widget</string>
+             </property>
              <property name="title">
               <string>Load Demo Image</string>
              </property>
@@ -942,6 +1003,9 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_10">
+             <property name="toolTip">
+              <string>Show the Boundary  of encoded features (operable area )</string>
+             </property>
              <property name="title">
               <string>Show Boundary</string>
              </property>
@@ -961,7 +1025,7 @@
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Toggle to show the extent of SAM features (operable area )</string>
+                 <string>Show the Boundary  of encoded features (operable area )</string>
                 </property>
                 <property name="text">
                  <string>Enable</string>
@@ -1045,7 +1109,7 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>FG Num: 0 | BG Num: 0 | BBox Num: 0</string>
+          <string>FG Num: 0 | BG Num: 0 | BBox : False</string>
          </property>
         </widget>
        </item>
@@ -1063,7 +1127,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QLabel" name="labelModes">
+        <widget class="QLabel" name="labelPreview">
          <property name="layoutDirection">
           <enum>Qt::LeftToRight</enum>
          </property>
@@ -1071,7 +1135,7 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>Preview Mode: Off</string>
+          <string>Preview Mode: On</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
