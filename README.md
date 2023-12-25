@@ -62,7 +62,7 @@ Read the documentation for more details: <https://geo-sam.readthedocs.io/en/late
 
 - SAM is designed to **segment one object once with a series of prompts**, so you should save the current results before getting to the next one when using the Geo-SAM tool.
 - SAM natively supports only three-band images, but we have adapted Geo-SAM to support one or two-band images so that you can try grayscale images, spectral index images (like NDVI, NDWI), or even SAR images.
-- The Geo-SAM plugin is currently in active development. We will continue making improvements and welcome your feedback. If you have any questions or suggestions, please feel free to open an issue on our GitHub repository at [GitHub issue](https://github.com/coolzhao/Geo-SAM/issues).
+- The Geo-SAM plugin is currently in active development. We will continue making improvements and welcome your feedback. If you have any questions or suggestions, please feel free to open an issue or discussion on our GitHub repository at [GitHub Issues](https://github.com/coolzhao/Geo-SAM/issues) or [GitHub Discussions](https://github.com/coolzhao/Geo-SAM/discussions).
 
 ## Citation
 
