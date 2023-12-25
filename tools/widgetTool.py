@@ -129,6 +129,7 @@ class Selector(QDockWidget):
         self.max_polygon_mode: bool = False
         self.need_execute_sam_toggle_mode: bool = True
         self.need_execute_sam_filter_area: bool = True
+        self.feature_loaded: bool = False
 
     def open_widget(self):
         """Create widget selector"""
@@ -558,22 +559,15 @@ class Selector(QDockWidget):
     def toggle_encoding_extent(self):
         """Show or hide extent of SAM encoded feature"""
         if self.wdg_sel.radioButton_show_extent.isChecked():
-            if hasattr(self, "sam_extent_canvas_crs"):
+            if self.feature_loaded:
                 self.canvas_extent.add_extent(self.sam_extent_canvas_crs)
-                MessageTool.MessageLog(
-                    # {len(self.canvas_extent.canvas_rect_list)}
-                    f"Extent added "
-                )
             else:
-                MessageTool.MessageBar("Oops", "No sam feature loaded")
+                return None
             show_extent = True
         else:
             if not hasattr(self, "canvas_extent"):
                 return None
             self.canvas_extent.clear()
-            MessageTool.MessageLog(
-                f"Extent cleared "
-            )  # {len(self.canvas_extent.canvas_rect_list)}
             show_extent = False
         save_user_settings({"show_boundary": show_extent}, mode="update")
 
@@ -620,11 +614,10 @@ class Selector(QDockWidget):
             self.wdg_sel.Box_min_pixel.setEnabled(True)
             self.wdg_sel.Box_min_pixel_default.setEnabled(True)
         save_user_settings({"max_polygon_only": self.max_polygon_mode}, mode="update")
-        try:
+        
+        if self.feature_loaded:
             self.execute_SAM.emit()
-        except:
-            # load default settings without feature loaded
-            return None
+
 
     def is_pressed_prompt(self):
         """Check if the prompt is clicked or hovered"""
@@ -905,6 +898,7 @@ class Selector(QDockWidget):
             self._set_feature_related()
             # self.toggle_edit_mode()
             self.toggle_encoding_extent()
+            self.feature_loaded = True
         else:
             MessageTool.MessageBar(
                 "Oops", "Feature folder not exist, please choose a another folder"
