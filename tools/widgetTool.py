@@ -9,18 +9,34 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QKeySequence
 from PyQt5.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
-from qgis.core import (QgsCoordinateReferenceSystem, QgsMapLayerProxyModel,
-                       QgsProject, QgsRasterLayer, QgsRectangle)
-from qgis.gui import (QgisInterface, QgsDoubleSpinBox, QgsFileWidget,
-                      QgsMapToolPan)
+from qgis.core import (
+    QgsCoordinateReferenceSystem,
+    QgsMapLayerProxyModel,
+    QgsProject,
+    QgsRasterLayer,
+    QgsRectangle,
+)
+from qgis.gui import QgisInterface, QgsDoubleSpinBox, QgsFileWidget, QgsMapToolPan
 from rasterio.windows import from_bounds as window_from_bounds
 from torchgeo.datasets import BoundingBox
 from torchgeo.samplers import Units
 
-from ..ui import (ICON_TYPE, DefaultSettings, Settings, UI_EncoderCopilot,
-                  UI_Selector, save_user_settings)
-from .canvasTool import (Canvas_Extent, Canvas_Points, Canvas_Rectangle,
-                         ClickTool, RectangleMapTool, SAM_PolygonFeature)
+from ..ui import (
+    ICON_TYPE,
+    DefaultSettings,
+    Settings,
+    UI_EncoderCopilot,
+    UI_Selector,
+    save_user_settings,
+)
+from .canvasTool import (
+    Canvas_Extent,
+    Canvas_Points,
+    Canvas_Rectangle,
+    ClickTool,
+    RectangleMapTool,
+    SAM_PolygonFeature,
+)
 from .geoTool import ImageCRSManager
 from .messageTool import MessageTool
 from .SAMTool import SAM_Model
@@ -245,6 +261,9 @@ class Selector(QDockWidget):
             ########## set default Settings ##########
             self.set_user_settings()
 
+            # disable tool buttons when no feature loaded
+            self.wdg_sel.radioButton_enable.setChecked(False)
+
             ########## set dock ##########
             self.wdg_sel.setFloating(True)
             self.wdg_sel.setFocusPolicy(Qt.StrongFocus)
@@ -441,6 +460,7 @@ class Selector(QDockWidget):
         self.res = float(
             (self.sam_model.test_features.index_df.loc[:, "res"] / 16).mean()
         )
+        self.wdg_sel.radioButton_enable.setChecked(True)
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
@@ -608,7 +628,7 @@ class Selector(QDockWidget):
 
     def filter_feature_by_area(self):
         """Filter feature by area"""
-        if not self.need_execute_sam_filter_area:
+        if not self.need_execute_sam_filter_area or not hasattr(self, "res"):
             return None
 
         t_area = self.wdg_sel.Box_min_pixel.value() * self.res**2
@@ -630,6 +650,8 @@ class Selector(QDockWidget):
 
     def load_default_t_area(self):
         min_pixel = self.wdg_sel.Box_min_pixel_default.value()
+        if not hasattr(self, "res"):
+            return None
         self.t_area_default = min_pixel * self.res**2
         self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
         save_user_settings({"default_minimum_pixels": min_pixel}, mode="update")
