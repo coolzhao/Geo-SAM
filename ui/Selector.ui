@@ -1135,7 +1135,7 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>Preview Mode: On</string>
+          <string>Preview Mode: Off</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
