@@ -540,6 +540,9 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_undo.setEnabled(False)
             self.wdg_sel.pushButton_save.setEnabled(False)
             self.wdg_sel.Box_min_pixel.setEnabled(False)
+            self.wdg_sel.radioButton_exe_hover.setEnabled(False)
+            self.wdg_sel.radioButton_max_polygon_mode.setEnabled(False)
+            self.wdg_sel.radioButton_show_extent.setEnabled(False)
         else:
             self.wdg_sel.pushButton_fg.setEnabled(True)
             self.wdg_sel.pushButton_bg.setEnabled(True)
@@ -548,6 +551,9 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_undo.setEnabled(True)
             self.wdg_sel.pushButton_save.setEnabled(True)
             self.wdg_sel.Box_min_pixel.setEnabled(True)
+            self.wdg_sel.radioButton_exe_hover.setEnabled(True)
+            self.wdg_sel.radioButton_max_polygon_mode.setEnabled(True)
+            self.wdg_sel.radioButton_show_extent.setEnabled(True)
 
     def toggle_encoding_extent(self):
         """Show or hide extent of SAM encoded feature"""
@@ -609,12 +615,16 @@ class Selector(QDockWidget):
 
             self.wdg_sel.Box_min_pixel.setEnabled(False)
             self.wdg_sel.Box_min_pixel_default.setEnabled(False)
-
         else:
             self.max_polygon_mode = False
             self.wdg_sel.Box_min_pixel.setEnabled(True)
             self.wdg_sel.Box_min_pixel_default.setEnabled(True)
         save_user_settings({"max_polygon_only": self.max_polygon_mode}, mode="update")
+        try:
+            self.execute_SAM.emit()
+        except:
+            # load default settings without feature loaded
+            return None
 
     def is_pressed_prompt(self):
         """Check if the prompt is clicked or hovered"""
