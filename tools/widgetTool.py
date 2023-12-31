@@ -259,11 +259,10 @@ class Selector(QDockWidget):
             self.shortcut_tab.setContext(Qt.ApplicationShortcut)
             self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
 
-            ########## set default Settings ##########
-            self.set_user_settings()
-
             # disable tool buttons when no feature loaded
             self.wdg_sel.radioButton_enable.setChecked(False)
+            ########## set default Settings ##########
+            self.set_user_settings()
 
             ########## set dock ##########
             self.wdg_sel.setFloating(True)
@@ -461,7 +460,6 @@ class Selector(QDockWidget):
         self.res = float(
             (self.sam_model.test_features.index_df.loc[:, "res"] / 16).mean()
         )
-        self.wdg_sel.radioButton_enable.setChecked(True)
         self.img_crs_manager = ImageCRSManager(self.sam_model.img_crs)
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
@@ -614,10 +612,9 @@ class Selector(QDockWidget):
             self.wdg_sel.Box_min_pixel.setEnabled(True)
             self.wdg_sel.Box_min_pixel_default.setEnabled(True)
         save_user_settings({"max_polygon_only": self.max_polygon_mode}, mode="update")
-        
+
         if self.feature_loaded:
             self.execute_SAM.emit()
-
 
     def is_pressed_prompt(self):
         """Check if the prompt is clicked or hovered"""
@@ -897,6 +894,7 @@ class Selector(QDockWidget):
             self.clear_layers(clear_extent=True)
             self._set_feature_related()
             # self.toggle_edit_mode()
+            self.wdg_sel.radioButton_enable.setChecked(True)
             self.toggle_encoding_extent()
             self.feature_loaded = True
         else:
