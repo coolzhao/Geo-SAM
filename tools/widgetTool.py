@@ -445,6 +445,12 @@ class Selector(QDockWidget):
         if hasattr(self, "polygon"):
             self.polygon.clear_canvas_polygons()
         self.canvas.refresh()
+        
+    def clear_preview_prompt_polygon(self):
+        self.tool_click_fg.clear_hover_prompt()
+        self.tool_click_bg.clear_hover_prompt()
+        self.tool_click_rect.clear_hover_prompt()
+        self.polygon.canvas_preview_polygon.clear()
 
     def _set_feature_related(self):
         """Init or reload feature related objects"""
@@ -508,6 +514,8 @@ class Selector(QDockWidget):
         self.tool_click_fg.pressed = False
         self.tool_click_bg.pressed = False
         self.tool_click_rect.pressed = False
+        
+        self.clear_preview_prompt_polygon()
 
         if self.wdg_sel.pushButton_fg.isChecked():
             self.draw_background_point()
@@ -593,10 +601,7 @@ class Selector(QDockWidget):
             self.tool_click_bg.preview_mode = False
             self.tool_click_rect.preview_mode = False
             # clear hover prompts
-            self.tool_click_fg.clear_hover_prompt()
-            self.tool_click_bg.clear_hover_prompt()
-            self.tool_click_rect.clear_hover_prompt()
-            self.polygon.canvas_preview_polygon.clear()
+            self.clear_preview_prompt_polygon()
 
         if self.need_execute_sam_toggle_mode:
             self.execute_SAM.emit()
