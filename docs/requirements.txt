@@ -1,6 +1,7 @@
 recommonmark
-sphinx
-myst-parser
-sphinxcontrib-video
-sphinx_rtd_theme
+sphinx>=7
+myst-nb
+sphinx-copybutton
+sphinx-design
+pydata_sphinx_theme
 Jinja2
