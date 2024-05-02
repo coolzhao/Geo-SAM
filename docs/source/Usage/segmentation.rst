@@ -76,7 +76,7 @@ You can save the segmentation results by clicking the ``Save`` button (Shortcut:
 Preview mode
 ~~~~~~~~~~~~
 
-To facilitate better labeling, we have developed a preview mode. In this mode, SAM's execution results are displayed ``in real-time as you move the mouse``, allowing to observe the prompt's effect instantly. In this mode, users can choose the most suitable prompt without worrying about getting worse by adding new prompt, reducing the frequency of prompt modifications.
+To facilitate better labeling, we have developed a preview mode. In this mode, SAM's execution results are displayed **in real-time as you move the mouse**, allowing to observe the prompt's effect instantly. In this mode, users can choose the most suitable prompt without worrying about getting worse by adding new prompt, reducing the frequency of prompt modifications.
 
 .. note::
 

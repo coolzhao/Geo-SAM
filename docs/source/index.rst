@@ -50,7 +50,7 @@ Reasons for choosing Geo-SAM
    :maxdepth: 2
    :caption: Contents:
 
-   Installation
+   installation
    Usage/index
    future
    Citation
