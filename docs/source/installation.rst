@@ -18,7 +18,10 @@ After installing ``PyTorch``, ``torchgeo`` and ``segment-anything`` need to be i
 For Windows Users
 ~~~~~~~~~~~~~~~~~
 
-Open the **OSGeo4W Shell** ![OsGeo4WShell](img/OsGeo4WShell.png) application from the Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
+.. |OsGeo4WShell| image:: img/OsGeo4WShell.png
+    :alt: OsGeo4WShell
+
+Open the **OSGeo4W Shell** |OsGeo4WShell| application from the Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
 
 .. code-block:: bash
 
