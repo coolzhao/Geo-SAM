@@ -52,8 +52,8 @@ Reasons for choosing Geo-SAM
 
    installation
    Usage/index
-   future
-   Citation
-   Acknowledgement
+   blog/index
+   more
+   
 
 

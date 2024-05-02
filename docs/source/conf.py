@@ -6,17 +6,18 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'Geo-SAM'
-copyright = '2023-2024, Joey, Fancy'
-author = 'Joey, Fancy'
-release = 'v1.2'
+project = "Geo-SAM"
+copyright = "2023-2024, Joey, Fancy"
+author = "Joey, Fancy"
+release = "v1.2"
+
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    # "myst_nb",
-    "myst_parser",
+    "myst_nb",
+    # "myst_parser",
     "sphinx.ext.autodoc",
     "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
@@ -41,8 +42,8 @@ exclude_patterns = []
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'pydata_sphinx_theme'
-html_static_path = ['_static']
+html_theme = "pydata_sphinx_theme"
+html_static_path = ["_static"]
 
 html_context = {
     "github_url": "https://github.com",  # or your GitHub Enterprise site
@@ -71,6 +72,8 @@ html_theme_options = {
             "type": "fontawesome",
         },
     ],
+    "announcement": "<a href='https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html'>GeoSAM crash on QGIS 3.34/3.36!</a>",
+    # "announcement": "<a href='blog/2024/05-02_crash_on_QGIS.html'>GeoSAM crash on QGIS 3.34/3.36!</a>",
 }
 
 video_enforce_extra_source = True
