@@ -85,6 +85,18 @@ For Linux users, if ``pip3`` is not found in ``/usr/bin``, try the following com
 
 For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you install the gpu-version pytorch. You can reach `pytorch official website <https://pytorch.org/get-started/locally/>`_ for more information.
 
+.. warning::
+    If QGIS 3.34/3.36 crash when you try to run the plugin, you may need to install the ``rtree`` package using the system package manager instead of using pip. More details can be found in blog `Crash on QGIS 3.34/3.36 <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
+    
+    Below is a brief guide for Ubuntu/Debian users:
+
+    .. code-block:: bash
+        
+        # Remove the rtree package using pip in QGIS:
+        ./pip3 uninstall rtree
+        
+        # Install the rtree package using system package manager:
+        sudo apt-get install python3-rtree
 
 Install the Geo-SAM Plugin
 --------------------------
