@@ -11,7 +11,7 @@ The latest version of QGIS 3.34/3.36 will crash when trying to load features usi
 Reason
 ------
 
-Currently, the ``rtree`` in QGIS is still using the old version (<1.0). However, **torchgeo** requires the version of ``rtree`` should be greater than 1.0 for Python 3.10. This leads to **torchgeo** will upgrade the ``rtree`` to the latest version when installing. When running the Geo-SAM plugin in QGIS, the ``rtree`` version mismatch will cause the crash.
+Currently, the ``rtree`` in QGIS is still using the old version (<1.0). However, **torchgeo** requires the version of ``rtree`` should be greater than 1.0 for Python 3.10. This leads to **torchgeo** will upgrade the ``rtree`` to the latest version. When running the Geo-SAM plugin in QGIS, the ``rtree`` version mismatch will cause the crash.
 
 
 Solution
