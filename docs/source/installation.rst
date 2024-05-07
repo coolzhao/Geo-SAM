@@ -21,13 +21,23 @@ For Windows Users
 .. |OsGeo4WShell| image:: img/OsGeo4WShell.png
     :alt: OsGeo4WShell
 
-Open the **OSGeo4W Shell** |OsGeo4WShell| application from the Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
+Open the **OSGeo4W Shell** |OsGeo4WShell| application **as Administrator** from the Start menu, which is a dedicated shell for the QGIS. 
+
+CPU version
+^^^^^^^^^^^
+
+If you want to install the CPU version of PyTorch, run the following command in the OSGeo4W Shell directly.
 
 .. code-block:: bash
 
     pip3 install torch torchvision torchgeo segment-anything
 
-``Geo-SAM Encoder Tool`` now supports using CUDA GPU to accelerate the encoding process. If your PC has dedicated CUDA GPUs, you can install the CUDA library first and then install the gpu-version pytorch using the following command (using CUDA version 11.7 as an example):
+GPU version
+^^^^^^^^^^^
+
+``Geo-SAM Encoder Tool`` supports using GPU to accelerate the encoding process. If your PC has NVIDIA GPUs, you need to download and install the `CUDA Toolkit <https://developer.nvidia.com/cuda-downloads>`_ first.
+
+Then install the gpu-version pytorch using the following command (here CUDA 11.7 as an example):
 
 .. code-block:: bash
 
@@ -40,7 +50,11 @@ Open the **OSGeo4W Shell** |OsGeo4WShell| application from the Start menu, which
         
         pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117 --force-reinstall
 
+Then install the other dependencies:
 
+.. code-block:: bash
+
+    pip3 install torchgeo segment-anything
 
 For Mac/Linux Users
 ~~~~~~~~~~~~~~~~~~~~
@@ -83,7 +97,9 @@ For Linux users, if ``pip3`` is not found in ``/usr/bin``, try the following com
     sudo apt-get install python3-pip
 
 
-For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you install the gpu-version pytorch. You can reach `pytorch official website <https://pytorch.org/get-started/locally/>`_ for more information.
+.. note::
+    For Linux users, if your computer got available CUDA GPUs and with `CUDA Toolkit <https://developer.nvidia.com/cuda-downloads>`_ installed, the above commands should have helped you install the gpu-version pytorch. You can reach `pytorch official website <https://pytorch.org/get-started/locally/>`_ for more information.
+
 
 .. warning::
     If QGIS 3.34/3.36 crash when you try to run the plugin, you may need to install the ``rtree`` package using the system package manager instead of using pip. More details can be found in blog `Crash on QGIS 3.34/3.36 <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
