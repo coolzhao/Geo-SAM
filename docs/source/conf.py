@@ -9,7 +9,7 @@
 project = "Geo-SAM"
 copyright = "2023-2024, Joey, Fancy"
 author = "Joey, Fancy"
-release = "v1.2"
+release = "v1.3-rc"
 
 
 # -- General configuration ---------------------------------------------------
