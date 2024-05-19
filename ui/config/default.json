@@ -7,5 +7,8 @@
     "preview_color": "#00ff00",
     "load_demo": true,
     "show_boundary": true,
-    "default_minimum_pixels": 0
+    "max_polygon_only": false,
+    "default_minimum_pixels": 0,
+    "pt_size": 1,
+    "icon_type": "Circle"
 }

@@ -1,32 +1,57 @@
 # Extension of torchgeo library by zyzhao
-import sys
 import glob
+import math
 import os
 import re
+import sys
 from datetime import datetime
-import math
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, cast, Union, Iterator, Iterable
-
-import rasterio
-from rasterio.vrt import WarpedVRT
-from rasterio.windows import from_bounds as window_from_bounds
-from rasterio.enums import Resampling
-from rasterio.crs import CRS
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import rasterio
 import torch
+from rasterio.crs import CRS
+from rasterio.enums import Resampling
+from rasterio.vrt import WarpedVRT
+from rasterio.windows import from_bounds as window_from_bounds
+from rtree.exceptions import RTreeError
+from rtree.index import Index, Property
 from torch import Tensor
 from torch.nn import functional as F
-from torchgeo.datasets import unbind_samples, stack_samples, BoundingBox, RasterDataset, GeoDataset, IntersectionDataset
+from torchgeo.datasets import BoundingBox, GeoDataset, RasterDataset
 from torchgeo.datasets.utils import disambiguate_timestamp
-from torchgeo.samplers import Units, GeoSampler, PreChippedGeoSampler, GridGeoSampler
+from torchgeo.samplers import GeoSampler, Units
 from torchgeo.samplers.constants import Units
-from torchgeo.samplers.utils import _to_tuple, get_random_bounding_box, tile_to_chips
-import matplotlib.pyplot as plt
+from torchgeo.samplers.utils import _to_tuple, tile_to_chips
+
 from .messageTool import MessageTool
 
-from rtree.index import Index, Property
+
+class IndexV1(Index):
+    # add length property for rtree < 1
+    def __len__(self) -> int:
+        """The number of entries in the index.
+
+        :return: number of entries
+        """
+        try:
+            return self.count(self.bounds)
+        except RTreeError:
+            return 0
 
 
 class SamTestGridGeoSampler(GeoSampler):
@@ -69,8 +94,7 @@ class SamTestGridGeoSampler(GeoSampler):
 
         if units == Units.PIXELS:
             self.size = (self.size[0] * self.res, self.size[1] * self.res)
-            self.stride = (self.stride[0] * self.res,
-                           self.stride[1] * self.res)
+            self.stride = (self.stride[0] * self.res, self.stride[1] * self.res)
 
         self.hits = []
         self.hits_small = []
@@ -133,7 +157,7 @@ class SamTestGridGeoSampler(GeoSampler):
                         query = {
                             "bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
                             "path": cast(str, hit.object),
-                            "size": int(self.patch_size[0])
+                            "size": int(self.patch_size[0]),
                         }
 
                         # BoundingBox(minx, maxx, miny, maxy, mint, maxt)
@@ -149,7 +173,7 @@ class SamTestGridGeoSampler(GeoSampler):
                 query = {
                     "bbox": BoundingBox(minx, maxx, miny, maxy, mint, maxt),
                     "path": cast(str, hit.object),
-                    "size": int(self.patch_size[0])
+                    "size": int(self.patch_size[0]),
                 }
 
                 yield query
@@ -173,23 +197,24 @@ class SamTestFeatureDataset(RasterDataset):
     all_bands = []
     rgb_bands = []
 
-    def __init__(self, root: str = "data",
-                 crs: Optional[CRS] = None,
-                 res: Optional[float] = None,
-                 bands: Optional[Sequence[str]] = None,
-                 transforms: Optional[Callable[[
-                     Dict[str, Any]], Dict[str, Any]]] = None,
-                 cache: bool = True
-                 ) -> None:
+    def __init__(
+        self,
+        root: str = "data",
+        crs: Optional[CRS] = None,
+        res: Optional[float] = None,
+        bands: Optional[Sequence[str]] = None,
+        transforms: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+        cache: bool = True,
+    ) -> None:
         if self.separate_files:
             raise NotImplementedError(
-                'Testing for separated files are not supported yet'
+                "Testing for separated files are not supported yet"
             )
         # super().__init__(root, crs, res, bands, transforms, cache)
         self.transforms = transforms
 
         # Create an R-tree to index the dataset
-        self.index = Index(interleaved=False, properties=Property(dimension=3))
+        self.index = IndexV1(interleaved=False, properties=Property(dimension=3))
 
         self.root = root
         self.bands = bands or self.all_bands
@@ -202,13 +227,14 @@ class SamTestFeatureDataset(RasterDataset):
         # pathname = os.path.join(root, "**", self.filename_glob)
         pathname = os.path.join(root, self.filename_glob)
         raster_list = glob.glob(pathname, recursive=True)
+
         raster_name = os.path.basename(raster_list[0])
         for m_type in model_type_list:
             if m_type in raster_name:
                 self.model_type = m_type
                 break
         dir_name = os.path.basename(root)
-        csv_filepath = os.path.join(root, dir_name + '.csv')
+        csv_filepath = os.path.join(root, dir_name + ".csv")
         index_set = False
         if os.path.exists(csv_filepath):
             self.index_df = pd.read_csv(csv_filepath)
@@ -217,30 +243,46 @@ class SamTestFeatureDataset(RasterDataset):
             if len(self.index_df) == len(raster_list):
                 for _, row_df in self.index_df.iterrows():
                     if crs is None:
-                        crs = row_df['crs']
+                        crs = row_df["crs"]
                     if res is None:
-                        res = row_df['res']
+                        res = row_df["res"]
                     # id = row_df['id']
-                    coords = (row_df['minx'], row_df['maxx'],
-                              row_df['miny'], row_df['maxy'],
-                              row_df['mint'], row_df['maxt'])
+                    coords = (
+                        row_df["minx"],
+                        row_df["maxx"],
+                        row_df["miny"],
+                        row_df["maxy"],
+                        row_df["mint"],
+                        row_df["maxt"],
+                    )
                     # change to relative path
-                    filepath = os.path.join(
-                        root, os.path.basename(row_df['filepath']))
+                    filepath = os.path.join(root, os.path.basename(row_df["filepath"]))
                     self.index.insert(i, coords, filepath)
                     i += 1
                 index_set = True
                 MessageTool.MessageLog(
-                    f"Index loaded from: {os.path.basename(csv_filepath)}")
+                    f"Index loaded from: {os.path.basename(csv_filepath)}"
+                )
             else:
                 MessageTool.MessageLog(
-                    f"Index file does not match the raster list, will be recreated.")
+                    f"Index file does not match the raster list, will be recreated."
+                )
 
         if not index_set:
-            self.index_df = pd.DataFrame(columns=['id',
-                                                  'minx', 'maxx', 'miny', 'maxy', 'mint', 'maxt',
-                                                  'filepath',
-                                                  'crs', 'res'])
+            self.index_df = pd.DataFrame(
+                columns=[
+                    "id",
+                    "minx",
+                    "maxx",
+                    "miny",
+                    "maxy",
+                    "mint",
+                    "maxt",
+                    "filepath",
+                    "crs",
+                    "res",
+                ]
+            )
             id_list = []
             coords_list = []
             filepath_list = []
@@ -273,8 +315,7 @@ class SamTestFeatureDataset(RasterDataset):
                         maxt: float = sys.maxsize
                         if "date" in match.groupdict():
                             date = match.group("date")
-                            mint, maxt = disambiguate_timestamp(
-                                date, self.date_format)
+                            mint, maxt = disambiguate_timestamp(date, self.date_format)
 
                         coords = (minx, maxx, miny, maxy, mint, maxt)
                         self.index.insert(i, coords, filepath)
@@ -284,19 +325,21 @@ class SamTestFeatureDataset(RasterDataset):
                         filepath_list.append(os.path.basename(filepath))
                         i += 1
             if i > 0:
-                self.index_df['id'] = id_list
-                self.index_df['filepath'] = filepath_list
-                self.index_df['minx'] = [coord[0] for coord in coords_list]
-                self.index_df['maxx'] = [coord[1] for coord in coords_list]
-                self.index_df['miny'] = [coord[2] for coord in coords_list]
-                self.index_df['maxy'] = [coord[3] for coord in coords_list]
-                self.index_df['mint'] = [coord[4] for coord in coords_list]
-                self.index_df['maxt'] = [coord[5] for coord in coords_list]
-                self.index_df.loc[:, 'crs'] = str(crs)
-                self.index_df.loc[:, 'res'] = res
+                self.index_df["id"] = id_list
+                self.index_df["filepath"] = filepath_list
+                self.index_df["minx"] = [coord[0] for coord in coords_list]
+                self.index_df["maxx"] = [coord[1] for coord in coords_list]
+                self.index_df["miny"] = [coord[2] for coord in coords_list]
+                self.index_df["maxy"] = [coord[3] for coord in coords_list]
+                self.index_df["mint"] = [coord[4] for coord in coords_list]
+                self.index_df["maxt"] = [coord[5] for coord in coords_list]
+                self.index_df.loc[:, "crs"] = str(crs)
+                self.index_df.loc[:, "res"] = res
                 index_set = True
                 self.index_df.to_csv(csv_filepath)
-                MessageTool.MessageLog(f"Index file: {os.path.basename(csv_filepath)} saved")
+                MessageTool.MessageLog(
+                    f"Index file: {os.path.basename(csv_filepath)} saved"
+                )
 
         if i == 0:
             msg = f"No {self.__class__.__name__} data was found in `root='{self.root}'`"
@@ -334,8 +377,8 @@ class SamTestFeatureDataset(RasterDataset):
             IndexError: if query is not found in the index
         """
         # query may include the prompt points, bbox, or mask
-        bbox = query['bbox']
-        filepath = query['path']
+        bbox = query["bbox"]
+        filepath = query["path"]
 
         hits = self.index.intersection(tuple(bbox), objects=True)
         filepaths = cast(List[str], [hit.object for hit in hits])
@@ -356,9 +399,9 @@ class SamTestFeatureDataset(RasterDataset):
         src = vrt_fh
         dest = src.read()  # read all bands
         tags = src.tags()
-        if 'img_shape' in tags.keys():
-            img_shape = tags['img_shape']
-            input_shape = tags['input_shape']
+        if "img_shape" in tags.keys():
+            img_shape = tags["img_shape"]
+            input_shape = tags["input_shape"]
 
         # fix numpy dtypes which are not supported by pytorch tensors
         if dest.dtype == np.uint16:
@@ -370,10 +413,10 @@ class SamTestFeatureDataset(RasterDataset):
 
         # bbox may be useful to form the final mask results (geo-info)
         sample = {"crs": self.crs, "bbox": bbox, "path": filepath}
-        if 'img_shape' in tags.keys():
+        if "img_shape" in tags.keys():
             # convert string to python data structure
-            sample['img_shape'] = eval(img_shape)
-            sample['input_shape'] = eval(input_shape)
+            sample["img_shape"] = eval(img_shape)
+            sample["input_shape"] = eval(input_shape)
 
         if self.is_image:
             sample["image"] = tensor.float()
@@ -392,20 +435,21 @@ class SamTestRasterDataset(RasterDataset):
     date_format = ""
     is_image = True
     separate_files = False
-    all_bands = ['Red', 'Green', 'Blue', 'Alpha']
-    rgb_bands = ['Red', 'Green', 'Blue']
+    all_bands = ["Red", "Green", "Blue", "Alpha"]
+    rgb_bands = ["Red", "Green", "Blue"]
 
-    def __init__(self, root: str = "data",
-                 crs: Optional[CRS] = None,
-                 res: Optional[float] = None,
-                 bands: Optional[Sequence[str]] = None,
-                 transforms: Optional[Callable[[
-                     Dict[str, Any]], Dict[str, Any]]] = None,
-                 cache: bool = True
-                 ) -> None:
+    def __init__(
+        self,
+        root: str = "data",
+        crs: Optional[CRS] = None,
+        res: Optional[float] = None,
+        bands: Optional[Sequence[str]] = None,
+        transforms: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+        cache: bool = True,
+    ) -> None:
         if self.separate_files:
             raise NotImplementedError(
-                'Testing for separated files are not supported yet'
+                "Testing for separated files are not supported yet"
             )
         super().__init__(root, crs, res, bands, transforms, cache)
 
@@ -421,9 +465,9 @@ class SamTestRasterDataset(RasterDataset):
         Raises:
             IndexError: if query is not found in the index
         """
-        bbox = query['bbox']
-        filepath = query['path']
-        patch_size = query['size']
+        bbox = query["bbox"]
+        filepath = query["path"]
+        patch_size = query["size"]
 
         hits = self.index.intersection(tuple(bbox), objects=True)
         filepaths = cast(List[str], [hit.object for hit in hits])
@@ -460,7 +504,8 @@ class SamTestRasterDataset(RasterDataset):
             raise Exception("Patch size should be greater than zero.")
 
         target_height, target_width = self.get_preprocess_shape(
-            out_height, out_width, patch_size)
+            out_height, out_width, patch_size
+        )
         target_shape = (count, target_height, target_width)
         dest = src.read(
             indexes=band_indexes,
@@ -477,11 +522,16 @@ class SamTestRasterDataset(RasterDataset):
 
         tensor = torch.tensor(dest)  # .float()
         if torch.isnan(tensor).any():
-            tensor = torch.nan_to_num(tensor, nan=0.0) # , posinf=0.0, neginf=0.0
+            tensor = torch.nan_to_num(tensor, nan=0.0)  # , posinf=0.0, neginf=0.0
         tensor = self.pad_patch(tensor, patch_size)
 
-        sample = {"crs": self.crs, "bbox": bbox,
-                  "path": filepath, "img_shape": out_shape, "input_shape": target_shape}
+        sample = {
+            "crs": self.crs,
+            "bbox": bbox,
+            "path": filepath,
+            "img_shape": out_shape,
+            "input_shape": target_shape,
+        }
         if self.is_image:
             sample["image"] = tensor.float()
         else:
@@ -493,7 +543,9 @@ class SamTestRasterDataset(RasterDataset):
         return sample
 
     @staticmethod
-    def get_preprocess_shape(old_h: int, old_w: int, long_side_length: int) -> Tuple[int, int]:
+    def get_preprocess_shape(
+        old_h: int, old_w: int, long_side_length: int
+    ) -> Tuple[int, int]:
         """
         Compute the output size given input size and target long side length.
         """
@@ -533,12 +585,12 @@ class SamTestRasterDataset(RasterDataset):
 
         # if image.max() > 10:
         #     image = self.apply_scale(image)
-        image = torch.clamp(image*bright/255, min=0, max=1)
+        image = torch.clamp(image * bright / 255, min=0, max=1)
 
         # Plot the image
         fig, ax = plt.subplots()
         ax.imshow(image)
-        ax.axis('off')
+        ax.axis("off")
 
         return fig
 
@@ -582,23 +634,23 @@ class SamTestFeatureGeoSampler(GeoSampler):
         if roi is None:
             # self.index = dataset.index
             # roi = BoundingBox(*self.index.bounds)
-            raise Exception('roi should be defined based on prompts!!!')
+            raise Exception("roi should be defined based on prompts!!!")
         else:
-            self.index = Index(interleaved=False,
-                               properties=Property(dimension=3))
+            self.index = IndexV1(interleaved=False, properties=Property(dimension=3))
             hits = dataset.index.intersection(tuple(roi), objects=True)
             # hit_nearest = list(dataset.index.nearest(tuple(roi), num_results=1, objects=True))[0]
             idx = 0
             for hit in hits:
                 idx += 1
                 bbox = BoundingBox(*hit.bounds)  # & roi
-                center_x_bbox = (bbox.maxx + bbox.minx)/2
-                center_y_bbox = (bbox.maxy + bbox.miny)/2
+                center_x_bbox = (bbox.maxx + bbox.minx) / 2
+                center_y_bbox = (bbox.maxy + bbox.miny) / 2
 
-                center_x_roi = (roi.maxx + roi.minx)/2
-                center_y_roi = (roi.maxy + roi.miny)/2
-                dist_roi_tmp = (center_x_bbox - center_x_roi)**2 + \
-                    (center_y_bbox - center_y_roi)**2
+                center_x_roi = (roi.maxx + roi.minx) / 2
+                center_y_roi = (roi.maxy + roi.miny) / 2
+                dist_roi_tmp = (center_x_bbox - center_x_roi) ** 2 + (
+                    center_y_bbox - center_y_roi
+                ) ** 2
                 if idx == 1:
                     self.dist_roi = dist_roi_tmp
                     self.q_bbox = bbox
@@ -632,8 +684,7 @@ class SamTestFeatureGeoSampler(GeoSampler):
             generator = torch.randperm
 
         for idx in generator(len(self)):
-            query = {"bbox": self.q_bbox,
-                     "path": cast(str, self.q_path)}
+            query = {"bbox": self.q_bbox, "path": cast(str, self.q_path)}
             yield query
 
     def __len__(self) -> int:
