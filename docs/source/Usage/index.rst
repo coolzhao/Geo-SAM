@@ -5,10 +5,10 @@ The workflow of using Geo-SAM tools is as follows:
 
 1. Encode the image into feature files using the Geo-SAM encoder. The encoding process can be done either by:
 
-   * QGIS plugin: `Geo-SAM Image Encoder (QGIS plugin) <geo-sam-encoder_qgis>`_  
-   * A standalone Python package: `GeoSAM-Image-Encoder (Python package) <geo-sam-encoder_python_package>`_.
+   * QGIS plugin: :ref:`encoding`
+   * A standalone Python package: :ref:`encoder_package`.
 
-2. Open the `Geo-SAM Segmentation (QGIS plugin) <geo_sam_segmentation>`_ , Then:
+2. Open the :ref:`segmentation` , Then:
 
    1. Select the encoded features generated in the previous step. 
    2. Load the image to the QGIS canvas. 

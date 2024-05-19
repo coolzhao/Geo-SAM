@@ -1,4 +1,4 @@
-.. _geo_sam_segmentation:
+.. _segmentation:
 
 Geo-SAM Segmentation (QGIS plugin)
 ==================================

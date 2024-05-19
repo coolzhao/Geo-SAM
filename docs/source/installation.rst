@@ -160,13 +160,13 @@ Plugin zip file
 
 Manually downloading zip files from the GitHub repository is the most common way to install the plugin. You can download the:
 
-- **stable version** `v1.1.1 <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.1.1>`_ 
-- **dev version** `v1.3-rc <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.3-rc>`_ : More features and capabilities, but may have more bugs.
+- **stable version**: `v1.1.1 <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.1.1>`_ 
+- **dev version**: `v1.3-rc <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.3-rc>`_ . More features and capabilities, but may have more bugs.
 
 Then, unzip it, and rename the folder as ``Geo-SAM``.
 
 .. warning::
-    1. Remember to rename the folder as ``Geo-SAM`` after unzipping. You need make sure the folder name is ``Geo-SAM``, not ``Geo-SAM-v1.3.1`` or ``Geo-SAM-v1.3-rc``. 
+    1. Remember to rename the folder as ``Geo-SAM`` after unzipping. You need to make sure the folder name is ``Geo-SAM``, not ``Geo-SAM-v1.3.1`` or ``Geo-SAM-v1.3-rc``. 
     2. Be aware of undesired nested folders after unzipping. Just like the following structure: ``Geo-SAM-v1.3.1/Geo-SAM/...``. You need to move the inner ``Geo-SAM`` folder to the ``plugins`` folder in this case.
 
 .. note::

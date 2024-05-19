@@ -1,4 +1,4 @@
-.. _geo-sam-encoder_python_package:
+.. _encoder_package:
 
 GeoSAM-Image-Encoder (Python package)
 ======================================
