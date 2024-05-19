@@ -117,29 +117,11 @@ For Linux users, if ``pip3`` is not found in ``/usr/bin``, try the following com
 Install the Geo-SAM Plugin
 --------------------------
 
-Download the Plugin
-~~~~~~~~~~~~~~~~~~~
-
-Download the ``stable version``: `plugin zip file <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.1.1>`_ or the ``dev version`` (more features and capabilities, but not rigorous tested): `plugin zip file <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.3.1-dev>`_, unzip it, and rename the folder as ``Geo-SAM`` (be aware of undesired nested folders after unzipping).
-
 
 Locate the QGIS Plugin folder
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In QGIS, go to the menu ``Settings`` > ``User Profiles`` > ``Open active profile folder``.  You'll be taken straight to the profile directory. Under the profile folder, you may find a ``python`` folder; the ``plugins`` folder should be right inside the ``python`` folder (create the ``plugins`` folder if it does not exist). Put the entire ``Geo-SAM`` folder inside the ``plugins`` folder, then restart QGIS. The directory tree structure should be the same as the following.
-
-
-.. code-block:: bash
-
-    python
-    └── plugins
-        └── Geo-SAM
-           ├── checkpoint
-           ├── docs
-           ├── ...
-           ├── tools
-           └── ui
-
+In QGIS, go to the menu ``Settings`` > ``User Profiles`` > ``Open active profile folder``.  You'll be taken straight to the profile directory. Under the profile folder, you may find a ``python`` folder; the ``plugins`` folder should be right inside the ``python`` folder (create the ``plugins`` folder if it does not exist). 
 
 Below are some general paths of the plugin folder for your reference.
 
@@ -153,6 +135,57 @@ Below are some general paths of the plugin folder for your reference.
     
     # Linux
     ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins
+
+Download the Plugin
+~~~~~~~~~~~~~~~~~~~
+
+You can download the plugin in two ways: 1. manually downloading the plugin zip file 2. using git. 
+
+Then, you need to put the entire ``Geo-SAM`` folder inside the ``plugins`` folder, then restart QGIS. The directory tree structure should be the same as the following.
+
+.. code-block:: bash
+
+    python
+    └── plugins
+        └── Geo-SAM
+           ├── checkpoint
+           ├── docs
+           ├── ...
+           ├── tools
+           └── ui
+
+
+Plugin zip file
+^^^^^^^^^^^^^^^
+
+Manually downloading zip files from the GitHub repository is the most common way to install the plugin. You can download the:
+
+- **stable version** `v1.1.1 <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.1.1>`_ 
+- **dev version** `v1.3-rc <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.3-rc>`_ : More features and capabilities, but may have more bugs.
+
+Then, unzip it, and rename the folder as ``Geo-SAM``.
+
+.. warning::
+    1. Remember to rename the folder as ``Geo-SAM`` after unzipping. You need make sure the folder name is ``Geo-SAM``, not ``Geo-SAM-v1.3.1`` or ``Geo-SAM-v1.3-rc``. 
+    2. Be aware of undesired nested folders after unzipping. Just like the following structure: ``Geo-SAM-v1.3.1/Geo-SAM/...``. You need to move the inner ``Geo-SAM`` folder to the ``plugins`` folder in this case.
+
+.. note::
+    If you only need to update the code, you can download the ``*_code_update.zip`` file to get the latest code updates. This file only contains the code portion, which greatly reduces the file size and can significantly reduce the downloading time.
+
+Using Git
+^^^^^^^^^
+
+If you are familiar with Git, you can clone the repository directly. This method is recommended if you want to update the plugin frequently.
+
+.. code-block:: bash
+
+    git clone https://github.com/coolzhao/Geo-SAM.git
+
+If you want to update the plugin in the future, you can pull the latest code from the repository.
+
+.. code-block:: bash
+
+    git pull
 
 
 Activate the Geo-SAM Plugin
