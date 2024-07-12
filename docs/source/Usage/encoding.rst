@@ -7,7 +7,13 @@ If you want to try your own images, you can use the ``Geo-SAM Image Encoder`` to
 Download SAM Checkpoints
 ------------------------
 
+.. warning:: 
+    The checkpoint used for encoding image must be downloaded from below links or the official SAM repository!!!
+
+    Never use the checkpoint that comes with Geo-SAM, as it is a trimmed version and cannot be used to encode images. 
+
 SAM model checkpoints should be downloaded in advance, and three versions (huge, large, and base) are available. The large version "vit_l" is recommended to try first. You need to specify the model type that matches the checkpoint version. Using the following links to download the checkpoints.
+
 
 
 - ``vit_h``: `ViT-H SAM model (huge) <https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth>`_. 
