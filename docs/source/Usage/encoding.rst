@@ -1,3 +1,4 @@
+.. _encoding:
 
 Geo-SAM Image Encoder (QGIS plugin)
 ===================================
