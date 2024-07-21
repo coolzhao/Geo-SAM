@@ -44,6 +44,7 @@ exclude_patterns = []
 
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
 html_context = {
     "github_url": "https://github.com",  # or your GitHub Enterprise site
@@ -58,6 +59,7 @@ html_theme_options = {
     "show_toc_level": 2,
     "show_nav_level": 2,
     "use_edit_page_button": True,
+    "header_links_before_dropdown": 10,
     "icon_links": [
         {
             "name": "GitHub",
