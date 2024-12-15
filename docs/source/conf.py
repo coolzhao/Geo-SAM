@@ -46,6 +46,12 @@ html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
+# hide the side 
+html_sidebars = {
+    "installation": [],
+    "more": [],
+}
+
 html_context = {
     "github_url": "https://github.com",  # or your GitHub Enterprise site
     "github_user": "coolzhao",

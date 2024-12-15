@@ -5,7 +5,30 @@ Installation
 Install QGIS
 ------------
 
-You are suggested to install the latest version of `QGIS <https://www.qgis.org/en/site/forusers/download.html>`_ since the plugin has mainly been tested on versions newer than QGIS 3.30 (QGIS 3.28 LTR should also work fine).
+
+Geo-SAM is a plugin for QGIS, which needs to be installed first. 
+It has primarily been tested with QGIS versions newer than 3.30, although QGIS 3.28 LTR should also work without issues. For optimal performance, we recommend installing the latest version of QGIS, which can be downloaded from the official website: `Download QGIS for your platform <https://www.qgis.org/en/site/forusers/download.html>`_. 
+
+.. hint:: 
+    If you encounter any issues installing QGIS through the official method, you can try installing it via ``conda``.
+
+    To do this, create a new conda environment and install QGIS using the following command:
+
+    .. code-block:: bash
+
+        conda create -n qgis python=3.12 qgis -c conda-forge -y
+    
+    After the installation, you can activate the environment using:
+
+    .. code-block:: bash
+
+        conda activate qgis
+
+    Then, you can run QGIS by typing:
+
+    .. code-block:: bash
+
+        qgis
 
 
 Install Python Dependencies
@@ -21,53 +44,63 @@ For Windows Users
 .. |OsGeo4WShell| image:: img/OsGeo4WShell.png
     :alt: OsGeo4WShell
 
-Open the **OSGeo4W Shell** |OsGeo4WShell| application **as Administrator** from the Start menu, which is a dedicated shell for the QGIS. 
+Open the **OSGeo4W Shell** |OsGeo4WShell| application ``as Administrator`` from the Start menu, which is a dedicated shell for the QGIS. 
 
-CPU version
-^^^^^^^^^^^
 
-If you want to install the CPU version of PyTorch, run the following command in the OSGeo4W Shell directly.
+.. tab-set::
 
-.. code-block:: bash
+    .. tab-item:: CPU version
 
-    pip3 install torch torchvision torchgeo segment-anything
+        If you want to install the CPU version of PyTorch, run the following command in the ``OSGeo4W Shell`` directly.
 
-GPU version
-^^^^^^^^^^^
+        .. code-block:: bash
 
-``Geo-SAM Encoder Tool`` supports using GPU to accelerate the encoding process. If your PC has NVIDIA GPUs, you need to download and install the `CUDA Toolkit <https://developer.nvidia.com/cuda-downloads>`_ first.
+            pip3 install torch torchvision torchgeo segment-anything
 
-Then install the gpu-version pytorch using the following command (here CUDA 11.7 as an example):
+    .. tab-item:: GPU version
 
-.. code-block:: bash
+        ``Geo-SAM Encoder Tool`` supports using GPU to accelerate the encoding process. If your PC has NVIDIA GPUs, you need to download and install the `CUDA Toolkit <https://developer.nvidia.com/cuda-downloads>`_ first.
 
-    pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
+        Then install the gpu-version pytorch using the following command (here CUDA 11.7 as an example):
 
-.. note::
-    If you have installed the CPU version of PyTorch before, you may need to add the ``--force-reinstall`` option to force the reinstallation of the GPU version.
+        .. code-block:: bash
 
-    .. code-block:: bash
-        
-        pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117 --force-reinstall
+            pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
 
-Then install the other dependencies:
+        .. note::
+            If you have installed the CPU version of PyTorch before, you may need to add the ``--force-reinstall`` option to force the reinstallation of the GPU version.
 
-.. code-block:: bash
+            .. code-block:: bash
+                
+                pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117 --force-reinstall
 
-    pip3 install torchgeo segment-anything
+        Then install the other dependencies:
+
+        .. code-block:: bash
+
+            pip3 install torchgeo segment-anything
 
 For Mac/Linux Users
 ~~~~~~~~~~~~~~~~~~~~
 
+.. hint::
+    For Linux users with CUDA GPUs and the `CUDA Toolkit <https://developer.nvidia.com/cuda-downloads>`_ installed, following commands can help you install the gpu-version pytorch without any additional steps. You can reach `pytorch official website <https://pytorch.org/get-started/locally/>`_ for more information.
+
+
 Open your own terminal application, and change the directory to where the QGIS Python binary file locates.
 
-.. code-block:: bash
+.. tab-set::
+    .. tab-item:: MacOS
 
-    # Mac
-    cd /Applications/QGIS.app/Contents/MacOS/bin
+        .. code-block:: bash
 
-    # Linux
-    cd /usr/bin
+            cd /Applications/QGIS.app/Contents/MacOS/bin
+
+    .. tab-item:: Linux
+
+        .. code-block:: bash
+
+            cd /usr/bin
 
 
 .. important::
@@ -87,19 +120,14 @@ Then install the Python Dependencies of Geo-SAM.
 
     ./pip3 install torch torchvision torchgeo segment-anything
 
-
-
-For Linux users, if ``pip3`` is not found in ``/usr/bin``, try the following commands:
-
-.. code-block:: bash
-
-    sudo apt-get update
-    sudo apt-get install python3-pip
-
-
 .. note::
-    For Linux users, if your computer got available CUDA GPUs and with `CUDA Toolkit <https://developer.nvidia.com/cuda-downloads>`_ installed, the above commands should have helped you install the gpu-version pytorch. You can reach `pytorch official website <https://pytorch.org/get-started/locally/>`_ for more information.
 
+    For Linux users, if ``pip3`` is not found in ``/usr/bin``, try the following commands:
+
+    .. code-block:: bash
+
+        sudo apt-get update
+        sudo apt-get install python3-pip
 
 .. warning::
     If QGIS 3.34/3.36 crash when you try to run the plugin, you may need to install the ``rtree`` package using the system package manager instead of using pip. More details can be found in blog `Crash on QGIS 3.34/3.36 <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
@@ -125,16 +153,25 @@ In QGIS, go to the menu ``Settings`` > ``User Profiles`` > ``Open active profile
 
 Below are some general paths of the plugin folder for your reference.
 
-.. code-block:: bash
+.. tab-set::
+    .. tab-item:: Windows
 
-    # Windows
-    %APPDATA%\QGIS\QGIS3\profiles\default\python\plugins
+        .. code-block:: bash
 
-    # Mac
-    ~/Library/Application\ Support/QGIS/QGIS3/profiles/default/python/plugins
-    
-    # Linux
-    ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins
+            %APPDATA%\QGIS\QGIS3\profiles\default\python\plugins
+
+    .. tab-item:: MacOS
+
+        .. code-block:: bash
+            
+            ~/Library/Application\ Support/QGIS/QGIS3/profiles/default/python/plugins
+
+    .. tab-item:: Linux
+
+        .. code-block:: bash
+
+            ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins
+
 
 Download the Plugin
 ~~~~~~~~~~~~~~~~~~~
