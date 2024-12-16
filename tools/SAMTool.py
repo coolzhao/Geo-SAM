@@ -1,3 +1,4 @@
+import os
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -17,6 +18,9 @@ from .torchgeo_sam import SamTestFeatureDataset, SamTestFeatureGeoSampler
 
 if TYPE_CHECKING:
     from .widgetTool import Selector
+
+# enable GDAL memory cache for gdal >= 3.10
+os.environ["GDAL_MEM_ENABLE_OPEN"] = "YES"
 
 
 class SAM_Model:
@@ -100,9 +104,9 @@ class SAM_Model:
 
             bbox = self.sample["bbox"]  # batch['bbox'][0]
             img_width = img_height = self.predictor.model.image_encoder.img_size  # 1024
-            input_width = (
-                input_height
-            ) = self.predictor.model.image_encoder.img_size  # 1024
+            input_width = input_height = (
+                self.predictor.model.image_encoder.img_size
+            )  # 1024
             if "img_shape" in self.sample.keys():
                 img_height = self.sample["img_shape"][-2]
                 img_width = self.sample["img_shape"][-1]
