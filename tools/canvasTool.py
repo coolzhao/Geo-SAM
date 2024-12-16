@@ -27,7 +27,6 @@ from qgis.gui import (
     QgsRubberBand,
     QgsVertexMarker,
 )
-from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
 from rasterio.transform import Affine, rowcol
 
@@ -47,14 +46,22 @@ from .geoTool import ImageCRSManager, LayerExtent
 from .messageTool import MessageTool
 from .ulid import GroupId
 
+# QVariant has been deprecated in version 3.38, use QMetaType instead
+try:
+    from qgis.PyQt.QtCore import QMetaType
+except ImportError:
+    from qgis.PyQt.QtCore import QVariant as QMetaType
+    QMetaType.QString = QMetaType.String
+    
+
 SAM_Feature_Fields = [
-    QgsField("group_ulid", QVariant.String),
-    QgsField("N_GM", QVariant.Int),
-    QgsField("id", QVariant.Int),
-    QgsField("Area", QVariant.Double),
-    QgsField("N_FG", QVariant.Int),
-    QgsField("N_BG", QVariant.Int),
-    QgsField("BBox", QVariant.Bool),
+    QgsField("group_ulid", QMetaType.QString),
+    QgsField("N_GM", QMetaType.Int),
+    QgsField("id", QMetaType.Int),
+    QgsField("Area", QMetaType.Double),
+    QgsField("N_FG", QMetaType.Int),
+    QgsField("N_BG", QMetaType.Int),
+    QgsField("BBox", QMetaType.Bool),
 ]
 SAM_Feature_QgsFields = QgsFields()
 new_fields = QgsFields()
