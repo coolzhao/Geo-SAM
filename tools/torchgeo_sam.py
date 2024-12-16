@@ -23,12 +23,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio
+import rtree
 import torch
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 from rasterio.windows import from_bounds as window_from_bounds
-from rtree.exceptions import RTreeError
 from rtree.index import Index, Property
 from torch import Tensor
 from torch.nn import functional as F
@@ -40,18 +40,28 @@ from torchgeo.samplers.utils import _to_tuple, tile_to_chips
 
 from .messageTool import MessageTool
 
-
-class IndexV1(Index):
-    # add length property for rtree < 1
+# add len method for rtree < 1.0.0
+if int(rtree.__version__.split(".")[0]) == 0:
+    try:
+        from rtree.exceptions import RTreeError
+        rtree_error = RTreeError
+    except ImportError:
+        rtree_error = Exception
+        
     def __len__(self) -> int:
         """The number of entries in the index.
+
+        This method is added to the rtree.index.Index class to provide a len()
+        method for rtree < 1.0.0 by Geo-SAM.
 
         :return: number of entries
         """
         try:
             return self.count(self.bounds)
-        except RTreeError:
+        except rtree_error:
             return 0
+
+    Index.__len__ = __len__
 
 
 class SamTestGridGeoSampler(GeoSampler):
@@ -214,7 +224,7 @@ class SamTestFeatureDataset(RasterDataset):
         self.transforms = transforms
 
         # Create an R-tree to index the dataset
-        self.index = IndexV1(interleaved=False, properties=Property(dimension=3))
+        self.index = Index(interleaved=False, properties=Property(dimension=3))
 
         self.root = root
         self.bands = bands or self.all_bands
@@ -636,7 +646,7 @@ class SamTestFeatureGeoSampler(GeoSampler):
             # roi = BoundingBox(*self.index.bounds)
             raise Exception("roi should be defined based on prompts!!!")
         else:
-            self.index = IndexV1(interleaved=False, properties=Property(dimension=3))
+            self.index = Index(interleaved=False, properties=Property(dimension=3))
             hits = dataset.index.intersection(tuple(roi), objects=True)
             # hit_nearest = list(dataset.index.nearest(tuple(roi), num_results=1, objects=True))[0]
             idx = 0
