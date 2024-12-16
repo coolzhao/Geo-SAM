@@ -80,7 +80,7 @@ html_theme_options = {
             "type": "fontawesome",
         },
     ],
-    "announcement": "<a href='https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html'>GeoSAM crash on QGIS 3.34/3.36!</a>",
+    "announcement": "<a href='https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html'>Geo-SAM Crash on Latest QGIS in Linux!</a>",
     # "announcement": "<a href='blog/2024/05-02_crash_on_QGIS.html'>GeoSAM crash on QGIS 3.34/3.36!</a>",
 }
 

@@ -34,10 +34,6 @@ It has primarily been tested with QGIS versions newer than 3.30, although QGIS 3
 Install Python Dependencies
 ---------------------------
 
-Some dependencies need to be installed into the Python environment in QGIS beforehand to use Geo-SAM. ``Pytorch`` is a fundamental dependency. If you want to install the GPU version of ``Pytorch``, it is recommended to refer to the official website for installation: `<https://pytorch.org/get-started/locally/#start-locally>`_ .
-
-After installing ``PyTorch``, ``torchgeo`` and ``segment-anything`` need to be installed subsequently. Below are tutorials for installing these dependencies on different operating systems.
-
 For Windows Users
 ~~~~~~~~~~~~~~~~~
 
@@ -130,7 +126,7 @@ Then install the Python Dependencies of Geo-SAM.
         sudo apt-get install python3-pip
 
 .. warning::
-    If QGIS 3.34/3.36 crash when you try to run the plugin, you may need to install the ``rtree`` package using the system package manager instead of using pip. More details can be found in blog `Crash on QGIS 3.34/3.36 <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
+    **If latest QGIS crash when you try to run the plugin, you may need to downgrade the** ``rtree`` **package. The detailed reasons and solutions can be found in the following blog post:** `Crash on Latest QGIS in Linux <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
     
     Below is a brief guide for Ubuntu/Debian users:
 
