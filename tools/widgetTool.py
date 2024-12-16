@@ -133,7 +133,8 @@ class Selector(QDockWidget):
 
     def open_widget(self):
         """Create widget selector"""
-        self.parent.toolbar.setVisible(True)
+        # seem not necessary to set True
+        # self.parent.toolbar.setVisible(True)
         if self.dockFirstOpen:
             self.crs_project: QgsCoordinateReferenceSystem = self.project.crs()
 
@@ -1157,7 +1158,7 @@ class EncoderCopilot(QDockWidget):
 
     def open_widget(self):
         """Create widget selector"""
-        self.parent.toolbar.setVisible(True)
+        # self.parent.toolbar.setVisible(True)
         if self.dockFirstOpen:
             self.wdg_copilot = UI_EncoderCopilot
 
