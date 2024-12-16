@@ -45,8 +45,9 @@ class SAM_Model:
         self.test_features = SamTestFeatureDataset(
             root=self.feature_dir, bands=None, cache=False
         )
-        self.img_qgs_crs = QgsCoordinateReferenceSystem(self.test_features.crs)
         self.img_crs = str(self.test_features.crs)
+        self.img_qgs_crs = QgsCoordinateReferenceSystem(str(self.test_features.crs))
+        
         # Load sam decoder
         self.model_type = self.test_features.model_type
         if self.model_type is None:
