@@ -63,12 +63,12 @@ Open the **OSGeo4W Shell** |OsGeo4WShell| application ``as Administrator`` from 
 
             pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
 
-        .. note::
-            If you have installed the CPU version of PyTorch before, you may need to add the ``--force-reinstall`` option to force the reinstallation of the GPU version.
+        .. tip::
+            If you have installed the CPU version of PyTorch before, you need to add the ``--force-reinstall`` option to force the reinstallation of the GPU version.
 
             .. code-block:: bash
                 
-                pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117 --force-reinstall
+                pip3 install torch torchvision torchaudio --force-reinstall --index-url https://download.pytorch.org/whl/cu117 
 
         Then install the other dependencies:
 
@@ -126,7 +126,7 @@ Then install the Python Dependencies of Geo-SAM.
         sudo apt-get install python3-pip
 
 .. warning::
-    - **If latest QGIS crash when you try to run the plugin, you may need to downgrade the** ``rtree`` **package. The detailed reasons and solutions can be found in the following blog post:** `Crash on Latest QGIS in Linux <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
+    - **[Linux]: If latest QGIS crash when you try to run the plugin, you may need to downgrade the** ``rtree`` **package. The detailed reasons and solutions can be found in the following blog post:** `Crash on Latest QGIS in Linux <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
     
     Below is a brief guide for Ubuntu/Debian users:
 
@@ -138,7 +138,7 @@ Then install the Python Dependencies of Geo-SAM.
         # Install the rtree package using system package manager:
         sudo apt-get install python3-rtree
 
-    - **If you encounter any Python error:** ``ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject``, **you may need to update** ``numpy`` **and** ``pandas`` **in QGIS**. (Currently, this issue seems to occur only on the macOS platform.):
+    - **[MacOS]: If you encounter any Python error:** ``ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject``, **you may need to update** ``numpy`` **and** ``pandas`` **in QGIS**. (Currently, this issue seems to occur only on the macOS platform.):
 
     .. code-block:: bash
         
@@ -176,14 +176,55 @@ Below are some general paths of the plugin folder for your reference.
             ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins
 
 
-Download the Plugin
-~~~~~~~~~~~~~~~~~~~
+Download Plugin and Configure Folder
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can download the plugin in two ways: 1. manually downloading the plugin zip file 2. using git. 
+1. Download the Plugin
+``````````````````````
 
-Then, you need to put the entire ``Geo-SAM`` folder inside the ``plugins`` folder, then restart QGIS. The directory tree structure should be the same as the following.
+You can download the plugin in two ways: 
+
+- manually downloading the plugin zip file 
+- cloning the repository using git. 
+
+.. tab-set::
+    .. tab-item:: From zip file
+
+        Manually downloading zip files from the GitHub repository is the most common way to install the plugin. 
+
+        - **Download Plugin:**
+
+        You can download it from GitHub release page: https://github.com/coolzhao/Geo-SAM/releases
+
+        Then, unzip it, and rename the folder as ``Geo-SAM``.
+
+        - **Update Plugin:**
+
+        You can download the ``*_code_update.zip`` file to access the latest code updates. This file contains only the code, which significantly reduces both the file size and download time.
+
+    .. tab-item:: From git
+
+        If you are familiar with Git, you can clone the repository directly. This method is recommended if you want to update the plugin frequently.
+
+        - **Download Plugin:**
+
+        .. code-block:: bash
+
+            git clone https://github.com/coolzhao/Geo-SAM.git
+
+        - **Update Plugin:**
+
+        .. code-block:: bash
+
+            git pull
+
+2. Configure the Plugin Folder
+``````````````````````````````
+
+Once the plugin is downloaded, place the entire ``Geo-SAM`` folder inside the ``plugins`` directory. The directory structure should resemble the following:
 
 .. code-block:: bash
+    :emphasize-lines: 2,3
 
     python
     └── plugins
@@ -194,44 +235,14 @@ Then, you need to put the entire ``Geo-SAM`` folder inside the ``plugins`` folde
            ├── tools
            └── ui
 
-
-Plugin zip file
-^^^^^^^^^^^^^^^
-
-Manually downloading zip files from the GitHub repository is the most common way to install the plugin. You can download the:
-
-- **stable version**: `v1.1.1 <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.1.1>`_ 
-- **dev version**: `v1.3-rc <https://github.com/coolzhao/Geo-SAM/releases/tag/v1.3-rc>`_ . More features and capabilities, but may have more bugs.
-
-Then, unzip it, and rename the folder as ``Geo-SAM``.
-
 .. warning::
-    1. Remember to rename the folder as ``Geo-SAM`` after unzipping. You need to make sure the folder name is ``Geo-SAM``, not ``Geo-SAM-v1.3.1`` or ``Geo-SAM-v1.3-rc``. 
-    2. Be aware of undesired nested folders after unzipping. Just like the following structure: ``Geo-SAM-v1.3.1/Geo-SAM/...``. You need to move the inner ``Geo-SAM`` folder to the ``plugins`` folder in this case.
-
-.. note::
-    If you only need to update the code, you can download the ``*_code_update.zip`` file to get the latest code updates. This file only contains the code portion, which greatly reduces the file size and can significantly reduce the downloading time.
-
-Using Git
-^^^^^^^^^
-
-If you are familiar with Git, you can clone the repository directly. This method is recommended if you want to update the plugin frequently.
-
-.. code-block:: bash
-
-    git clone https://github.com/coolzhao/Geo-SAM.git
-
-If you want to update the plugin in the future, you can pull the latest code from the repository.
-
-.. code-block:: bash
-
-    git pull
-
+   1. Remember to rename the folder as ``Geo-SAM`` after unzipping. You need to make sure the folder name is ``Geo-SAM``, not ``Geo-SAM-v1.3.1`` or ``Geo-SAM-v1.3-rc``. 
+   2. Be aware of undesired nested folders after unzipping. Just like the following structure: ``Geo-SAM-v1.3.1/Geo-SAM/...``. You need to move the inner ``Geo-SAM`` folder to the ``plugins`` folder in this case.
 
 Activate the Geo-SAM Plugin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-After restarting QGIS, go to the menu ``Plugins`` > ``Manage and Install Plugins``, and under ``Installed``, you may find the ``Geo SAM`` plugin; check it to activate the plugin.
+Restart QGIS, go to the menu ``Plugins`` > ``Manage and Install Plugins``, and under ``Installed``, you will find the ``Geo SAM`` plugin; check it to activate the plugin.
 
 
 .. image:: img/Active_geo_sam.png
@@ -248,7 +259,7 @@ After activating the Geo-SAM plugin, you may find the Geo SAM tools under the ``
     :width: 60%
     :align: center
 
-You may also find a new toolbar, including three icons.
+You can also find a new toolbar, including three icons.
 
 .. image:: img/Toolbar_geo_sam.png
     :alt: Plugin toolbar
