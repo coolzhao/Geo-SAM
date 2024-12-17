@@ -1109,7 +1109,7 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>FG Num: 0 | BG Num: 0 | BBox : False</string>
+          <string>Num(FG): 0 | Num(BG): 0 | BBox: False</string>
          </property>
         </widget>
        </item>
@@ -1119,7 +1119,7 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>Polygon Num: 0</string>
+          <string>Num(Polygon): 0</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>

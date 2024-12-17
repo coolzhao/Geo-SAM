@@ -446,7 +446,7 @@ class Selector(QDockWidget):
         if hasattr(self, "polygon"):
             self.polygon.clear_canvas_polygons()
         self.canvas.refresh()
-        
+
     def clear_preview_prompt_polygon(self):
         self.tool_click_fg.clear_hover_prompt()
         self.tool_click_bg.clear_hover_prompt()
@@ -515,7 +515,7 @@ class Selector(QDockWidget):
         self.tool_click_fg.pressed = False
         self.tool_click_bg.pressed = False
         self.tool_click_rect.pressed = False
-        
+
         self.clear_preview_prompt_polygon()
 
         if self.wdg_sel.pushButton_fg.isChecked():
@@ -683,8 +683,8 @@ class Selector(QDockWidget):
         bbox = "bbox" in self.prompt_history
 
         # construct status labels
-        prompt = f"FG Num: {n_fg} | BG Num: {n_bg}, BBox: {bbox}"
-        polygon = f"Polygon Num: {num_polygon}"
+        prompt = f"Num(FG): {n_fg} | Num(BG): {n_bg} | BBox: {bbox}"
+        polygon = f"Num(Polygon): {num_polygon}"
         _preview = "On" if self.preview_mode else "Off"
         preview = f"Preview Mode: {_preview}"
 
