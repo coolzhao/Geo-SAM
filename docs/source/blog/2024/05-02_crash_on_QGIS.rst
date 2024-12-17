@@ -7,7 +7,7 @@ Crash on Latest QGIS in Linux
 - Last Updated : 2024-12-16
 
 
-The latest version of QGIS 3.34/3.36 will crash when trying to load features using the Geo-SAM plugin. This issue may be due to library mismatch of ``rtree`` in **torchgeo** and **QGIS**. More information can be found in the following links: `<https://github.com/qgis/QGIS/issues/57320>`_ and `<https://github.com/coolzhao/Geo-SAM/issues/43>`_.
+The latest version of QGIS will crash when trying to open ``Segmentation Tool`` of Geo-SAM plugin. This issue is due to library mismatch of ``rtree`` in **torchgeo** and **QGIS**. More information can be found in the following links: `<https://github.com/qgis/QGIS/issues/57320>`_ and `<https://github.com/coolzhao/Geo-SAM/issues/43>`_.
 
 Reason
 ------
@@ -41,8 +41,8 @@ Following solution only illustrates how to solve the issue using the system pack
 .. code-block:: bash
 
     sudo apt-get install python3-rtree
-
-3. Download the latest version of the Geo-SAM plugin from ``main`` branch of `Geo-SAM <https://github.com/coolzhao/Geo-SAM>`_ and reinstall it.
-
+    
+3. Restart QGIS.
+  
 After following the above steps, you should be able to run the Geo-SAM plugin in QGIS without any crashes.
 

@@ -126,7 +126,7 @@ Then install the Python Dependencies of Geo-SAM.
         sudo apt-get install python3-pip
 
 .. warning::
-    **If latest QGIS crash when you try to run the plugin, you may need to downgrade the** ``rtree`` **package. The detailed reasons and solutions can be found in the following blog post:** `Crash on Latest QGIS in Linux <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
+    - **If latest QGIS crash when you try to run the plugin, you may need to downgrade the** ``rtree`` **package. The detailed reasons and solutions can be found in the following blog post:** `Crash on Latest QGIS in Linux <https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html>`_. 
     
     Below is a brief guide for Ubuntu/Debian users:
 
@@ -137,6 +137,13 @@ Then install the Python Dependencies of Geo-SAM.
         
         # Install the rtree package using system package manager:
         sudo apt-get install python3-rtree
+
+    - **If you encounter any Python error:** ``numpy xxx, Expected 96 from C header, got 88 from PyObject``, **you may need to update** ``numpy`` **and** ``pandas`` **in QGIS**. (Currently, this issue seems to occur only on the macOS platform.):
+
+    .. code-block:: bash
+        
+        ./pip3 install numpy pandas -U
+      
 
 Install the Geo-SAM Plugin
 --------------------------
