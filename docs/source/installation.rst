@@ -138,11 +138,11 @@ Then install the Python Dependencies of Geo-SAM.
         # Install the rtree package using system package manager:
         sudo apt-get install python3-rtree
 
-    - **If you encounter any Python error:** ``numpy xxx, Expected 96 from C header, got 88 from PyObject``, **you may need to update** ``numpy`` **and** ``pandas`` **in QGIS**. (Currently, this issue seems to occur only on the macOS platform.):
+    - **If you encounter any Python error:** ``ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject``, **you may need to update** ``numpy`` **and** ``pandas`` **in QGIS**. (Currently, this issue seems to occur only on the macOS platform.):
 
     .. code-block:: bash
         
-        ./pip3 install numpy pandas -U
+        ./pip3 install 'numpy<2' pandas -U
       
 
 Install the Geo-SAM Plugin
