@@ -24,8 +24,8 @@ The Geo-SAM plugin includes two separate parts: the **Image Encoding Part**, and
 
 ## Installation and Usage
 
-[How to install?](https://geo-sam.readthedocs.io/en/latest/installation.html)
-[How to use?](https://geo-sam.readthedocs.io/en/latest/Usage/index.html)
+- [How to install?](https://geo-sam.readthedocs.io/en/latest/installation.html)
+- [How to use?](https://geo-sam.readthedocs.io/en/latest/Usage/index.html)
 
 ## Demos
 
