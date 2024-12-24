@@ -194,7 +194,7 @@ You can download the plugin in two ways:
 
         - **Download Plugin:**
 
-        You can download it from GitHub release page: https://github.com/coolzhao/Geo-SAM/releases
+        You can download compressed ``Source code`` file from GitHub release page: https://github.com/coolzhao/Geo-SAM/releases
 
         Then, unzip it, and rename the folder as ``Geo-SAM``.
 
@@ -218,7 +218,7 @@ You can download the plugin in two ways:
 
             git pull
 
-2. Configure the Plugin Folder
+1. Configure the Plugin Folder
 ``````````````````````````````
 
 Once the plugin is downloaded, place the entire ``Geo-SAM`` folder inside the ``plugins`` directory. The directory structure should resemble the following:
