@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
 from qgis.core import (
-    QgsFeature,
+    Qgis,
     QgsField,
     QgsFields,
     QgsFillSymbol,
@@ -46,13 +46,15 @@ from .geoTool import ImageCRSManager, LayerExtent
 from .messageTool import MessageTool
 from .ulid import GroupId
 
+qgis_version = Qgis.QGIS_VERSION_INT
+
 # QVariant has been deprecated in version 3.38, use QMetaType instead
-try:
-    from qgis.PyQt.QtCore import QMetaType
-except ImportError:
+if qgis_version < 33800:
     from qgis.PyQt.QtCore import QVariant as QMetaType
+
     QMetaType.QString = QMetaType.String
-    
+else:
+    from qgis.PyQt.QtCore import QMetaType
 
 SAM_Feature_Fields = [
     QgsField("group_ulid", QMetaType.QString),
@@ -885,13 +887,13 @@ class SAM_PolygonFeature:
             for coord in coordinates:
                 # transform pointXY from img_crs to polygon layer crs, if not match
                 point = QgsPointXY(*coord)
-                
+
                 # show the point on canvas in project crs
                 pt_project_crs = self.img_crs_manager.img_point_to_crs(
                     point, self.qgis_project.crs()
                 )
                 points_project_crs.append(pt_project_crs)
-                
+
                 # calculate the area in layer crs
                 pt_layer_crs = self.img_crs_manager.img_point_to_crs(
                     point, self.layer.crs()
