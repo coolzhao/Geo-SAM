@@ -218,7 +218,7 @@ You can download the plugin in two ways:
 
             git pull
 
-1. Configure the Plugin Folder
+2. Configure the Plugin Folder
 ``````````````````````````````
 
 Once the plugin is downloaded, place the entire ``Geo-SAM`` folder inside the ``plugins`` directory. The directory structure should resemble the following:
