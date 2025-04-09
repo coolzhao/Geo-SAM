@@ -396,7 +396,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     extent)
             start_time = time.time()
             # set sample size to limit statistic time
-            sample_size = min(1e8, img_height_in_extent*img_width_in_extent)
+            sample_size = min(int(1e8), img_height_in_extent*img_width_in_extent)
             min_values = []
             max_values = []
             for band in self.selected_bands:
