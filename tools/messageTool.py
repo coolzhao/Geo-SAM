@@ -1,5 +1,5 @@
 from typing import Optional
-from PyQt5.QtWidgets import QMessageBox
+from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 from qgis.utils import iface
 

@@ -1,7 +1,7 @@
 import os
 
-from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QCursor, QIcon
+from qgis.PyQt.QtCore import QSize
+from qgis.PyQt.QtGui import QCursor, QIcon
 from qgis.core import Qgis, QgsApplication
 
 __all__ = [

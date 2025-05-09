@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
 import numpy as np
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor
+from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
 from qgis.core import (
     Qgis,

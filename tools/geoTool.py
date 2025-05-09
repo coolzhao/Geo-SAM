@@ -1,6 +1,3 @@
-import os
-import typing
-import numpy as np
 from qgis.core import (QgsProject,
                        QgsCoordinateReferenceSystem,
                        QgsCoordinateTransform,

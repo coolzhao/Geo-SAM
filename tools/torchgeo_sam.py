@@ -1,10 +1,8 @@
 # Extension of torchgeo library by zyzhao
 import glob
-import math
 import os
 import re
 import sys
-from datetime import datetime
 from typing import (
     Any,
     Callable,

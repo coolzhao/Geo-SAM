@@ -5,10 +5,10 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import rasterio
-from PyQt5 import QtCore
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
+from qgis.PyQt import QtCore
+from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
+from qgis.PyQt.QtGui import QColor, QKeySequence
+from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsMapLayerProxyModel,
@@ -809,14 +809,14 @@ class Selector(QDockWidget):
         if hasattr(self, "polygon"):
             old_layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
             if old_layer and new_layer and old_layer.id() == new_layer.id():
-                MessageTool.MessageLog(f"vector layer not changed")
+                MessageTool.MessageLog("Vector layer not changed")
                 return None
             else:
                 # MessageTool.MessageLog(new_layer.name())
                 if reset is True:
                     new_layer = None
                 self.polygon.reset_layer(new_layer)
-                MessageTool.MessageLog(f"vector layer reset")
+                MessageTool.MessageLog("Vector layer reset")
             # if not self.polygon.reset_layer(new_layer):
             #     self.wdg_sel.MapLayerComboBox.setLayer(None)
         else:
