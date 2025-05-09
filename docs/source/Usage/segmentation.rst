@@ -87,6 +87,7 @@ Save Current Results
 ~~~~~~~~~~~~~~~~~~~~
 
 You can save the segmentation results by clicking the ``Save`` button (Shortcut: ``S``), after adding points and a BBox prompts for segmenting a object.
+Once saved, the segmentation results will be added to the output layer or file you specified in the ``I/O Paths`` Tab. And the results can not be undo using the UI of the plugin, but you can use the built-in editing tools in QGIS to edit (delete/modify) the saved results.
 
 Enable/Disable the Tool
 ~~~~~~~~~~~~~~~~~~~~~~~
