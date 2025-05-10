@@ -46,6 +46,16 @@ Reasons for choosing Geo-SAM
    - The Geo-SAM plugin is currently in active development. We will continue making improvements and welcome your feedback. If you have any questions or suggestions, please feel free to open an issue or discussion on our GitHub repository at `GitHub Issues <https://github.com/coolzhao/Geo-SAM/issues>`_ or `GitHub Discussions <https://github.com/coolzhao/Geo-SAM/discussions>`_.
 
 
+Video Tutorials
+---------------
+
+The following video is a good tutorial that shows how to install and use Geo-SAM.
+
+.. youtube:: GSKmK7qERUw
+   :align: center
+
+
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
