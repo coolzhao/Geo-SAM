@@ -25,6 +25,8 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx.ext.intersphinx",
+    "sphinxcontrib.youtube",
 ]
 source_suffix = {
     ".rst": "restructuredtext",

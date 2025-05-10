@@ -6,3 +6,4 @@ sphinx-copybutton
 sphinx-design
 pydata_sphinx_theme
 Jinja2
+sphinxcontrib-youtube

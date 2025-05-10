@@ -11,7 +11,7 @@ Download SAM Checkpoints
 .. warning:: 
     The checkpoint used for encoding image must be downloaded from below links or the official SAM repository!!!
 
-    Never use the checkpoint that comes with Geo-SAM, as it is a trimmed version and cannot be used to encode images. 
+    Never use the checkpoint that comes with Geo-SAM, as it is a trimmed version and cannot be used to encode images. See `<https://github.com/coolzhao/Geo-SAM/issues/21>`_ and `<https://github.com/coolzhao/Geo-SAM/issues/34>`_ for more details.
 
 SAM model checkpoints should be downloaded in advance, and three versions (huge, large, and base) are available. The large version "vit_l" is recommended to try first. You need to specify the model type that matches the checkpoint version. Using the following links to download the checkpoints.
 

@@ -87,7 +87,11 @@ Save Current Results
 ~~~~~~~~~~~~~~~~~~~~
 
 You can save the segmentation results by clicking the ``Save`` button (Shortcut: ``S``), after adding points and a BBox prompts for segmenting a object.
-Once saved, the segmentation results will be added to the output layer or file you specified in the ``I/O Paths`` Tab. And the results can not be undo using the UI of the plugin, but you can use the built-in editing tools in QGIS to edit (delete/modify) the saved results.
+
+Once saved, the segmentation results will be added to the output layer or file specified in the **I/O Paths** tab. These results cannot be undone using the plugin's ``Undo`` button or the ``Z`` key. However, you can use QGIS's built-in undo function (``Ctrl+Z`` or ``Command+Z``) to revert the last saved changes. Additionally, you can use QGIS's built-in editing tools to further modify or delete the saved results.
+
+.. note::
+   If the ``S`` key isn't working, first check if the **Snapping Toolbar** is enabled. The ``S`` key will not function with this toolbar active due to a shared key binding. If disabling the Snapping Toolbar doesn't resolve the issue, try deactivating other plugins that might also be using the ``S`` key. See https://github.com/coolzhao/Geo-SAM/issues/42 for more information.
 
 Enable/Disable the Tool
 ~~~~~~~~~~~~~~~~~~~~~~~
