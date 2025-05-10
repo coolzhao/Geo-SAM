@@ -24,12 +24,12 @@ The Geo-SAM plugin includes two separate parts: the **Image Encoding Part**, and
 
 ## Installation and Usage
 
-- [How to install?](https://geo-sam.readthedocs.io/en/latest/installation.html)
-- [How to use?](https://geo-sam.readthedocs.io/en/latest/Usage/index.html)
 
-The following video is a good tutorial that shows how to install and use Geo-SAM.
-
-<iframe width="560" height="315" src="https://www.youtube.com/embed/GSKmK7qERUw" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+- Official Documentation:
+  - [How to install?](https://geo-sam.readthedocs.io/en/latest/installation.html)
+  - [How to use?](https://geo-sam.readthedocs.io/en/latest/Usage/index.html)
+- Third-party Tutorials:
+  - The following video is a good tutorial that shows how to install and use Geo-SAM: [Segment Anything in QGIS with the Geo-SAM Plugin](https://www.youtube.com/embed/GSKmK7qERUw)
 
 ## Demos
 
