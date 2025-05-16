@@ -236,7 +236,7 @@ Once the plugin is downloaded, place the entire ``Geo-SAM`` folder inside the ``
            └── ui
 
 .. warning::
-   1. Remember to rename the folder as ``Geo-SAM`` after unzipping. You need to make sure the folder name is ``Geo-SAM``, not ``Geo-SAM-v1.3.1`` or ``Geo-SAM-v1.3-rc``. 
+   1. Remember to rename the folder as ``Geo-SAM`` after unzipping. You need to make sure the folder name is ``Geo-SAM``, not ``Geo-SAM-v1.3.1`` or ``Geo-SAM-v1.3-rc``. See `<https://github.com/coolzhao/Geo-SAM/issues/22>`_ for more details.
    2. Be aware of undesired nested folders after unzipping. Just like the following structure: ``Geo-SAM-v1.3.1/Geo-SAM/...``. You need to move the inner ``Geo-SAM`` folder to the ``plugins`` folder in this case.
 
 Activate the Geo-SAM Plugin
