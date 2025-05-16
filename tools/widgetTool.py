@@ -15,6 +15,7 @@ from qgis.core import (
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
+    QgsMapLayer,
 )
 from qgis.gui import QgisInterface, QgsDoubleSpinBox, QgsFileWidget, QgsMapToolPan
 from rasterio.windows import from_bounds as window_from_bounds
@@ -664,9 +665,13 @@ class Selector(QDockWidget):
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):
-            layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
-            if layer:
-                return None
+            polygon_layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
+            if polygon_layer:
+                selected_layer: QgsMapLayer = self.wdg_sel.MapLayerComboBox.currentLayer()  # noqa: F821
+                if selected_layer is not None:
+                    if selected_layer.id() != self.polygon.layer_id:
+                        self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+                    return None
         self.set_vector_layer(reset=True)
 
     def update_status_labels(self, num_polygon: int) -> None:
@@ -799,41 +804,68 @@ class Selector(QDockWidget):
         self.prompt_type = "bbox"
 
     @QtCore.pyqtSlot()  # add descriptor to ignore the input parameter from trigger
-    def set_vector_layer(self, reset: bool = False):
+    def set_vector_layer(self, reset: bool = False) -> None:
         """set sam output vector layer"""
-        new_layer = self.wdg_sel.MapLayerComboBox.currentLayer()
-        # MessageTool.MessageLog(
-        #     f'reset value: {reset}, sender: {self.sender()}')
-
-        # parse whether the new selected layer is same as current layer
-        if hasattr(self, "polygon"):
-            old_layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
-            if old_layer and new_layer and old_layer.id() == new_layer.id():
-                MessageTool.MessageLog("Vector layer not changed")
+        new_layer: QgsMapLayer = self.wdg_sel.MapLayerComboBox.currentLayer()  # noqa: F821
+        if new_layer is not None:
+            if new_layer.type() != QgsMapLayer.VectorLayer:
+                MessageTool.MessageLog(
+                    f"Layer {new_layer.name()} is not a vector layer, please choose another one"
+                )
                 return None
+            else:
+                MessageTool.MessageLog(
+                    f"Layer {new_layer.name()} is selected."
+                )
+            # MessageTool.MessageLog(
+            #     f'reset value: {reset}, sender: {self.sender()}')
+
+            # parse whether the new selected layer is same as current layer
+            if hasattr(self, "polygon"):
+                old_layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
+                if old_layer and new_layer and old_layer.id() == new_layer.id():
+                    MessageTool.MessageLog(f"Vector layer {new_layer} not changed")
+                    return None
+                else:
+                    # MessageTool.MessageLog(new_layer.name())
+                    if reset is True:
+                        new_layer = None
+                    self.polygon.reset_layer(new_layer)
+                    MessageTool.MessageLog(f"Vector layer reset as {self.polygon.layer_name}")
+                # if not self.polygon.reset_layer(new_layer):
+                #     self.wdg_sel.MapLayerComboBox.setLayer(None)
             else:
                 # MessageTool.MessageLog(new_layer.name())
                 if reset is True:
                     new_layer = None
-                self.polygon.reset_layer(new_layer)
-                MessageTool.MessageLog("Vector layer reset")
-            # if not self.polygon.reset_layer(new_layer):
-            #     self.wdg_sel.MapLayerComboBox.setLayer(None)
-        else:
-            # MessageTool.MessageLog(new_layer.name())
-            if reset is True:
-                new_layer = None
-            self.polygon = SAM_PolygonFeature(
-                self.img_crs_manager,
-                layer=new_layer,
-                kwargs_preview_polygon=self.style_preview_polygon,
-                kwargs_prompt_polygon=self.style_prompt_polygon,
-            )
-            MessageTool.MessageLog("vector layer initialized")
+                self.polygon = SAM_PolygonFeature(
+                    self.img_crs_manager,
+                    layer=new_layer,
+                    kwargs_preview_polygon=self.style_preview_polygon,
+                    kwargs_prompt_polygon=self.style_prompt_polygon,
+                )
+                MessageTool.MessageLog(f"Vector layer initialized as {self.polygon.layer_name}")
 
-        # clear layer history
-        self.sam_feature_history = []
-        self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+            # clear layer history
+            self.sam_feature_history = []
+        else:
+            MessageTool.MessageLog("No layer selected")
+            if reset:
+                self.polygon = SAM_PolygonFeature(
+                    self.img_crs_manager,
+                    layer=new_layer,
+                    kwargs_preview_polygon=self.style_preview_polygon,
+                    kwargs_prompt_polygon=self.style_prompt_polygon,
+                )
+                MessageTool.MessageLog(f"Vector layer initialized as {self.polygon.layer_name}")
+            else:
+                return None
+        try:
+            if QgsProject.instance().mapLayer(self.polygon.layer_id) is not None:
+                self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+        except Exception as e:
+            MessageTool.MessageLog(f"Error: {e}")
+            # self.wdg_sel.MapLayerComboBox.setLayer(None)
         # self.set_user_settings_color()
 
     def load_vector_file(self) -> None:
