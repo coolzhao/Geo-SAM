@@ -774,7 +774,8 @@ class SAM_PolygonFeature:
             self._init_layer()
 
         self.reset_geojson()
-        self.show_layer()
+        # User may want to keep their own style, so not rerender the layer
+        # self.render_layer() 
         self.ensure_edit_mode()
         return True
 
@@ -807,7 +808,7 @@ class SAM_PolygonFeature:
         layer = QgsVectorLayer(shapefile, Path(shapefile).stem, "ogr")
 
         self.layer = layer
-        self.show_layer()
+        self.render_layer()
         self.ensure_edit_mode()
 
     def _init_layer(
@@ -827,7 +828,7 @@ class SAM_PolygonFeature:
             self.layer = QgsVectorLayer("Polygon", self.default_name, "memory")
             # self.layer.setCrs(self.qgis_project.crs())
             self.layer.setCrs(self.img_crs_manager.img_crs)
-            self.show_layer()
+            self.render_layer()
 
             MessageTool.MessageBar(
                 "Note:",
@@ -845,7 +846,7 @@ class SAM_PolygonFeature:
 
         self.ensure_edit_mode()
 
-    def show_layer(self):
+    def render_layer(self):
         """Show the layer on canvas"""
         self.qgis_project.addMapLayer(self.layer)
         self.layer.startEditing()
