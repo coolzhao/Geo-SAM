@@ -774,7 +774,7 @@ class SAM_PolygonFeature:
             self._init_layer()
 
         self.reset_geojson()
-        # self.show_layer()
+        self.show_layer()
         self.ensure_edit_mode()
         return True
 
@@ -807,7 +807,7 @@ class SAM_PolygonFeature:
         layer = QgsVectorLayer(shapefile, Path(shapefile).stem, "ogr")
 
         self.layer = layer
-        # self.show_layer()
+        self.show_layer()
         self.ensure_edit_mode()
 
     def _init_layer(
