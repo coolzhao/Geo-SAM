@@ -895,9 +895,6 @@ class Selector(QDockWidget):
             )
             return None
         else:
-            MessageTool.MessageBoxOK(
-                f"File {file_path} is selected, please wait for loading..."
-            )
             if file_path.suffix.lower() != ".shp":
                 file_path.with_suffix(".shp")
 
