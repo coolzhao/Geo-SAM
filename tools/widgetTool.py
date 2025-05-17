@@ -16,6 +16,7 @@ from qgis.core import (
     QgsRasterLayer,
     QgsRectangle,
     QgsMapLayer,
+    QgsWkbTypes,
 )
 from qgis.gui import QgisInterface, QgsDoubleSpinBox, QgsFileWidget, QgsMapToolPan
 from rasterio.windows import from_bounds as window_from_bounds
@@ -808,9 +809,10 @@ class Selector(QDockWidget):
         """set sam output vector layer"""
         new_layer: QgsMapLayer = self.wdg_sel.MapLayerComboBox.currentLayer()  # noqa: F821
         if new_layer is not None:
-            if new_layer.type() != QgsMapLayer.VectorLayer:
-                MessageTool.MessageLog(
-                    f"Layer {new_layer.name()} is not a vector layer, please choose another one"
+            # if new_layer.type() != QgsMapLayer.VectorLayer:
+            if new_layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+                MessageTool.MessageBoxOK(
+                    f"Layer {new_layer.name()} is not a polygon vector layer, please choose another one"
                 )
                 return None
             else:
@@ -880,6 +882,8 @@ class Selector(QDockWidget):
             "Shapefile (*.shp)",
             options=QFileDialog.DontConfirmOverwrite,
         )
+        # file_filter = "Vector files (*.gpkg *.shp);;GeoPackage (*.gpkg);;Shapefile (*.shp);;All files (*)"
+        # file_name, _ = QFileDialog.getOpenFileName(None, "Select Vector File", "", file_filter)
 
         if file_path is None or file_path == "":
             return None
@@ -891,6 +895,9 @@ class Selector(QDockWidget):
             )
             return None
         else:
+            MessageTool.MessageBoxOK(
+                f"File {file_path} is selected, please wait for loading..."
+            )
             if file_path.suffix.lower() != ".shp":
                 file_path.with_suffix(".shp")
 
