@@ -1,10 +1,10 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
 import numpy as np
-from qgis.PyQt.QtCore import Qt, pyqtSignal
-from qgis.PyQt.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
 from qgis.core import (
     Qgis,
@@ -27,6 +27,8 @@ from qgis.gui import (
     QgsRubberBand,
     QgsVertexMarker,
 )
+from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtGui import QColor
 from qgis.utils import iface
 from rasterio.transform import Affine, rowcol
 
@@ -69,6 +71,14 @@ SAM_Feature_QgsFields = QgsFields()
 new_fields = QgsFields()
 for field in SAM_Feature_Fields:
     SAM_Feature_QgsFields.append(field)
+
+SuffixDriverMap = {
+    ".shp": "ESRI Shapefile",
+    ".gpkg": "GPKG",
+    ".geojson": "GeoJSON",
+    ".json": "GeoJSON",
+    ".sqlite": "SQLite",
+}
 
 
 class Canvas_Rectangle:
@@ -707,11 +717,12 @@ class SAM_PolygonFeature:
     def __init__(
         self,
         img_crs_manager: ImageCRSManager,
-        shapefile: str = None,
-        layer: QgsVectorLayer = None,
+        shapefile: str | Path | None = None,
+        layer: QgsVectorLayer | None = None,
         default_name: str = "polygon_sam",
         kwargs_preview_polygon: Dict = {},
         kwargs_prompt_polygon: Dict = {},
+        overwrite: bool = False,
     ):
         self.qgis_project = QgsProject.instance()
         self.img_crs_manager = img_crs_manager
@@ -724,6 +735,7 @@ class SAM_PolygonFeature:
         self.canvas_prompt_polygon = Canvas_SAM_Polygon(
             self.canvas, **kwargs_prompt_polygon
         )
+        self.overwrite = overwrite
         self.geojson_canvas_preview: Dict = {}
         self.geojson_canvas_prompt: Dict = {}
         self.geojson_layer: Dict = {}
@@ -775,7 +787,7 @@ class SAM_PolygonFeature:
 
         self.reset_geojson()
         # User may want to keep their own style, so not rerender the layer
-        # self.render_layer() 
+        # self.render_layer()
         self.ensure_edit_mode()
         return True
 
@@ -783,13 +795,15 @@ class SAM_PolygonFeature:
         """Load the shapefile to the layer."""
         if isinstance(shapefile, Path):
             shapefile = str(shapefile)
-        if Path(shapefile).suffix.lower() != ".shp":
+        # if default name without suffix, using the shapefile suffix
+        if Path(shapefile).stem == Path(shapefile).name:
             shapefile = shapefile + ".shp"
 
         # if file not exists, create a new one into disk
-        if not os.path.exists(shapefile):
+        if not os.path.exists(shapefile) or self.overwrite:
             save_options = QgsVectorFileWriter.SaveVectorOptions()
-            save_options.driverName = "ESRI Shapefile"
+            suffix = Path(shapefile).suffix
+            save_options.driverName = SuffixDriverMap[suffix]
             save_options.fileEncoding = "UTF-8"
             transform_context = QgsProject.instance().transformContext()
 
@@ -808,6 +822,7 @@ class SAM_PolygonFeature:
         layer = QgsVectorLayer(shapefile, Path(shapefile).stem, "ogr")
 
         self.layer = layer
+        # self.layer.updateFields()
         self.render_layer()
         self.ensure_edit_mode()
 
@@ -847,14 +862,15 @@ class SAM_PolygonFeature:
         self.ensure_edit_mode()
 
     def render_layer(self):
-        """Show the layer on canvas"""
+        """Render the SAM output layer on canvas"""
         self.qgis_project.addMapLayer(self.layer)
         self.layer.startEditing()
         symbol = QgsFillSymbol.createSimple(
             {"color": "0,255,0,40", "color_border": "green", "width_border": "0.6"}
         )
-        self.layer.renderer().setSymbol(symbol)
-        # show the change
+        render = self.layer.renderer()
+        if render is not None:
+            render.setSymbol(symbol)
         self.layer.triggerRepaint()
 
     def add_geojson_feature_to_canvas(

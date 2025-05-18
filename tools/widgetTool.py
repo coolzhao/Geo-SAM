@@ -5,20 +5,20 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import rasterio
-from qgis.PyQt import QtCore
-from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
-from qgis.PyQt.QtGui import QColor, QKeySequence
-from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
 from qgis.core import (
     QgsCoordinateReferenceSystem,
+    QgsMapLayer,
     QgsMapLayerProxyModel,
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
-    QgsMapLayer,
     QgsWkbTypes,
 )
 from qgis.gui import QgisInterface, QgsDoubleSpinBox, QgsFileWidget, QgsMapToolPan
+from qgis.PyQt import QtCore
+from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
+from qgis.PyQt.QtGui import QColor, QKeySequence
+from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
 from rasterio.windows import from_bounds as window_from_bounds
 from torchgeo.datasets import BoundingBox
 from torchgeo.samplers import Units
@@ -46,6 +46,21 @@ from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
 
 SAM_Model_Types_Full: List[str] = ["vit_h (huge)", "vit_l (large)", "vit_b (base)"]
 SAM_Model_Types = [i.split(" ")[0].strip() for i in SAM_Model_Types_Full]
+
+
+shp_file_load_filter = (
+    "Shapefile (*.shp);;"  # ESRI Shapefile
+    "Geopackage (*.gpkg);;"  # GeoPackage
+    "SQLite (*.sqlite);;"  # SQLite
+    "GeoJSON (*.geojson);;"  # GeoJSON
+    "All files (*)"  # All files
+)
+shp_file_create_filter = (
+    "Shapefile (*.shp);;"  # ESRI Shapefile
+    "Geopackage (*.gpkg);;"  # GeoPackage
+    "SQLite (*.sqlite);;"  # SQLite
+    "All files (*)"  # All files
+)
 
 
 class ParseRangeThread(QThread):
@@ -180,6 +195,7 @@ class Selector(QDockWidget):
 
             self.wdg_sel.MapLayerComboBox.layerChanged.connect(self.set_vector_layer)
             self.wdg_sel.pushButton_load_file.clicked.connect(self.load_vector_file)
+            self.wdg_sel.pushButton_create_file.clicked.connect(self.create_vector_file)
 
             self.wdg_sel.pushButton_load_feature.clicked.connect(self.load_feature)
             self.wdg_sel.pushButton_zoom_to_extent.clicked.connect(self.zoom_to_extent)
@@ -668,7 +684,9 @@ class Selector(QDockWidget):
         if hasattr(self, "polygon"):
             polygon_layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
             if polygon_layer:
-                selected_layer: QgsMapLayer = self.wdg_sel.MapLayerComboBox.currentLayer()  # noqa: F821
+                selected_layer: QgsMapLayer = (
+                    self.wdg_sel.MapLayerComboBox.currentLayer()
+                )  # noqa: F821
                 if selected_layer is not None:
                     if selected_layer.id() != self.polygon.layer_id:
                         self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
@@ -816,9 +834,7 @@ class Selector(QDockWidget):
                 )
                 return None
             else:
-                MessageTool.MessageLog(
-                    f"Layer {new_layer.name()} is selected."
-                )
+                MessageTool.MessageLog(f"Layer {new_layer.name()} is selected.")
             # MessageTool.MessageLog(
             #     f'reset value: {reset}, sender: {self.sender()}')
 
@@ -833,7 +849,9 @@ class Selector(QDockWidget):
                     if reset is True:
                         new_layer = None
                     self.polygon.reset_layer(new_layer)
-                    MessageTool.MessageLog(f"Vector layer reset as {self.polygon.layer_name}")
+                    MessageTool.MessageLog(
+                        f"Vector layer reset as {self.polygon.layer_name}"
+                    )
                 # if not self.polygon.reset_layer(new_layer):
                 #     self.wdg_sel.MapLayerComboBox.setLayer(None)
             else:
@@ -846,7 +864,9 @@ class Selector(QDockWidget):
                     kwargs_preview_polygon=self.style_preview_polygon,
                     kwargs_prompt_polygon=self.style_prompt_polygon,
                 )
-                MessageTool.MessageLog(f"Vector layer initialized as {self.polygon.layer_name}")
+                MessageTool.MessageLog(
+                    f"Vector layer initialized as {self.polygon.layer_name}"
+                )
 
             # clear layer history
             self.sam_feature_history = []
@@ -859,7 +879,9 @@ class Selector(QDockWidget):
                     kwargs_preview_polygon=self.style_preview_polygon,
                     kwargs_prompt_polygon=self.style_prompt_polygon,
                 )
-                MessageTool.MessageLog(f"Vector layer initialized as {self.polygon.layer_name}")
+                MessageTool.MessageLog(
+                    f"Vector layer initialized as {self.polygon.layer_name}"
+                )
             else:
                 return None
         try:
@@ -870,67 +892,86 @@ class Selector(QDockWidget):
             # self.wdg_sel.MapLayerComboBox.setLayer(None)
         # self.set_user_settings_color()
 
-    def load_vector_file(self) -> None:
+    def _process_vector_file(self, file_path: Path, overwrite: bool = False) -> None:
+        """Process (load/create) vector file for SAM output"""
+        # Check if layer already exists in project
+        layer_list = QgsProject.instance().mapLayersByName(file_path.stem)
+        if len(layer_list) > 0 and not overwrite:
+            self.polygon = SAM_PolygonFeature(
+                self.img_crs_manager,
+                layer=layer_list[0],
+                kwargs_preview_polygon=self.style_preview_polygon,
+                kwargs_prompt_polygon=self.style_prompt_polygon,
+            )
+            if not hasattr(self.polygon, "layer"):
+                return None
+            MessageTool.MessageBar(
+                "Attention",
+                f"Layer '{file_path.name}' has already been in the project, "
+                "you can start labeling now",
+            )
+            self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+        else:
+            # Create new layer or load existing file
+            self.polygon = SAM_PolygonFeature(
+                self.img_crs_manager,
+                shapefile=file_path,
+                kwargs_preview_polygon=self.style_preview_polygon,
+                kwargs_prompt_polygon=self.style_prompt_polygon,
+                overwrite=overwrite,
+            )
+            if not hasattr(self.polygon, "layer"):
+                return None
+        # clear layer history
+        self.sam_feature_history = []
+        self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+        # self.set_user_settings_color()
+
+    def create_vector_file(self) -> None:
+        """Create a new vector file for SAM output"""
         file_dialog = QFileDialog()
-        file_dialog.setDefaultSuffix("shp")
         file_dialog.setFileMode(QFileDialog.AnyFile)
+        file_dialog.setOption(QFileDialog.DontConfirmOverwrite, True)
 
         file_path, _ = file_dialog.getSaveFileName(
-            None,
-            "QFileDialog.getOpenFileName()",
-            "",
-            "Shapefile (*.shp)",
-            options=QFileDialog.DontConfirmOverwrite,
+            None, "Create Vector File", "", shp_file_create_filter
         )
-        # file_filter = "Vector files (*.gpkg *.shp);;GeoPackage (*.gpkg);;Shapefile (*.shp);;All files (*)"
-        # file_name, _ = QFileDialog.getOpenFileName(None, "Select Vector File", "", file_filter)
-
+        # If user canceled selection, return
         if file_path is None or file_path == "":
             return None
 
         file_path = Path(file_path)
         if not file_path.parent.is_dir():
             MessageTool.MessageBoxOK(
-                "Oops: " "Failed to open file, please choose a existing folder"
+                "Oops: Failed to open file, please choose an existing folder"
             )
             return None
         else:
-            if file_path.suffix.lower() != ".shp":
-                file_path.with_suffix(".shp")
+            self._process_vector_file(file_path, overwrite=True)
 
-            layer_list = QgsProject.instance().mapLayersByName(file_path.stem)
-            if len(layer_list) > 0:
-                self.polygon = SAM_PolygonFeature(
-                    self.img_crs_manager,
-                    layer=layer_list[0],
-                    kwargs_preview_polygon=self.style_preview_polygon,
-                    kwargs_prompt_polygon=self.style_prompt_polygon,
-                )
-                if not hasattr(self.polygon, "layer"):
-                    return None
-                MessageTool.MessageBar(
-                    "Attention",
-                    f"Layer '{file_path.name}' has already been in the project, "
-                    "you can start labeling now",
-                )
-                self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
+    def load_vector_file(self) -> None:
+        """Load a existed vector file for SAM output"""
+        file_dialog = QFileDialog()
+        file_dialog.setFileMode(QFileDialog.AnyFile)
 
-            else:
-                self.polygon = SAM_PolygonFeature(
-                    self.img_crs_manager,
-                    shapefile=file_path,
-                    kwargs_preview_polygon=self.style_preview_polygon,
-                    kwargs_prompt_polygon=self.style_prompt_polygon,
-                )
-                if not hasattr(self.polygon, "layer"):
-                    return None
-            # clear layer history
-            self.sam_feature_history = []
-            self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
-            # self.set_user_settings_color()
+        file_path, _ = file_dialog.getOpenFileName(
+            None, "Load Vector File", "", shp_file_load_filter
+        )
+        # If user canceled selection, return
+        if file_path is None or file_path == "":
+            return None
+
+        file_path = Path(file_path)
+        if not file_path.parent.is_dir():
+            MessageTool.MessageBoxOK(
+                "Oops: Failed to open file, please choose an existing folder"
+            )
+            return None
+        else:
+            self._process_vector_file(file_path)
 
     def load_feature(self):
-        """load feature"""
+        """load encoded image feature"""
         self.feature_dir = self.wdg_sel.QgsFile_feature.filePath()
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
             self.clear_layers(clear_extent=True)
@@ -1539,7 +1580,7 @@ class EncoderCopilot(QDockWidget):
         file_dialog.setFileMode(QFileDialog.AnyFile)
 
         file_path, _ = file_dialog.getSaveFileName(
-            None, "QFileDialog.getOpenFileName()", "", "Json Files (*.json)"
+            None, "Save Setting to File", "", "Json Files (*.json)"
         )
         file_path = Path(file_path)
         try:
