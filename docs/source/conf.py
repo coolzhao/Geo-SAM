@@ -7,9 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Geo-SAM"
-copyright = "2023-2024, Joey, Fancy"
+copyright = "2023-2025, Joey, Fancy"
 author = "Joey, Fancy"
-release = "v1.3-rc"
+release = "v1.3.2"
 
 
 # -- General configuration ---------------------------------------------------
