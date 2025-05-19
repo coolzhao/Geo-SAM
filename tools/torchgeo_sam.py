@@ -1,10 +1,8 @@
 # Extension of torchgeo library by zyzhao
 import glob
-import math
 import os
 import re
 import sys
-from datetime import datetime
 from typing import (
     Any,
     Callable,
@@ -23,36 +21,62 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio
+import rtree
 import torch
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 from rasterio.windows import from_bounds as window_from_bounds
-from rtree.exceptions import RTreeError
 from rtree.index import Index, Property
 from torch import Tensor
 from torch.nn import functional as F
 from torchgeo.datasets import BoundingBox, GeoDataset, RasterDataset
 from torchgeo.datasets.utils import disambiguate_timestamp
 from torchgeo.samplers import GeoSampler, Units
-from torchgeo.samplers.constants import Units
+# from torchgeo.samplers.constants import Units
 from torchgeo.samplers.utils import _to_tuple, tile_to_chips
 
 from .messageTool import MessageTool
 
-
-class IndexV1(Index):
-    # add length property for rtree < 1
-    def __len__(self) -> int:
+# add len method for rtree < 1.0.0
+if int(rtree.__version__.split(".")[0]) == 0:
+    try:
+        from rtree.exceptions import RTreeError
+        rtree_error = RTreeError
+    except ImportError:
+        rtree_error = Exception
+        
+    def rtree_len(self) -> int:
         """The number of entries in the index.
+
+        This method is added to the rtree.index.Index class to provide a len()
+        method for rtree < 1.0.0 by Geo-SAM.
 
         :return: number of entries
         """
         try:
             return self.count(self.bounds)
-        except RTreeError:
+        except rtree_error:
             return 0
 
+    Index.__len__ = rtree_len
+
+def get_pixel_size(res: Union[float, Tuple[float, float]]) -> Tuple[float, float]:
+    """Get pixel size from resolution.
+
+    Args:
+        res: resolution in pixels or CRS units
+
+    Returns:
+        pixel size in pixels
+    """
+    if isinstance(res, float):
+        pixel_size = (res, res)
+    elif isinstance(res, tuple):
+        pixel_size = (res[0], res[1])
+    else:
+        raise TypeError("Resolution must be a float or a tuple of floats")
+    return pixel_size
 
 class SamTestGridGeoSampler(GeoSampler):
     """Samples elements in a grid-like fashion.
@@ -93,8 +117,10 @@ class SamTestGridGeoSampler(GeoSampler):
         self.stride = _to_tuple(stride)
 
         if units == Units.PIXELS:
-            self.size = (self.size[0] * self.res, self.size[1] * self.res)
-            self.stride = (self.stride[0] * self.res, self.stride[1] * self.res)
+            pixel_size = get_pixel_size(self.res)
+
+            self.size = (self.size[0] * pixel_size[0], self.size[1] * pixel_size[1])
+            self.stride = (self.stride[0] * pixel_size[0], self.stride[1] * pixel_size[1])
 
         self.hits = []
         self.hits_small = []
@@ -214,7 +240,7 @@ class SamTestFeatureDataset(RasterDataset):
         self.transforms = transforms
 
         # Create an R-tree to index the dataset
-        self.index = IndexV1(interleaved=False, properties=Property(dimension=3))
+        self.index = Index(interleaved=False, properties=Property(dimension=3))
 
         self.root = root
         self.bands = bands or self.all_bands
@@ -265,7 +291,7 @@ class SamTestFeatureDataset(RasterDataset):
                 )
             else:
                 MessageTool.MessageLog(
-                    f"Index file does not match the raster list, will be recreated."
+                    f"Index file: {os.path.basename(csv_filepath)} does not match the raster list, will be recreated."
                 )
 
         if not index_set:
@@ -383,7 +409,7 @@ class SamTestFeatureDataset(RasterDataset):
         hits = self.index.intersection(tuple(bbox), objects=True)
         filepaths = cast(List[str], [hit.object for hit in hits])
 
-        if not filepath in filepaths:
+        if filepath not in filepaths:
             raise IndexError(
                 f"query: {bbox} not found in index with bounds: {self.bounds}"
             )
@@ -472,7 +498,7 @@ class SamTestRasterDataset(RasterDataset):
         hits = self.index.intersection(tuple(bbox), objects=True)
         filepaths = cast(List[str], [hit.object for hit in hits])
 
-        if not filepath in filepaths:
+        if filepath not in filepaths:
             raise IndexError(
                 f"query: {bbox} not found in index with bounds: {self.bounds}"
             )
@@ -486,8 +512,9 @@ class SamTestRasterDataset(RasterDataset):
         band_indexes = self.band_indexes
 
         src = vrt_fh
-        out_width = round((bbox.maxx - bbox.minx) / self.res)
-        out_height = round((bbox.maxy - bbox.miny) / self.res)
+        pixel_size = get_pixel_size(self.res)
+        out_width = round((bbox.maxx - bbox.minx) / pixel_size[0])
+        out_height = round((bbox.maxy - bbox.miny) / pixel_size[1])
         # out_width = math.ceil((bbox.maxx - bbox.minx) / self.res)
         # out_height = math.ceil((bbox.maxy - bbox.miny) / self.res)
         count = len(band_indexes) if band_indexes else src.count
@@ -636,7 +663,7 @@ class SamTestFeatureGeoSampler(GeoSampler):
             # roi = BoundingBox(*self.index.bounds)
             raise Exception("roi should be defined based on prompts!!!")
         else:
-            self.index = IndexV1(interleaved=False, properties=Property(dimension=3))
+            self.index = Index(interleaved=False, properties=Property(dimension=3))
             hits = dataset.index.intersection(tuple(roi), objects=True)
             # hit_nearest = list(dataset.index.nearest(tuple(roi), num_results=1, objects=True))[0]
             idx = 0

@@ -1,7 +1,7 @@
 from qgis.core import QgsApplication
 from qgis.gui import QgisInterface
-from PyQt5.QtCore import pyqtSignal, QObject
-from PyQt5.QtWidgets import (
+from qgis.PyQt.QtCore import pyqtSignal, QObject
+from qgis.PyQt.QtWidgets import (
     QAction,
     QToolBar,
 )

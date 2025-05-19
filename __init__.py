@@ -1,7 +1,6 @@
 # -----------------------------------------------------------
 # Copyright (C) 2023 CryoLab CUHK
 # -----------------------------------------------------------
-# from PyQt5.QtWidgets import QAction, QMessageBox
 import os
 import inspect
 from .geo_sam_tool import Geo_SAM

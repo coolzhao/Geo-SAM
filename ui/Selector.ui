@@ -39,7 +39,7 @@
        </sizepolicy>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="Prompts">
        <attribute name="title">
@@ -430,7 +430,7 @@
               <property name="alignment">
                <set>Qt::AlignHCenter|Qt::AlignTop</set>
               </property>
-              <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="8,1">
+              <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="3,1,1">
                <property name="spacing">
                 <number>1</number>
                </property>
@@ -456,37 +456,23 @@
                  </property>
                  <property name="minimumSize">
                   <size>
-                   <width>0</width>
+                   <width>50</width>
                    <height>0</height>
                   </size>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QToolButton" name="pushButton_load_file">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="toolTip">
-                  <string>Create/Load from a file</string>
-                 </property>
-                 <property name="statusTip">
-                  <string/>
-                 </property>
-                 <property name="whatsThis">
-                  <string/>
-                 </property>
+                <widget class="QPushButton" name="pushButton_load_file">
                  <property name="text">
-                  <string>...</string>
+                  <string>Load</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButton_create_file">
+                 <property name="text">
+                  <string>Create</string>
                  </property>
                 </widget>
                </item>
@@ -499,7 +485,7 @@
               <property name="alignment">
                <set>Qt::AlignHCenter|Qt::AlignTop</set>
               </property>
-              <layout class="QHBoxLayout" name="horizontalLayout" stretch="15,3,4">
+              <layout class="QHBoxLayout" name="horizontalLayout" stretch="10,3,4">
                <property name="leftMargin">
                 <number>3</number>
                </property>
@@ -1109,7 +1095,7 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>FG Num: 0 | BG Num: 0 | BBox : False</string>
+          <string>Num(FG): 0 | Num(BG): 0 | BBox: False</string>
          </property>
         </widget>
        </item>
@@ -1119,7 +1105,7 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>Polygon Num: 0</string>
+          <string>Num(Polygon): 0</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
