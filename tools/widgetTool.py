@@ -18,7 +18,7 @@ from qgis.gui import QgisInterface, QgsDoubleSpinBox, QgsFileWidget, QgsMapToolP
 from qgis.PyQt import QtCore
 from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QKeySequence
-from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
+from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut, QPushButton
 from rasterio.windows import from_bounds as window_from_bounds
 from torchgeo.datasets import BoundingBox
 from torchgeo.samplers import Units
@@ -43,6 +43,7 @@ from .geoTool import ImageCRSManager
 from .messageTool import MessageTool
 from .SAMTool import SAM_Model
 from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
+from .sam2_tree_detection.tree_detector import TreeDetector
 
 SAM_Model_Types_Full: List[str] = ["vit_h (huge)", "vit_l (large)", "vit_b (base)"]
 SAM_Model_Types = [i.split(" ")[0].strip() for i in SAM_Model_Types_Full]
@@ -206,6 +207,14 @@ class Selector(QDockWidget):
             self.wdg_sel.radioButton_exe_hover.toggled.connect(
                 self.toggle_sam_hover_mode
             )
+
+            # Add SAM2 Tree Detection button
+            self.pushButton_detect_trees = QPushButton("Detect Trees (SAM2)")
+            self.pushButton_detect_trees.setToolTip(
+                "Automatically detect trees in a raster layer using SAM2."
+            )
+            self.wdg_sel.vl_group_tools.addWidget(self.pushButton_detect_trees)
+            self.pushButton_detect_trees.clicked.connect(self.run_tree_detection)
 
             # threshold of area
             self.wdg_sel.Box_min_pixel.valueChanged.connect(self.filter_feature_by_area)
@@ -393,30 +402,25 @@ class Selector(QDockWidget):
             self.project.setCrs(self.crs_project)
 
     def destruct(self):
-        """Destruct actions when closed widget"""
-        self.clear_layers(clear_extent=True)
-        self.reset_to_project_crs()
-        self.iface.actionPan().trigger()
+        """Destructor"""
+        self.unload()
+        # self.wdg_sel.closed.disconnect(self.destruct) # This will be destroyed, no need to disconnect
 
     def unload(self):
-        """Unload actions when plugin is closed"""
-        self.clear_layers(clear_extent=True)
-        if hasattr(self, "shortcut_tab"):
-            self.disconnect_safely(self.shortcut_tab)
-        if hasattr(self, "shortcut_undo_sam_pg"):
-            self.disconnect_safely(self.shortcut_undo_sam_pg)
-        if hasattr(self, "shortcut_clear"):
-            self.disconnect_safely(self.shortcut_clear)
-        if hasattr(self, "shortcut_undo"):
-            self.disconnect_safely(self.shortcut_undo)
-        if hasattr(self, "shortcut_save"):
-            self.disconnect_safely(self.shortcut_save)
-        if hasattr(self, "shortcut_hover_mode"):
-            self.disconnect_safely(self.shortcut_hover_mode)
-        if hasattr(self, "wdg_sel"):
-            self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
-            self.iface.removeDockWidget(self.wdg_sel)
-        self.destruct()
+        """Unload the plugin"""
+        self.canvas.scene().removeItem(self.canvas_points_fg)
+        self.canvas.scene().removeItem(self.canvas_points_bg)
+        self.canvas.scene().removeItem(self.canvas_rect)
+        self.canvas.scene().removeItem(self.canvas_extent)
+        self.project.layerWillBeRemoved.disconnect(self.clear_layers)
+
+        self.wdg_sel.pushButton_fg.clearFocus()
+        self.wdg_sel.pushButton_bg.clearFocus()
+        self.wdg_sel.pushButton_rect.clearFocus()
+        self.iface.actionPan().trigger()
+        # self.iface.removeDockWidget(self.wdg_sel)
+        # self.parent.toolbar.setVisible(False)
+        self.is_plugin_on = False
 
     def load_demo_img(self):
         layer_list = QgsProject.instance().mapLayersByName(self.demo_img_name)
@@ -1212,6 +1216,70 @@ class Selector(QDockWidget):
         self.reset_prompt_polygon_color()
         self.reset_preview_polygon_color()
 
+    def run_tree_detection(self):
+        """
+        Handler for the 'Detect Trees (SAM2)' button.
+        Opens a file dialog to select a raster image, runs tree detection,
+        and loads the results into QGIS.
+        """
+        # Open file dialog to select raster image
+        image_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Raster Image for Tree Detection", "", "Images (*.tif *.tiff *.jp2 *.png *.jpg)"
+        )
+
+        if not image_path:
+            self.iface.messageBar().pushMessage(
+                "Info", "Tree detection cancelled.", level=MessageTool.MessageLevel.Info, duration=3
+            )
+            return
+
+        try:
+            self.iface.messageBar().pushMessage(
+                "Info", "Initializing SAM2 Tree Detector...", level=MessageTool.MessageLevel.Info, duration=5
+            )
+            # Initialize the detector
+            detector = TreeDetector(model_type='vit_h', device='cuda')
+
+            self.iface.messageBar().pushMessage(
+                "Info", f"Running tree detection on {os.path.basename(image_path)}. This may take a while...",
+                level=MessageTool.MessageLevel.Info,
+                duration=10, # Keep message longer
+            )
+            QApplication.processEvents() # Update the UI
+
+            # Detect trees
+            trees_gdf = detector.detect_trees(
+                image_path=image_path,
+                confidence_threshold=0.90, # Slightly lower for more recall
+                min_area=50 # Smaller min area for trees
+            )
+
+            if trees_gdf.empty:
+                self.iface.messageBar().pushMessage(
+                    "Warning", "No trees found in the selected image.", level=MessageTool.MessageLevel.Warning, duration=5
+                )
+                return
+
+            # Save results to a temporary GeoPackage file
+            output_dir = self.cwd / "output"
+            output_dir.mkdir(exist_ok=True)
+            output_path = output_dir / f"detected_trees_{Path(image_path).stem}.gpkg"
+            trees_gdf.to_file(str(output_path), driver='GPKG')
+
+            # Load the GeoPackage file into QGIS
+            self.iface.addVectorLayer(str(output_path), f"Detected_Trees_{Path(image_path).stem}", "ogr")
+
+            self.iface.messageBar().pushMessage(
+                "Success", f"Successfully detected {len(trees_gdf)} trees. Layer added to project.",
+                level=MessageTool.MessageLevel.Success,
+                duration=5,
+            )
+
+        except Exception as e:
+            self.iface.messageBar().pushMessage(
+                "Error", f"An error occurred during tree detection: {e}", level=MessageTool.MessageLevel.Critical, duration=10
+            )
+
 
 class EncoderCopilot(QDockWidget):
     # TODO: support encoding process in this widget
@@ -1678,9 +1746,22 @@ class EncoderCopilot(QDockWidget):
             self.canvas_extent.clear()
 
     def destruct(self):
-        """Destruct actions when closed widget"""
-        self.reset_canvas()
+        """Destructor"""
+        self.unload()
+        # self.wdg_sel.closed.disconnect(self.destruct) # This will be destroyed, no need to disconnect
 
     def unload(self):
-        """Unload actions when plugin is closed"""
-        self.reset_canvas()
+        """Unload the plugin"""
+        self.canvas.scene().removeItem(self.canvas_points_fg)
+        self.canvas.scene().removeItem(self.canvas_points_bg)
+        self.canvas.scene().removeItem(self.canvas_rect)
+        self.canvas.scene().removeItem(self.canvas_extent)
+        self.project.layerWillBeRemoved.disconnect(self.clear_layers)
+
+        self.wdg_sel.pushButton_fg.clearFocus()
+        self.wdg_sel.pushButton_bg.clearFocus()
+        self.wdg_sel.pushButton_rect.clearFocus()
+        self.iface.actionPan().trigger()
+        # self.iface.removeDockWidget(self.wdg_sel)
+        # self.parent.toolbar.setVisible(False)
+        self.is_plugin_on = False

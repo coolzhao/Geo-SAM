@@ -1,0 +1,12 @@
+# Requirements for SAM2 Tree Detection
+torch>=2.1.0
+torchvision>=0.16.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+sam2>=1.0
+rasterio>=1.3.9
+geopandas>=0.14.0
+scipy>=1.11.0
+tqdm>=4.66.0
+matplotlib>=3.8.0
+scikit-image>=0.21.0 
