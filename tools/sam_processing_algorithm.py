@@ -40,8 +40,9 @@ from segment_anything import sam_model_registry
 from segment_anything.modeling import Sam
 from torch import Tensor
 from torch.utils.data import DataLoader
-from torchgeo.datasets import BoundingBox, stack_samples
-from torchgeo.samplers import Units
+from .torchgeo_local.utils import BoundingBox
+from .torchgeo_local.datasets import stack_samples
+from .torchgeo_local.samplers import Units
 
 from ..docs import encoder_help
 from ..ui.icons import QIcon_EncoderTool
@@ -491,7 +492,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             \n all bands: {rlayer_ds.all_bands}, \
             \n input bands: {rlayer_ds.bands}, \
             \n resolution: {rlayer_ds.res}, \
-            \n bounds: {rlayer_ds.index.bounds}, \
+            \n bounds: {rlayer_ds.bounds}, \
             \n num: {len(rlayer_ds.index)}\n"
         )
 
@@ -502,8 +503,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             maxx=extent.xMaximum(),
             miny=extent.yMinimum(),
             maxy=extent.yMaximum(),
-            mint=rlayer_ds.index.bounds[4],
-            maxt=rlayer_ds.index.bounds[5],
+            crs=rlayer_ds.crs,
         )
 
         self.sam_model = self.initialize_sam(
@@ -694,6 +694,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         # TODO: if the input image are all zero(batch_input.any()), directly return features with all zero and give a message
         # should know the shape of the feature in advance
         batch_input = batch_input.to(device=self.sam_model.device)
+        if batch_input.shape[1] > 3:
+            batch_input = batch_input[:, :3, :, :]
         batch_input = (
             batch_input - self.sam_model.pixel_mean
         ) / self.sam_model.pixel_std
@@ -798,8 +800,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     "maxx",
                     "miny",
                     "maxy",
-                    "mint",
-                    "maxt",
                     "filepath",
                     "crs",
                     "res",
@@ -811,8 +811,6 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             index_df["maxx"] = [bbox.maxx]
             index_df["miny"] = [bbox.miny]
             index_df["maxy"] = [bbox.maxy]
-            index_df["mint"] = [bbox.mint]
-            index_df["maxt"] = [bbox.maxt]
             index_df["crs"] = [str(feature_crs)]
             index_df["res"] = [self.res]
             index_df["model_type"] = [model_type]

@@ -20,8 +20,8 @@ from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QKeySequence
 from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
 from rasterio.windows import from_bounds as window_from_bounds
-from torchgeo.datasets import BoundingBox
-from torchgeo.samplers import Units
+from .torchgeo_local.utils import BoundingBox
+from .torchgeo_local.samplers import Units
 
 from ..ui import (
     ICON_TYPE,
@@ -1643,8 +1643,7 @@ class EncoderCopilot(QDockWidget):
             maxx=extent.xMaximum(),
             miny=extent.yMinimum(),
             maxy=extent.yMaximum(),
-            mint=layer_ds.index.bounds[4],
-            maxt=layer_ds.index.bounds[5],
+            crs=layer_ds.crs,
         )
 
         self.ds_sampler = SamTestGridGeoSampler(

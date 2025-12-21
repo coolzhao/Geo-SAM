@@ -8,7 +8,7 @@ import rasterio
 from qgis.core import QgsCoordinateReferenceSystem, QgsRectangle
 from rasterio.features import shapes as get_shapes
 from rasterio.transform import from_bounds as transform_from_bounds
-from torchgeo.datasets import BoundingBox
+from .torchgeo_local.utils import BoundingBox
 
 from .canvasTool import Canvas_Points, Canvas_Rectangle, SAM_PolygonFeature
 from .geoTool import LayerExtent
@@ -56,7 +56,7 @@ class SAM_Model:
         sam = build_sam_no_encoder(checkpoint=self.sam_checkpoint[self.model_type])
         self.predictor = SamPredictorNoImgEncoder(sam)
 
-        feature_bounds = self.test_features.index.bounds
+        feature_bounds = self.test_features.bounds
         self.feature_size = len(self.test_features.index)  # .get_size()
         self.extent = QgsRectangle(
             feature_bounds[0], feature_bounds[2], feature_bounds[1], feature_bounds[3]
@@ -77,8 +77,7 @@ class SAM_Model:
             max_x,
             min_y,
             max_y,
-            self.test_features.index.bounds[4],
-            self.test_features.index.bounds[5],
+            self.test_features.crs,
         )
 
         start_time = time.time()
