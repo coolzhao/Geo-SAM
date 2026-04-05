@@ -11,7 +11,6 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
-
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
 from qgis.core import QgsRasterLayer, QgsRectangle
@@ -22,12 +21,59 @@ if TYPE_CHECKING:
     from geosam.engines import QueryResult
     from geosam.models import ModelSpec
     from geosam.query import BoundingBox, Points, PromptSet
+    from geosam.runtime import FeatureSourceSummary
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = PLUGIN_ROOT / "ui" / "config"
 SETTINGS_DEFAULT_PATH = CONFIG_DIR / "default.json"
 SETTINGS_USER_PATH = CONFIG_DIR / "user.json"
-DEFAULT_MODEL_REPOSITORY = "https://github.com/Fanchengyan/geosam-models"
+try:
+    from geosam.runtime import (
+        DEFAULT_MODEL_REPOSITORY,
+        MODEL_DEFINITIONS,
+        ModelDefinition,
+    )
+except ModuleNotFoundError:
+    DEFAULT_MODEL_REPOSITORY = "https://github.com/Fanchengyan/geosam-models"
+
+    @dataclass(slots=True, frozen=True)
+    class ModelDefinition:
+        """Supported downloadable model definition."""
+
+        model_id: str
+        label: str
+        model_type: Literal["sam", "sam2", "sam3"]
+        filename: str
+        supports_feature_reuse: bool = True
+
+
+    MODEL_DEFINITIONS: tuple[ModelDefinition, ...] = (
+        ModelDefinition("sam_b", "SAM Base", "sam", "sam_b.pt"),
+        ModelDefinition("sam_l", "SAM Large", "sam", "sam_l.pt"),
+        ModelDefinition("sam2_t", "SAM2 Tiny", "sam2", "sam2_t.pt"),
+        ModelDefinition("sam2_s", "SAM2 Small", "sam2", "sam2_s.pt"),
+        ModelDefinition("sam2_b", "SAM2 Base", "sam2", "sam2_b.pt"),
+        ModelDefinition("sam2_l", "SAM2 Large", "sam2", "sam2_l.pt"),
+        ModelDefinition("sam2.1_t", "SAM2.1 Tiny", "sam2", "sam2.1_t.pt"),
+        ModelDefinition("sam2.1_s", "SAM2.1 Small", "sam2", "sam2.1_s.pt"),
+        ModelDefinition("sam2.1_b", "SAM2.1 Base", "sam2", "sam2.1_b.pt"),
+        ModelDefinition("sam2.1_l", "SAM2.1 Large", "sam2", "sam2.1_l.pt"),
+        ModelDefinition(
+            "sam3",
+            "SAM3",
+            "sam3",
+            "sam3.pt",
+            supports_feature_reuse=False,
+        ),
+        ModelDefinition(
+            "sam3.1_multiplex",
+            "SAM3.1 Multiplex",
+            "sam3",
+            "sam3.1_multiplex.pt",
+            supports_feature_reuse=False,
+        ),
+    )
+
 DEFAULT_MODEL_DIR = PLUGIN_ROOT / "models"
 DEFAULT_CACHE_DIR = PLUGIN_ROOT / ".cache"
 HELP_LINKS = {
@@ -38,48 +84,23 @@ HELP_LINKS = {
 }
 
 
-@dataclass(slots=True, frozen=True)
-class ModelDefinition:
-    """Supported downloadable model definition."""
+@dataclass(slots=True)
+class RealtimeQueryCache:
+    """Session cache for realtime raster queries."""
 
-    model_id: str
-    label: str
-    model_type: Literal["sam", "sam2", "sam3"]
-    filename: str
-    supports_feature_reuse: bool = True
+    layer_id: str | None = None
+    model_id: str | None = None
+    source_candidate: str | None = None
+    engine: Any | None = None
+    query_cache: Any | None = None
 
-
-@dataclass(slots=True, frozen=True)
-class FeatureSourceSummary:
-    """Summary metadata for a cached feature source."""
-
-    manifest_path: Path
-    crs_text: str
-    extent: tuple[float, float, float, float]
-    chip_count: int
-    pixel_area: float
-
-
-MODEL_DEFINITIONS: tuple[ModelDefinition, ...] = (
-    ModelDefinition("sam_b", "SAM Base", "sam", "sam_b.pt"),
-    ModelDefinition("sam_l", "SAM Large", "sam", "sam_l.pt"),
-    ModelDefinition("sam2_t", "SAM2 Tiny", "sam2", "sam2_t.pt"),
-    ModelDefinition("sam2_s", "SAM2 Small", "sam2", "sam2_s.pt"),
-    ModelDefinition("sam2_b", "SAM2 Base", "sam2", "sam2_b.pt"),
-    ModelDefinition("sam2_l", "SAM2 Large", "sam2", "sam2_l.pt"),
-    ModelDefinition("sam2.1_t", "SAM2.1 Tiny", "sam2", "sam2.1_t.pt"),
-    ModelDefinition("sam2.1_s", "SAM2.1 Small", "sam2", "sam2.1_s.pt"),
-    ModelDefinition("sam2.1_b", "SAM2.1 Base", "sam2", "sam2.1_b.pt"),
-    ModelDefinition("sam2.1_l", "SAM2.1 Large", "sam2", "sam2.1_l.pt"),
-    ModelDefinition("sam3", "SAM3", "sam3", "sam3.pt", supports_feature_reuse=False),
-    ModelDefinition(
-        "sam3.1_multiplex",
-        "SAM3.1 Multiplex",
-        "sam3",
-        "sam3.1_multiplex.pt",
-        supports_feature_reuse=False,
-    ),
-)
+    def clear(self) -> None:
+        """Reset the cache state."""
+        self.layer_id = None
+        self.model_id = None
+        self.source_candidate = None
+        self.engine = None
+        self.query_cache = None
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -181,16 +202,15 @@ def get_model_status_rows() -> list[dict[str, Any]]:
 
 def create_model_spec(model_id: str) -> ModelSpec:
     """Create a :class:`geosam.models.ModelSpec` for the selected model."""
-    from geosam.models import ModelSpec
+    from geosam.runtime import create_model_spec as create_runtime_model_spec
 
     definition = get_model_definition(model_id)
     checkpoint_path = get_model_checkpoint_path(model_id)
     if not checkpoint_path.exists():
         raise FileNotFoundError(checkpoint_path)
-    return ModelSpec(
-        model_type=definition.model_type,
-        checkpoint_path=checkpoint_path,
-        supports_feature_reuse=definition.supports_feature_reuse,
+    return create_runtime_model_spec(
+        definition.model_id,
+        checkpoint_path,
     )
 
 
@@ -224,23 +244,25 @@ def create_model_spec_from_checkpoint(
     device: str | None = None,
 ) -> ModelSpec:
     """Create a model spec from an arbitrary checkpoint path."""
-    from geosam.models import ModelSpec
+    from geosam.runtime import create_model_spec_from_checkpoint as create_runtime_spec
 
-    resolved_model_id = infer_model_id_from_checkpoint_path(
+    return create_runtime_spec(
         checkpoint_path,
-        fallback_model_id=model_id,
-    )
-    definition = get_model_definition(resolved_model_id)
-    return ModelSpec(
-        model_type=definition.model_type,
-        checkpoint_path=checkpoint_path,
+        model_id=model_id,
         device=device,
-        supports_feature_reuse=definition.supports_feature_reuse,
     )
 
 
 def dependency_status() -> dict[str, bool]:
     """Return import availability for required runtime dependencies."""
+    try:
+        from geosam.runtime import dependency_status as runtime_dependency_status
+    except ModuleNotFoundError:
+        runtime_dependency_status = None
+
+    if runtime_dependency_status is not None:
+        return runtime_dependency_status()
+
     modules = [
         "geosam",
         "torch",
@@ -385,65 +407,16 @@ def cleanup_cache() -> int:
 
 def resolve_feature_manifest_path(feature_dir: str | Path) -> Path:
     """Resolve the manifest file path inside a feature folder."""
-    from geosam.engines import FeatureQueryEngine
+    from geosam.runtime import resolve_feature_manifest_path as resolve_runtime_manifest_path
 
-    return FeatureQueryEngine.resolve_manifest_path(feature_dir)
+    return resolve_runtime_manifest_path(feature_dir)
 
 
 def describe_feature_source(feature_dir: str | Path) -> FeatureSourceSummary:
     """Load summary metadata for a GeoSAM feature folder."""
-    import geopandas as gpd
-    import pandas as pd
+    from geosam.runtime import describe_feature_source as describe_runtime_feature_source
 
-    manifest_path = resolve_feature_manifest_path(feature_dir)
-    if manifest_path.suffix == ".pkl":
-        frame = pd.read_pickle(manifest_path)
-        frame = frame.set_crs(frame.crs or "EPSG:4326", allow_override=True)
-    else:
-        frame = gpd.read_parquet(manifest_path)
-
-    crs_text = _resolve_feature_crs_text(frame)
-    total_bounds = tuple(float(value) for value in frame.total_bounds)
-    transform_values = json.loads(frame.iloc[0]["transform"])
-    pixel_area = abs(float(transform_values[0]) * float(transform_values[4]))
-    return FeatureSourceSummary(
-        manifest_path=manifest_path,
-        crs_text=crs_text,
-        extent=total_bounds,
-        chip_count=len(frame),
-        pixel_area=pixel_area,
-    )
-
-
-def _resolve_feature_crs_text(frame: Any) -> str:
-    """Resolve a stable CRS string from a feature manifest frame."""
-    if "crs" in frame.columns and len(frame) > 0:
-        manifest_crs = frame.iloc[0]["crs"]
-        if isinstance(manifest_crs, str) and manifest_crs.strip():
-            return manifest_crs.strip()
-
-    frame_crs = frame.crs
-    if frame_crs is None:
-        msg = "Feature manifest CRS is missing."
-        raise ValueError(msg)
-
-    to_authority = getattr(frame_crs, "to_authority", None)
-    if callable(to_authority):
-        authority = to_authority()
-        if authority is not None:
-            return f"{authority[0]}:{authority[1]}"
-
-    to_epsg = getattr(frame_crs, "to_epsg", None)
-    if callable(to_epsg):
-        epsg_code = to_epsg()
-        if epsg_code is not None:
-            return f"EPSG:{epsg_code}"
-
-    to_wkt = getattr(frame_crs, "to_wkt", None)
-    if callable(to_wkt):
-        return str(to_wkt())
-
-    return str(frame_crs)
+    return describe_runtime_feature_source(feature_dir)
 
 
 def layer_extent_rectangle(layer: QgsRasterLayer) -> QgsRectangle:
@@ -470,60 +443,20 @@ def chip_extent_rectangles_for_source(
     stride: int = 512,
 ) -> list[tuple[float, float, float, float]]:
     """Return chip extents for a raster source using GeoSAM sampling rules."""
-    from geosam import BoundingBox, RasterDataset
-    from geosam.query.prompts import normalize_chip_size
+    from geosam.runtime import (
+        chip_extent_rectangles_for_source as chip_extents_for_runtime_source,
+    )
 
-    dataset = RasterDataset(
+    return chip_extents_for_runtime_source(
         source_path,
-        indexes=bands,
+        bands=bands,
         crs=crs,
         res=res,
+        extent=extent,
+        extent_crs=extent_crs,
+        chip_size=chip_size,
+        stride=stride,
     )
-    roi_bounds = dataset.bounds
-    if extent is not None:
-        extent_bounds = BoundingBox(
-            extent[0],
-            extent[1],
-            extent[2],
-            extent[3],
-            crs=extent_crs or dataset.crs,
-        )
-        if extent_bounds.crs == dataset.crs:
-            roi_bounds = extent_bounds
-        else:
-            roi_bounds = extent_bounds.to_crs(dataset.crs)
-        intersection = roi_bounds & dataset.bounds
-        if intersection is None:
-            return []
-        roi_bounds = intersection
-
-    roi_grid = dataset.grid.to_view(roi_bounds)
-    chip_height, chip_width = normalize_chip_size(chip_size)
-    stride_height, stride_width = normalize_chip_size(stride)
-
-    def window_starts(size: int, tile_size: int, tile_stride: int) -> list[int]:
-        if tile_size >= size:
-            return [0]
-        starts = list(range(0, max(size - tile_size, 0) + 1, tile_stride))
-        last_start = size - tile_size
-        if starts[-1] != last_start:
-            starts.append(last_start)
-        return starts
-
-    rectangles: list[tuple[float, float, float, float]] = []
-    row_starts = window_starts(roi_grid.height, chip_height, stride_height)
-    col_starts = window_starts(roi_grid.width, chip_width, stride_width)
-    for row_start in row_starts:
-        for col_start in col_starts:
-            chip_grid = roi_grid.window(
-                row_off=row_start,
-                col_off=col_start,
-                height=min(chip_height, roi_grid.height),
-                width=min(chip_width, roi_grid.width),
-            )
-            bounds = chip_grid.bounds
-            rectangles.append((bounds.left, bounds.bottom, bounds.right, bounds.top))
-    return rectangles
 
 
 def _raster_layer_source_candidates(layer: QgsRasterLayer) -> list[str]:
@@ -566,18 +499,43 @@ def query_raster_layer(
     layer: QgsRasterLayer,
     model_id: str,
     query: BoundingBox | Points | PromptSet,
+    *,
+    cache: RealtimeQueryCache | None = None,
 ) -> QueryResult:
     """Run a query against a QGIS raster layer."""
-    from geosam import OnlineQueryEngine, RasterDataset
+    from geosam import RasterDataset
+    from geosam.engines import OnlineQueryCache, OnlineQueryEngine
 
     errors: list[str] = []
     for source_candidate in _raster_layer_source_candidates(layer):
         try:
-            dataset = RasterDataset(source_candidate)
-            engine = OnlineQueryEngine(dataset, create_model_spec(model_id))
-            return engine.query(query)
+            if (
+                cache is not None
+                and cache.layer_id == layer.id()
+                and cache.model_id == model_id
+                and cache.source_candidate == source_candidate
+                and cache.engine is not None
+            ):
+                engine = cache.engine
+            else:
+                dataset = RasterDataset(source_candidate)
+                engine = OnlineQueryEngine(dataset, create_model_spec(model_id))
+                if cache is not None:
+                    cache.layer_id = layer.id()
+                    cache.model_id = model_id
+                    cache.source_candidate = source_candidate
+                    cache.engine = engine
+                    cache.query_cache = OnlineQueryCache()
         except Exception as exc:
             errors.append(f"{source_candidate}: {exc}")
+            if cache is not None and cache.source_candidate == source_candidate:
+                cache.clear()
+            continue
+
+        return engine.query(
+            query,
+            cache=None if cache is None else cache.query_cache,
+        )
 
     msg = (
         "Failed to open the selected raster layer with GeoSAM. "

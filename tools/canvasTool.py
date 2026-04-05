@@ -1,23 +1,44 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
-from qgis.core import (QgsFeature, QgsField, QgsFields, QgsFillSymbol,
-                       QgsGeometry, QgsPointXY, QgsProject, QgsRectangle,
-                       QgsVectorFileWriter, QgsVectorLayer, QgsWkbTypes)
-from qgis.gui import (QgsMapCanvas, QgsMapTool, QgsMapToolEmitPoint,
-                      QgsRubberBand, QgsVertexMarker)
+from qgis.core import (
+    QgsFeature,
+    QgsField,
+    QgsFields,
+    QgsFillSymbol,
+    QgsGeometry,
+    QgsPointXY,
+    QgsProject,
+    QgsRectangle,
+    QgsVectorFileWriter,
+    QgsVectorLayer,
+    QgsWkbTypes,
+)
+from qgis.gui import (
+    QgsMapCanvas,
+    QgsMapTool,
+    QgsMapToolEmitPoint,
+    QgsRubberBand,
+    QgsVertexMarker,
+)
 from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
 from rasterio.transform import Affine, rowcol
 
-from ..ui.cursors import (UI_SCALE, CursorPointBG, CursorPointFG, CursorRect,
-                          customize_bbox_cursor, customize_bg_point_cursor,
-                          customize_fg_point_cursor)
+from ..ui.cursors import (
+    UI_SCALE,
+    CursorPointBG,
+    CursorPointFG,
+    CursorRect,
+    customize_bbox_cursor,
+    customize_bg_point_cursor,
+    customize_fg_point_cursor,
+)
 from .geoTool import ImageCRSManager, LayerExtent
 from .messageTool import MessageTool
 from .ulid import GroupId
@@ -78,10 +99,9 @@ class Canvas_Rectangle:
     def flush_rect_color(self):
         '''Flush the color of rectangle'''
         if len(self.rect_list) == 0:
-            return None
-        else:
-            startPoint, endPoint = self.rect_list[-1]
-            self.showRect(startPoint, endPoint)
+            return
+        startPoint, endPoint = self.rect_list[-1]
+        self.showRect(startPoint, endPoint)
 
     def _init_bbox_layer(self):
         '''Initialize the rectangle layer for bbox prompt'''
@@ -173,7 +193,7 @@ class Canvas_Rectangle:
     def showRect(self, startPoint, endPoint):
         self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
         if startPoint.x() == endPoint.x() or startPoint.y() == endPoint.y():
-            return None
+            return
 
         point1 = QgsPointXY(startPoint.x(), startPoint.y())
         point2 = QgsPointXY(startPoint.x(), endPoint.y())
@@ -191,14 +211,13 @@ class Canvas_Rectangle:
         '''Returns a rectangle from two points with img crs'''
         if len(self.rect_list) == 0:
             return None
-        else:
-            # startPoint endPoint transform
-            startPoint, endPoint = self.rect_list[-1]
-            startPoint = self.img_crs_manager.point_to_img_crs(
-                startPoint, self.qgis_project.crs())
-            endPoint = self.img_crs_manager.point_to_img_crs(
-                endPoint, self.qgis_project.crs())
-            return [startPoint.x(), startPoint.y(), endPoint.x(), endPoint.y()]
+        # startPoint endPoint transform
+        startPoint, endPoint = self.rect_list[-1]
+        startPoint = self.img_crs_manager.point_to_img_crs(
+            startPoint, self.qgis_project.crs())
+        endPoint = self.img_crs_manager.point_to_img_crs(
+            endPoint, self.qgis_project.crs())
+        return [startPoint.x(), startPoint.y(), endPoint.x(), endPoint.y()]
 
     @property
     def extent(self):
@@ -211,8 +230,7 @@ class Canvas_Rectangle:
                 max(self.box_geo[1], self.box_geo[3])
             ]
             return extent
-        else:
-            return None
+        return None
 
     def get_img_box(self, transform):
         '''Return the box for SAM image'''
@@ -226,8 +244,7 @@ class Canvas_Rectangle:
                 max(rowcol1[0], rowcol2[0])
             ]
             return np.array(box)
-        else:
-            return None
+        return None
 
 
 class RectangleMapTool(QgsMapToolEmitPoint):
@@ -236,7 +253,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
     def __init__(
             self,
             canvas_rect: Canvas_Rectangle,
-            prompt_history: List[Any],
+            prompt_history: list[Any],
             execute_SAM: pyqtSignal,
             img_crs_manager: ImageCRSManager,
     ):
@@ -277,15 +294,14 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.isEmittingPoint = False
         self.clear_hover_prompt()
         if self.startPoint is None or self.endPoint is None:
-            return None
-        elif (self.startPoint.x() == self.endPoint.x() or
+            return
+        if (self.startPoint.x() == self.endPoint.x() or
               self.startPoint.y() == self.endPoint.y()):
-            return None
-        else:
-            self.canvas_rect.addRect(self.startPoint, self.endPoint)
-            self.prompt_history.append('bbox')
-            self.execute_SAM.emit()
-            self.have_added_for_moving = False  # reset to False
+            return
+        self.canvas_rect.addRect(self.startPoint, self.endPoint)
+        self.prompt_history.append('bbox')
+        self.execute_SAM.emit()
+        self.have_added_for_moving = False  # reset to False
 
     def clear_hover_prompt(self):
         # remove the last rectangle if have added a rectangle when mouse move
@@ -306,15 +322,14 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         if not self.preview_mode:
             return
         if self.startPoint is None or self.endPoint is None:
-            return None
-        elif (self.startPoint.x() == self.endPoint.x() or
+            return
+        if (self.startPoint.x() == self.endPoint.x() or
               self.startPoint.y() == self.endPoint.y()):
-            return None
-        else:
-            self.canvas_rect.popRect(show_rect=False, clear_canvas=False)
-            self.canvas_rect.addRect(self.startPoint, self.endPoint)
-            self.execute_SAM.emit()
-            self.have_added_for_moving = True
+            return
+        self.canvas_rect.popRect(show_rect=False, clear_canvas=False)
+        self.canvas_rect.addRect(self.startPoint, self.endPoint)
+        self.execute_SAM.emit()
+        self.have_added_for_moving = True
 
     def deactivate(self):
         QgsMapTool.deactivate(self)
@@ -327,7 +342,7 @@ class Canvas_Extent:
     def __init__(self, canvas: QgsMapCanvas, img_crs_manager: ImageCRSManager) -> None:
         self.canvas = canvas
         self.img_crs_manager = img_crs_manager
-        self.canvas_rect_list: List[Canvas_Rectangle] = []
+        self.canvas_rect_list: list[Canvas_Rectangle] = []
         self.color = None
 
     def clear(self):
@@ -390,9 +405,9 @@ class Canvas_Points:
         self.canvas = canvas
         self.extent = None
         self.img_crs_manager = img_crs_manager
-        self.markers: List[QgsVertexMarker] = []
-        self.img_crs_points: List[QgsPointXY] = []
-        self.labels: List[bool] = []
+        self.markers: list[QgsVertexMarker] = []
+        self.img_crs_points: list[QgsPointXY] = []
+        self.labels: list[bool] = []
         self.foreground_color = QColor(0, 0, 255)
         self.background_color = QColor(255, 0, 0)
 
@@ -481,15 +496,14 @@ class Canvas_Points:
         '''Returns points and labels for SAM image'''
         if len(self.markers) == 0:
             return None, None
-        else:
-            points = []
-            for point in self.img_crs_points:
-                row_point, col_point = rowcol(tf, point.x(), point.y())
-                points.append((col_point, row_point))
+        points = []
+        for point in self.img_crs_points:
+            row_point, col_point = rowcol(tf, point.x(), point.y())
+            points.append((col_point, row_point))
 
-            points = np.array(points)
-            labels = np.array(self.labels).astype(np.uint8)
-            return points, labels
+        points = np.array(points)
+        labels = np.array(self.labels).astype(np.uint8)
+        return points, labels
 
 
 class ClickTool(QgsMapToolEmitPoint):
@@ -500,7 +514,7 @@ class ClickTool(QgsMapToolEmitPoint):
         canvas,
         canvas_points: Canvas_Points,
         prompt_type: str,
-        prompt_history: List,
+        prompt_history: list,
         execute_SAM: pyqtSignal,
     ):
 
@@ -597,8 +611,8 @@ class Canvas_SAM_Polygon:
         line_width=2
     ):
         self.canvas = canvas
-        self.geometry_list: List[QgsGeometry] = []
-        self.rubber_band_list: List[QgsRubberBand] = []
+        self.geometry_list: list[QgsGeometry] = []
+        self.rubber_band_list: list[QgsRubberBand] = []
         self.line_color = line_color
         self.fill_color = fill_color
         self.line_width = line_width
@@ -647,7 +661,7 @@ class Canvas_SAM_Polygon:
 
     def set_line_style(self, color: QColor, line_width: int = 2):
         if color is None:
-            return None
+            return
 
         self.line_color = color
         color_fill = list(color.getRgb())
@@ -669,8 +683,8 @@ class SAM_PolygonFeature:
         shapefile: str = None,
         layer: QgsVectorLayer = None,
         default_name: str = 'polygon_sam',
-        kwargs_preview_polygon: Dict = {},
-        kwargs_prompt_polygon: Dict = {}
+        kwargs_preview_polygon: dict = {},
+        kwargs_prompt_polygon: dict = {}
     ):
         self.qgis_project = QgsProject.instance()
         self.img_crs_manager = img_crs_manager
@@ -681,9 +695,9 @@ class SAM_PolygonFeature:
             self.canvas, **kwargs_preview_polygon)
         self.canvas_prompt_polygon = Canvas_SAM_Polygon(
             self.canvas, **kwargs_prompt_polygon)
-        self.geojson_canvas_preview: Dict = {}
-        self.geojson_canvas_prompt: Dict = {}
-        self.geojson_layer: Dict = {}
+        self.geojson_canvas_preview: dict = {}
+        self.geojson_canvas_prompt: dict = {}
+        self.geojson_layer: dict = {}
         if layer is not None:
             self.reset_layer(layer)
         else:
@@ -722,8 +736,7 @@ class SAM_PolygonFeature:
                 " Please select a correct existed file or a new file to create it."
             )
             return False
-        else:
-            return True
+        return True
 
     def reset_geojson(self):
         self.geojson_canvas_preview = {}
@@ -827,8 +840,9 @@ class SAM_PolygonFeature:
 
     def add_geojson_feature_to_canvas(
             self,
-            geojson: Dict,
+            geojson: dict,
             t_area: float,
+            max_object_mode: bool = False,
             target: str = 'preview',
             overwrite_geojson: bool = False,
     ):
@@ -840,6 +854,8 @@ class SAM_PolygonFeature:
             features in geojson format
         t_area: float
             the threshold of area
+        max_object_mode: bool
+            whether only the largest polygon should be kept
         target: str, one of ['preview', 'prompt']
             the target of the geojson, default 'preview'
         overwrite_geojson: bool
@@ -847,6 +863,8 @@ class SAM_PolygonFeature:
             False for showing geometry greater than t_area.
             True for showing new SAM result.
         '''
+        geometries: list[QgsGeometry] = []
+        areas: list[float] = []
         for geom in geojson:
             points = []
             coordinates = geom['geometry']['coordinates'][0]
@@ -858,14 +876,10 @@ class SAM_PolygonFeature:
                 points.append(point)
 
             geometry = QgsGeometry.fromPolygonXY([points])
-            geometry_area = geometry.area()
-            # geometry_area = feature.geometry().area()
+            geometries.append(geometry)
+            areas.append(geometry.area())
 
-            # if the area of the feature is less than t_area,
-            # it will not be added to the layer
-            if geometry_area < t_area:
-                continue
-
+        def process_geometry(geometry: QgsGeometry) -> None:
             if target == 'preview':
                 self.canvas_preview_polygon.addPolygon(geometry)
                 if overwrite_geojson:
@@ -875,11 +889,23 @@ class SAM_PolygonFeature:
                 if overwrite_geojson:
                     self.geojson_canvas_prompt = geojson
 
+        if max_object_mode:
+            if len(areas) == 0:
+                return
+            process_geometry(geometries[int(np.argmax(areas))])
+            return
+
+        for geometry, geometry_area in zip(geometries, areas):
+            if geometry_area < t_area:
+                continue
+            process_geometry(geometry)
+
     def add_geojson_feature_to_layer(
             self,
-            geojson: Dict,
+            geojson: dict,
             t_area: float = 0,
-            prompt_history: List = [],
+            prompt_history: list = [],
+            max_object_mode: bool = False,
             overwrite_geojson: bool = False
     ):
         '''Add a geojson feature to the layer
@@ -890,6 +916,8 @@ class SAM_PolygonFeature:
             features in geojson format
         t_area: float
             the threshold of area
+        max_object_mode: bool
+            whether only the largest polygon should be kept
         overwrite_geojson: bool
             whether overwrite the geojson of this class. 
             False for showing geometry greater than t_area.
@@ -898,6 +926,7 @@ class SAM_PolygonFeature:
             self.geojson_layer = geojson
 
         features = []
+        entries: list[tuple[QgsGeometry, float, int]] = []
         num_polygons = self.layer.featureCount()
 
         group_ulid = GroupId().ulid
@@ -913,16 +942,15 @@ class SAM_PolygonFeature:
 
             geometry = QgsGeometry.fromPolygonXY([points])
             geometry_area = geometry.area()
-            # geometry_area = feature.geometry().area()
+            entries.append((geometry, geometry_area, idx))
 
-            # if the area of the feature is less than t_area,
-            # it will not be added to the layer
+        if max_object_mode and len(entries) > 0:
+            entries = [max(entries, key=lambda item: item[1])]
+
+        for geometry, geometry_area, idx in entries:
             if geometry_area < t_area:
                 continue
-            # add geometry to canvas_preview_polygon
             self.canvas_preview_polygon.addPolygon(geometry)
-
-            # add geometry to shapefile
             feature = QgsFeature()
             feature.setGeometry(geometry)
             feature.setAttributes(

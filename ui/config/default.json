@@ -7,5 +7,6 @@
     "preview_color": "#00ff00",
     "load_demo": true,
     "show_boundary": true,
-    "default_minimum_pixels": 0
+    "default_minimum_pixels": 0,
+    "max_polygon_only": true
 }

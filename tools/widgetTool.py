@@ -1,6 +1,8 @@
 import json
 import os
+from numbers import Real
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 import numpy as np
@@ -9,11 +11,8 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QKeySequence
 from PyQt5.QtWidgets import (
     QApplication,
-    QComboBox,
     QDockWidget,
     QFileDialog,
-    QGroupBox,
-    QHBoxLayout,
     QShortcut,
 )
 from qgis.core import (
@@ -42,6 +41,7 @@ from .canvasTool import (
     SAM_PolygonFeature,
 )
 from .geosam_runtime import (
+    RealtimeQueryCache,
     chip_extent_rectangles_for_source,
     describe_feature_source,
     get_model_checkpoint_path,
@@ -61,11 +61,11 @@ from .messageTool import MessageTool
 
 class ParseRangeThread(QThread):
     def __init__(
-            self,
-            retrieve_range: pyqtSignal,
-            raster_path: str,
-            extent: list[float],
-            bands: list[int],
+        self,
+        retrieve_range: pyqtSignal,
+        raster_path: str,
+        extent: list[float],
+        bands: list[int],
     ):
         super().__init__()
         self.retrieve_range = retrieve_range
@@ -89,9 +89,7 @@ class ParseRangeThread(QThread):
                 window = window_from_bounds(*self.extent, src.transform)
 
             arr = src.read(
-                self.bands,
-                out_shape=(len(self.bands), height, width),
-                window=window
+                self.bands, out_shape=(len(self.bands), height, width), window=window
             )
             if src.meta["nodata"] is not None:
                 arr = np.ma.masked_equal(arr, src.meta["nodata"])
@@ -110,21 +108,14 @@ class ShowPatchExtentThread(QThread):
         for patch in self.ds_sampler:
             bbox = patch["bbox"]
             if isinstance(bbox, QgsRectangle):
-                extents.append(
-                    [
-                        bbox.xMinimum(),
-                        bbox.yMinimum(),
-                        bbox.xMaximum(),
-                        bbox.yMaximum(),
-                    ]
-                )
+                extents.append([
+                    bbox.xMinimum(),
+                    bbox.yMinimum(),
+                    bbox.xMaximum(),
+                    bbox.yMaximum(),
+                ])
                 continue
-            extents.append(
-                [bbox.minx,
-                 bbox.miny,
-                 bbox.maxx,
-                 bbox.maxy]
-            )
+            extents.append([bbox.minx, bbox.miny, bbox.maxx, bbox.maxy])
         self.retrieve_patch.emit(f"{extents}")
 
 
@@ -146,7 +137,9 @@ class Selector(QDockWidget):
         self.dockFirstOpen = True
         self.prompt_history: list[str] = []
         self.sam_feature_history: list[list[int]] = []
+        self.sam_execution_count: int = 0
         self.preview_mode: bool = False
+        self.max_object_mode: bool = False
         self.pixel_area: float = 1.0
         self.t_area: float = 0.0
         self.t_area_default: float = 0.0
@@ -157,6 +150,8 @@ class Selector(QDockWidget):
         self.runtime_layer: QgsRasterLayer | None = None
         self.runtime_extent: QgsRectangle | None = None
         self.runtime_crs: QgsCoordinateReferenceSystem | None = None
+        self.realtime_query_cache = RealtimeQueryCache()
+        self.query_chip_extents_canvas_crs: list[QgsRectangle] = []
         # colors
         self.style_preview_polygon: dict[str, Any] = {
             "line_color": Settings["preview_color"],
@@ -179,18 +174,24 @@ class Selector(QDockWidget):
                 self.execute_SAM.connect(self.execute_segmentation)
 
             self.wdg_sel = UI_Selector
-            self._setup_runtime_widgets()
 
             ######### Setting default parameters for items #########
             self.wdg_sel.MapLayerComboBox.setFilters(
-                QgsMapLayerProxyModel.PolygonLayer
-                | QgsMapLayerProxyModel.VectorLayer
+                QgsMapLayerProxyModel.PolygonLayer | QgsMapLayerProxyModel.VectorLayer
             )
             self.wdg_sel.MapLayerComboBox.setAllowEmptyLayer(True)
             self.wdg_sel.MapLayerComboBox.setAdditionalLayers([None])
+            self.wdg_sel.RealTimeLayerComboBox.setFilters(
+                QgsMapLayerProxyModel.RasterLayer
+            )
+            self.wdg_sel.RealTimeLayerComboBox.setAllowEmptyLayer(True)
+            self.wdg_sel.RealTimeLayerComboBox.setAdditionalLayers([None])
+            if self.wdg_sel.ModelComboBox.count() == 0:
+                self.wdg_sel.ModelComboBox.addItem("", "")
+                for model_id, label in get_model_display_items():
+                    self.wdg_sel.ModelComboBox.addItem(label, model_id)
 
-            self.wdg_sel.QgsFile_feature.setStorageMode(
-                QgsFileWidget.GetDirectory)
+            self.wdg_sel.QgsFile_feature.setStorageMode(QgsFileWidget.GetDirectory)
             self.wdg_sel.QgsFile_feature.setFilePath("")
 
             # set button checkable
@@ -199,17 +200,17 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_rect.setCheckable(True)
 
             self.wdg_sel.pushButton_reset_settings.clicked.connect(
-                self.reset_default_settings)
+                self.reset_default_settings
+            )
 
             # toggle show extent
             self.wdg_sel.radioButton_show_extent.toggled.connect(
-                self.toggle_encoding_extent)
+                self.toggle_encoding_extent
+            )
 
             ########## connect function to widget items ##########
-            self.wdg_sel.pushButton_fg.clicked.connect(
-                self.draw_foreground_point)
-            self.wdg_sel.pushButton_bg.clicked.connect(
-                self.draw_background_point)
+            self.wdg_sel.pushButton_fg.clicked.connect(self.draw_foreground_point)
+            self.wdg_sel.pushButton_bg.clicked.connect(self.draw_background_point)
             self.wdg_sel.pushButton_rect.clicked.connect(self.draw_rect)
 
             # tools
@@ -217,45 +218,55 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_undo.clicked.connect(self.undo_last_prompt)
             self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
 
-            self.wdg_sel.MapLayerComboBox.layerChanged.connect(
-                self.set_vector_layer)
-            self.wdg_sel.pushButton_load_file.clicked.connect(
-                self.load_vector_file)
+            self.wdg_sel.MapLayerComboBox.layerChanged.connect(self.set_vector_layer)
+            self.wdg_sel.pushButton_load_file.clicked.connect(self.load_vector_file)
 
-            self.wdg_sel.pushButton_load_feature.clicked.connect(
-                self.load_feature)
+            self.wdg_sel.pushButton_load_feature.clicked.connect(self.load_feature)
+            self.wdg_sel.pushButton_zoom_to_extent.clicked.connect(self.zoom_to_extent)
             self.wdg_sel.RealTimeLayerComboBox.layerChanged.connect(
-                self.on_realtime_layer_changed)
+                self.on_realtime_layer_changed
+            )
             self.wdg_sel.ModelComboBox.currentIndexChanged.connect(
-                self.on_model_changed)
+                self.on_model_changed
+            )
             self.wdg_sel.radioButton_enable.setChecked(True)
-            self.wdg_sel.radioButton_enable.toggled.connect(
-                self.toggle_edit_mode)
+            self.wdg_sel.radioButton_enable.toggled.connect(self.toggle_edit_mode)
 
             self.wdg_sel.radioButton_exe_hover.setChecked(False)
             self.wdg_sel.radioButton_exe_hover.toggled.connect(
-                self.toggle_sam_hover_mode)
+                self.toggle_sam_hover_mode
+            )
+            self.wdg_sel.radioButton_max_object_mode.toggled.connect(
+                self.toggle_max_object_mode
+            )
 
             # threshold of area
-            self.wdg_sel.Box_min_pixel.valueChanged.connect(
-                self.filter_feature_by_area)
+            self.wdg_sel.Box_min_pixel.valueChanged.connect(self.filter_feature_by_area)
             self.wdg_sel.Box_min_pixel_default.valueChanged.connect(
-                self.load_default_t_area)
+                self.load_default_t_area
+            )
 
             self.wdg_sel.ColorButton_bgpt.colorChanged.connect(
-                self.reset_background_color)
+                self.reset_background_color
+            )
             self.wdg_sel.ColorButton_fgpt.colorChanged.connect(
-                self.reset_foreground_color)
+                self.reset_foreground_color
+            )
             self.wdg_sel.ColorButton_bbox.colorChanged.connect(
-                self.reset_rectangular_color)
+                self.reset_rectangular_color
+            )
             self.wdg_sel.ColorButton_extent.colorChanged.connect(
-                self.reset_extent_color)
+                self.reset_extent_color
+            )
             self.wdg_sel.ColorButton_prompt.colorChanged.connect(
-                self.reset_prompt_polygon_color)
+                self.reset_prompt_polygon_color
+            )
             self.wdg_sel.ColorButton_preview.colorChanged.connect(
-                self.reset_preview_polygon_color)
+                self.reset_preview_polygon_color
+            )
             self.wdg_sel.radioButton_load_demo.toggled.connect(
-                self.toggle_load_demo_img)
+                self.toggle_load_demo_img
+            )
 
             # Slots fire in the same connection order when a signal is emitted.
             self.wdg_sel.closed.connect(self.destruct)
@@ -264,18 +275,14 @@ class Selector(QDockWidget):
 
             ########### shortcuts ############
             # create shortcuts
-            self.shortcut_clear = QShortcut(
-                QKeySequence(Qt.Key_C), self.wdg_sel)
-            self.shortcut_undo = QShortcut(
-                QKeySequence(Qt.Key_Z), self.wdg_sel)
-            self.shortcut_save = QShortcut(
-                QKeySequence(Qt.Key_S), self.wdg_sel)
-            self.shortcut_hover_mode = QShortcut(
-                QKeySequence(Qt.Key_P), self.wdg_sel)
-            self.shortcut_tab = QShortcut(
-                QKeySequence(Qt.Key_Tab), self.wdg_sel)
+            self.shortcut_clear = QShortcut(QKeySequence(Qt.Key_C), self.wdg_sel)
+            self.shortcut_undo = QShortcut(QKeySequence(Qt.Key_Z), self.wdg_sel)
+            self.shortcut_save = QShortcut(QKeySequence(Qt.Key_S), self.wdg_sel)
+            self.shortcut_hover_mode = QShortcut(QKeySequence(Qt.Key_P), self.wdg_sel)
+            self.shortcut_tab = QShortcut(QKeySequence(Qt.Key_Tab), self.wdg_sel)
             self.shortcut_undo_sam_pg = QShortcut(
-                QKeySequence(QKeySequence.Undo), self.wdg_sel)
+                QKeySequence(QKeySequence.Undo), self.wdg_sel
+            )
 
             # connect shortcuts
             self.shortcut_clear.activated.connect(self.clear_layers)
@@ -318,54 +325,6 @@ class Selector(QDockWidget):
         # if not self.wdg_sel.isUserVisible():
         #     self.wdg_sel.setUserVisible(True)
 
-    def _setup_runtime_widgets(self):
-        """Create model and realtime-layer controls on the selector widget."""
-        if hasattr(self.wdg_sel, "ModelComboBox"):
-            return
-
-        prompt_layout = self.wdg_sel.Top.layout()
-        model_group = QGroupBox("Model")
-        model_layout = QHBoxLayout(model_group)
-        model_layout.setContentsMargins(9, 9, 9, 9)
-        model_combo = QComboBox(model_group)
-        model_combo.addItem("", "")
-        for model_id, label in get_model_display_items():
-            model_combo.addItem(label, model_id)
-        model_layout.addWidget(model_combo)
-        self.wdg_sel.ModelComboBox = model_combo
-        prompt_layout.insertWidget(0, model_group)
-
-        input_layout = self.wdg_sel.FeatureFolderGroupBox.layout()
-        realtime_group = QGroupBox("RealTime Layer")
-        realtime_layout = QHBoxLayout(realtime_group)
-        realtime_layout.setContentsMargins(9, 9, 9, 9)
-        self.wdg_sel.RealTimeLayerComboBox = self._build_realtime_layer_combo()
-        realtime_layout.addWidget(self.wdg_sel.RealTimeLayerComboBox)
-        input_layout.insertWidget(0, realtime_group)
-
-        self.wdg_sel.FeatureFolderGroupBox.setTitle("Input")
-        self.wdg_sel.OutShapefileGroupBox.setTitle("Output Feature")
-        self.wdg_sel.groupBox_14.hide()
-        self.wdg_sel.groupBox_11.setTitle("Minimum Pixels")
-        self.wdg_sel.groupBox_15.hide()
-        self.wdg_sel.radioButton_load_demo.hide()
-
-        middle_splitter = self.wdg_sel.splitter
-        middle_splitter.insertWidget(0, self.wdg_sel.FeatureFolderGroupBox)
-        middle_splitter.insertWidget(1, self.wdg_sel.OutShapefileGroupBox)
-        return
-
-    def _build_realtime_layer_combo(self):
-        if hasattr(self.wdg_sel, "RealTimeLayerComboBox"):
-            return self.wdg_sel.RealTimeLayerComboBox
-        from qgis.gui import QgsMapLayerComboBox
-
-        combo = QgsMapLayerComboBox(self.wdg_sel)
-        combo.setFilters(QgsMapLayerProxyModel.RasterLayer)
-        combo.setAllowEmptyLayer(True)
-        combo.setAdditionalLayers([None])
-        return combo
-
     def refresh_runtime_controls(self):
         """Refresh model and source selectors from persisted settings."""
         settings = load_plugin_settings()
@@ -380,6 +339,7 @@ class Selector(QDockWidget):
     def on_model_changed(self):
         """Persist the selected model and validate checkpoint availability."""
         model_id = self.selected_model_id()
+        self.realtime_query_cache.clear()
         save_plugin_settings({"selected_model_id": model_id or ""})
         if model_id is None:
             return
@@ -395,6 +355,7 @@ class Selector(QDockWidget):
 
     def on_realtime_layer_changed(self):
         """React to realtime layer changes and rebuild the runtime context."""
+        self.realtime_query_cache.clear()
         if self.wdg_sel.RealTimeLayerComboBox.currentLayer() is None:
             if self.wdg_sel.QgsFile_feature.filePath().strip():
                 self.load_feature()
@@ -414,16 +375,19 @@ class Selector(QDockWidget):
         self.wdg_sel.ColorButton_preview.setColor(Settings["preview_color"])
 
     def set_user_settings(self):
-        if Settings["show_boundary"]:
-            self.wdg_sel.radioButton_show_extent.setChecked(True)
+        self.wdg_sel.radioButton_show_extent.setChecked(bool(Settings["show_boundary"]))
+        enabled = bool(Settings.get("max_polygon_only", False))
+        self.wdg_sel.radioButton_max_object_mode.setChecked(enabled)
+        self.max_object_mode = enabled
 
         self.set_user_settings_color()
         self.wdg_sel.Box_min_pixel_default.setValue(
-            DefaultSettings["default_minimum_pixels"]
+            float(Settings["default_minimum_pixels"])
         )
 
     def reset_default_settings(self):
         save_user_settings({}, mode="overwrite")
+        self.realtime_query_cache.clear()
         save_plugin_settings({
             "selected_model_id": "",
             "model_repo_url": str(load_plugin_settings()["model_repo_url"]),
@@ -433,22 +397,25 @@ class Selector(QDockWidget):
             "cache_max_size_mb": int(load_plugin_settings()["cache_max_size_mb"]),
         })
 
-        if DefaultSettings["show_boundary"]:
-            self.wdg_sel.radioButton_show_extent.setChecked(True)
+        self.wdg_sel.radioButton_show_extent.setChecked(
+            bool(DefaultSettings["show_boundary"])
+        )
+        self.wdg_sel.radioButton_max_object_mode.setChecked(
+            bool(DefaultSettings.get("max_polygon_only", False))
+        )
+        self.max_object_mode = bool(DefaultSettings.get("max_polygon_only", False))
 
         self.wdg_sel.Box_min_pixel_default.setValue(
-            DefaultSettings["default_minimum_pixels"])
+            DefaultSettings["default_minimum_pixels"]
+        )
 
         # set default color
         self.wdg_sel.ColorButton_bgpt.setColor(DefaultSettings["bg_color"])
         self.wdg_sel.ColorButton_fgpt.setColor(DefaultSettings["fg_color"])
         self.wdg_sel.ColorButton_bbox.setColor(DefaultSettings["bbox_color"])
-        self.wdg_sel.ColorButton_extent.setColor(
-            DefaultSettings["extent_color"])
-        self.wdg_sel.ColorButton_prompt.setColor(
-            DefaultSettings["prompt_color"])
-        self.wdg_sel.ColorButton_preview.setColor(
-            DefaultSettings["preview_color"])
+        self.wdg_sel.ColorButton_extent.setColor(DefaultSettings["extent_color"])
+        self.wdg_sel.ColorButton_prompt.setColor(DefaultSettings["prompt_color"])
+        self.wdg_sel.ColorButton_preview.setColor(DefaultSettings["preview_color"])
 
     def disconnect_safely(self, item):
         try:
@@ -459,8 +426,7 @@ class Selector(QDockWidget):
     def reset_to_project_crs(self):
         if self.crs_project != self.project.crs():
             MessageTool.MessageBar(
-                "Note:",
-                "Project CRS has been reset to original CRS."
+                "Note:", "Project CRS has been reset to original CRS."
             )
             self.project.setCrs(self.crs_project)
 
@@ -492,6 +458,29 @@ class Selector(QDockWidget):
 
     def load_demo_img(self):
         return None
+
+    def zoom_to_extent(self):
+        """Zoom the canvas to the active source extent."""
+        if hasattr(self, "source_extent_canvas_crs"):
+            self.canvas.setExtent(self.source_extent_canvas_crs)
+            self.canvas.refresh()
+
+    def toggle_max_object_mode(self):
+        """Toggle whether only the largest polygon should be kept."""
+        enabled = bool(self.wdg_sel.radioButton_max_object_mode.isChecked())
+        self.max_object_mode = enabled
+        self.wdg_sel.Box_min_pixel.setEnabled(not enabled)
+        self.wdg_sel.Box_min_pixel_default.setEnabled(not enabled)
+        save_user_settings({"max_polygon_only": enabled}, mode="update")
+        if enabled:
+            MessageTool.MessageBar(
+                "Geo-SAM",
+                "Max Polygon Only is enabled. All prompts are still queried, "
+                "but only the largest polygon from the current mask is shown.",
+                level="info",
+                duration=12,
+            )
+        self.filter_feature_by_area()
 
     def topping_polygon_sam_layer(self):
         """Topping polygon layer of SAM result to top of TOC"""
@@ -533,7 +522,7 @@ class Selector(QDockWidget):
                 "Note:",
                 "Project CRS has been changed to the active source CRS temporarily, "
                 "and will be reset to original CRS when this widget is closed.",
-                duration=30
+                duration=30,
             )
 
     def _activate_runtime_from_inputs(self):
@@ -562,6 +551,7 @@ class Selector(QDockWidget):
         pixel_area: float,
     ):
         """Initialize shared canvas tools for the active runtime source."""
+        self.realtime_query_cache.clear()
         self.runtime_source_kind = source_kind
         self.runtime_extent = extent
         self.runtime_crs = QgsCoordinateReferenceSystem(crs_text)
@@ -576,6 +566,7 @@ class Selector(QDockWidget):
         self.canvas_points = Canvas_Points(self.canvas, self.img_crs_manager)
         self.canvas_rect = Canvas_Rectangle(self.canvas, self.img_crs_manager)
         self.canvas_extent = Canvas_Extent(self.canvas, self.img_crs_manager)
+        self.query_chip_extents_canvas_crs = []
 
         self.tool_click_fg = ClickTool(
             self.canvas,
@@ -595,7 +586,7 @@ class Selector(QDockWidget):
             self.canvas_rect,
             self.prompt_history,
             self.execute_SAM,
-            self.img_crs_manager
+            self.img_crs_manager,
         )
 
         self._ensure_feature_crs()
@@ -723,6 +714,56 @@ class Selector(QDockWidget):
             return PromptSet(points=points, bbox=bbox)
         return points or bbox
 
+    def _prompt_debug_summary(self) -> dict[str, Any]:
+        """Return a serializable snapshot of the current prompt state."""
+        point_items: list[dict[str, Any]] = []
+        if hasattr(self, "canvas_points"):
+            for point, label in zip(
+                self.canvas_points.img_crs_points,
+                self.canvas_points.labels,
+            ):
+                point_items.append({
+                    "x": round(float(point.x()), 6),
+                    "y": round(float(point.y()), 6),
+                    "label": "fg" if label else "bg",
+                })
+
+        bbox_item: dict[str, float] | None = None
+        if hasattr(self, "canvas_rect") and self.canvas_rect.extent is not None:
+            min_x, max_x, min_y, max_y = self.canvas_rect.extent
+            bbox_item = {
+                "min_x": round(float(min_x), 6),
+                "max_x": round(float(max_x), 6),
+                "min_y": round(float(min_y), 6),
+                "max_y": round(float(max_y), 6),
+            }
+
+        return {
+            "prompt_history": list(self.prompt_history),
+            "point_count": len(point_items),
+            "points": point_items,
+            "bbox": bbox_item,
+        }
+
+    def _log_sam_execution(self, phase: str, **payload: Any) -> None:
+        """Log prompt execution details to the QGIS message log."""
+        log_payload = {
+            "phase": phase,
+            "execution_count": self.sam_execution_count,
+            "model_id": self.selected_model_id(),
+            "source_kind": self.runtime_source_kind,
+            "preview_mode": self.preview_mode,
+            "max_object_mode": self.max_object_mode,
+        }
+        log_payload.update(self._prompt_debug_summary())
+        log_payload.update(payload)
+        MessageTool.MessageLog(
+            json.dumps(log_payload, ensure_ascii=True, default=str),
+            level="info",
+            tag="Geo SAM Debug",
+            notify_user=False,
+        )
+
     def loop_prompt_type(self):
         """Loop prompt type"""
         if not hasattr(self, "tool_click_fg"):
@@ -772,19 +813,15 @@ class Selector(QDockWidget):
     def toggle_encoding_extent(self):
         """Show or hide extent of SAM encoded feature"""
         if self.wdg_sel.radioButton_show_extent.isChecked():
-            if hasattr(self, "source_extent_canvas_crs"):
-                self.canvas_extent.add_extent(self.source_extent_canvas_crs)
-            else:
+            if not hasattr(self, "source_extent_canvas_crs"):
                 MessageTool.MessageBar(
                     "Geo-SAM",
                     "No input source loaded.",
                 )
             show_extent = True
         else:
-            if not hasattr(self, "canvas_extent"):
-                return
-            self.canvas_extent.clear()
             show_extent = False
+        self._render_boundary_overlays()
         save_user_settings({"show_boundary": show_extent}, mode="update")
 
     def toggle_hover_mode(self):
@@ -823,9 +860,11 @@ class Selector(QDockWidget):
 
     def is_pressed_prompt(self):
         """Check if the prompt is clicked or hovered"""
-        if (self.tool_click_fg.pressed or
-            self.tool_click_bg.pressed or
-                self.tool_click_rect.pressed):
+        if (
+            self.tool_click_fg.pressed
+            or self.tool_click_bg.pressed
+            or self.tool_click_rect.pressed
+        ):
             return True
         return False
 
@@ -847,7 +886,8 @@ class Selector(QDockWidget):
         self.polygon.add_geojson_feature_to_canvas(
             self.polygon.geojson_canvas_prompt,
             t_area,
-            target="prompt"
+            max_object_mode=self.max_object_mode,
+            target="prompt",
         )
 
         self.t_area = t_area
@@ -856,8 +896,174 @@ class Selector(QDockWidget):
         min_pixel = self.wdg_sel.Box_min_pixel_default.value()
         self.t_area_default = min_pixel * self.pixel_area
         self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
-        save_user_settings(
-            {"default_minimum_pixels": min_pixel}, mode="update")
+        save_user_settings({"default_minimum_pixels": min_pixel}, mode="update")
+
+    def _reset_prompt_press_state(self):
+        """Clear one-shot pressed flags after a segmentation attempt."""
+        for attribute_name in ("tool_click_fg", "tool_click_bg", "tool_click_rect"):
+            tool = getattr(self, attribute_name, None)
+            if tool is not None:
+                tool.pressed = False
+
+    def _restore_active_prompt_tool(self):
+        """Re-activate the currently selected prompt tool on the canvas."""
+        if not hasattr(self, "tool_click_fg"):
+            return
+        if self.wdg_sel.pushButton_rect.isChecked():
+            self.canvas.setMapTool(self.tool_click_rect)
+            return
+        if self.wdg_sel.pushButton_bg.isChecked():
+            self.canvas.setMapTool(self.tool_click_bg)
+            return
+        if self.wdg_sel.pushButton_fg.isChecked():
+            self.canvas.setMapTool(self.tool_click_fg)
+
+    def _show_boundary_enabled(self) -> bool:
+        """Return whether boundary overlays should currently be visible.
+
+        Returns
+        -------
+        bool
+            True when the UI toggle requests boundary overlays.
+        """
+        if not hasattr(self, "wdg_sel"):
+            return False
+        return bool(self.wdg_sel.radioButton_show_extent.isChecked())
+
+    @staticmethod
+    def _chip_bounds_to_rectangles(chip_bounds: Any) -> list[QgsRectangle]:
+        """Normalize GeoSAM chip bounds into QGIS rectangles.
+
+        Parameters
+        ----------
+        chip_bounds : Any
+            Chip-bound payload returned by a GeoSAM query result.
+
+        Returns
+        -------
+        list[QgsRectangle]
+            Chip bounds expressed as QGIS rectangles in the runtime CRS.
+        """
+        if chip_bounds is None:
+            return []
+        if isinstance(chip_bounds, QgsRectangle):
+            return [chip_bounds]
+        if hasattr(chip_bounds, "left") and hasattr(chip_bounds, "right"):
+            return [
+                QgsRectangle(
+                    float(chip_bounds.left),
+                    float(chip_bounds.bottom),
+                    float(chip_bounds.right),
+                    float(chip_bounds.top),
+                )
+            ]
+        if hasattr(chip_bounds, "minx") and hasattr(chip_bounds, "maxx"):
+            return [
+                QgsRectangle(
+                    float(chip_bounds.minx),
+                    float(chip_bounds.miny),
+                    float(chip_bounds.maxx),
+                    float(chip_bounds.maxy),
+                )
+                ]
+        if hasattr(chip_bounds, "to_tuple") and callable(chip_bounds.to_tuple):
+            chip_bounds = chip_bounds.to_tuple()
+        if isinstance(chip_bounds, np.ndarray):
+            chip_bounds = chip_bounds.tolist()
+        if isinstance(chip_bounds, (list, tuple)):
+            if len(chip_bounds) == 4 and all(
+                isinstance(value, Real) for value in chip_bounds
+            ):
+                min_x, min_y, max_x, max_y = chip_bounds
+                return [
+                    QgsRectangle(
+                        float(min_x),
+                        float(min_y),
+                        float(max_x),
+                        float(max_y),
+                    )
+                ]
+
+            rectangles: list[QgsRectangle] = []
+            for chip_bound_item in chip_bounds:
+                rectangles.extend(Selector._chip_bounds_to_rectangles(chip_bound_item))
+            return rectangles
+        return []
+
+    def _render_boundary_overlays(self) -> None:
+        """Redraw source and query-chip boundaries on the canvas."""
+        if not hasattr(self, "canvas_extent"):
+            return
+        self.canvas_extent.clear()
+        if not self._show_boundary_enabled():
+            return
+        self.canvas_extent.set_color(self.wdg_sel.ColorButton_extent.color())
+        if hasattr(self, "source_extent_canvas_crs"):
+            self.canvas_extent.add_extent(self.source_extent_canvas_crs)
+        for chip_extent in self.query_chip_extents_canvas_crs:
+            self.canvas_extent.add_extent(chip_extent)
+
+    def _clear_query_chip_extent_cache(self, *, keep_source_boundary: bool) -> None:
+        """Clear cached query-chip extents and refresh boundary overlays.
+
+        Parameters
+        ----------
+        keep_source_boundary : bool
+            True to keep the source boundary overlay, False to remove all
+            boundary overlays from the canvas.
+        """
+        self.query_chip_extents_canvas_crs = []
+        if keep_source_boundary:
+            self._render_boundary_overlays()
+            return
+        if hasattr(self, "canvas_extent"):
+            self.canvas_extent.clear()
+
+    def _update_query_chip_extent_cache(self, chip_bounds: Any) -> None:
+        """Cache the latest query-chip extents and refresh overlays.
+
+        Parameters
+        ----------
+        chip_bounds : Any
+            Chip-bound payload returned by the latest GeoSAM query result.
+        """
+        self.query_chip_extents_canvas_crs = []
+        if not hasattr(self, "img_crs_manager"):
+            return
+
+        chip_rectangles = self._chip_bounds_to_rectangles(chip_bounds)
+        if chip_bounds is not None and len(chip_rectangles) == 0:
+            MessageTool.MessageLog(
+                (
+                    "Failed to parse query chip bounds returned by GeoSAM. "
+                    f"type={type(chip_bounds)!r}, value={chip_bounds!r}"
+                ),
+                level="warning",
+                tag="Geo SAM Debug",
+                notify_user=False,
+            )
+
+        project_crs = QgsProject.instance().crs()
+        for chip_rectangle in chip_rectangles:
+            try:
+                chip_extent_canvas_crs = self.img_crs_manager.img_extent_to_crs(
+                    chip_rectangle,
+                    project_crs,
+                )
+            except Exception as exc:
+                MessageTool.MessageLog(
+                    (
+                        "Failed to transform query chip boundary to the project CRS. "
+                        f"chip_bounds={chip_rectangle!r}, error={exc}"
+                    ),
+                    level="warning",
+                    tag="Geo SAM Debug",
+                    notify_user=False,
+                )
+                continue
+            self.query_chip_extents_canvas_crs.append(chip_extent_canvas_crs)
+
+        self._render_boundary_overlays()
 
     def ensure_polygon_sam_exist(self):
         if hasattr(self, "polygon"):
@@ -872,20 +1078,22 @@ class Selector(QDockWidget):
         model_id = self._require_selected_model()
         if model_id is None:
             return False
+        self.sam_execution_count += 1
+        had_pressed_prompt = self.is_pressed_prompt()
 
         # check prompt inside feature extent and add last id to history for new prompt
-        if len(self.prompt_history) > 0 and self.is_pressed_prompt():
+        if len(self.prompt_history) > 0 and had_pressed_prompt:
             prompt_last = self.prompt_history[-1]
             if prompt_last == "bbox":
                 last_rect = self.canvas_rect.extent
                 last_prompt = QgsRectangle(
-                    last_rect[0], last_rect[2], last_rect[1], last_rect[3])
+                    last_rect[0], last_rect[2], last_rect[1], last_rect[3]
+                )
             else:
                 last_point = self.canvas_points.img_crs_points[-1]
                 last_prompt = QgsRectangle(last_point, last_point)
-            if (
-                self.runtime_extent is not None
-                and not last_prompt.intersects(self.runtime_extent)
+            if self.runtime_extent is not None and not last_prompt.intersects(
+                self.runtime_extent
             ):
                 self.check_message_box_outside()
                 self.undo_last_prompt()
@@ -900,8 +1108,10 @@ class Selector(QDockWidget):
             else:
                 last_id = features[-1].id() + 1
 
-            if (len(self.sam_feature_history) >= 1 and
-                    len(self.sam_feature_history[-1]) == 1):
+            if (
+                len(self.sam_feature_history) >= 1
+                and len(self.sam_feature_history[-1]) == 1
+            ):
                 self.sam_feature_history[-1][0] = last_id
             else:
                 self.sam_feature_history.append([last_id])
@@ -909,18 +1119,33 @@ class Selector(QDockWidget):
         self.ensure_polygon_sam_exist()
 
         # clear canvas prompt polygon for new prompt
-        if self.is_pressed_prompt():
+        if had_pressed_prompt:
             self.polygon.canvas_prompt_polygon.clear()
 
         query = self._build_geosam_query()
         if query is None:
+            self._log_sam_execution("skip_no_query", had_pressed_prompt=had_pressed_prompt)
+            self._clear_query_chip_extent_cache(keep_source_boundary=True)
+            self._reset_prompt_press_state()
+            self._restore_active_prompt_tool()
             return True
+
+        self._log_sam_execution(
+            "start",
+            had_pressed_prompt=had_pressed_prompt,
+        )
+        query_started_at = perf_counter()
         try:
             if (
                 self.runtime_source_kind == "realtime"
                 and self.runtime_layer is not None
             ):
-                result = query_raster_layer(self.runtime_layer, model_id, query)
+                result = query_raster_layer(
+                    self.runtime_layer,
+                    model_id,
+                    query,
+                    cache=self.realtime_query_cache,
+                )
             elif self.runtime_source_kind == "feature":
                 result = query_feature_source(self.feature_dir, model_id, query)
             else:
@@ -930,35 +1155,59 @@ class Selector(QDockWidget):
                 )
                 return False
         except Exception as exc:
+            elapsed_ms = round((perf_counter() - query_started_at) * 1000, 3)
+            self._log_sam_execution(
+                "error",
+                elapsed_ms=elapsed_ms,
+                error=str(exc),
+            )
             MessageTool.MessageBoxOK(str(exc), title="Geo-SAM Query Failed")
+            self._clear_query_chip_extent_cache(keep_source_boundary=True)
+            self._reset_prompt_press_state()
+            self._restore_active_prompt_tool()
             return False
 
+        elapsed_ms = round((perf_counter() - query_started_at) * 1000, 3)
         geojson_features = query_result_to_geojson_features(result)
+        self._update_query_chip_extent_cache(result.chip_bounds)
+        self._log_sam_execution(
+            "finish",
+            elapsed_ms=elapsed_ms,
+            mask_count=int(len(result.mask_array)),
+            geojson_feature_count=len(geojson_features),
+            query_bounds=str(result.query_bounds),
+            chip_bounds=str(result.chip_bounds),
+        )
         self.polygon.canvas_preview_polygon.clear()
         self.polygon.canvas_prompt_polygon.clear()
         if self.preview_mode:
             self.polygon.add_geojson_feature_to_canvas(
                 geojson_features,
                 self.t_area,
-                overwrite_geojson=True
+                max_object_mode=self.max_object_mode,
+                overwrite_geojson=True,
             )
         else:
             self.polygon.add_geojson_feature_to_canvas(
                 geojson_features,
                 self.t_area,
+                max_object_mode=self.max_object_mode,
                 target="prompt",
-                overwrite_geojson=True
+                overwrite_geojson=True,
             )
 
         # show pressed prompt result in preview mode
-        if self.preview_mode and self.is_pressed_prompt():
+        if self.preview_mode and had_pressed_prompt:
             self.polygon.add_geojson_feature_to_canvas(
                 self.polygon.geojson_canvas_preview,  # update with canvas polygon
                 self.t_area,
+                max_object_mode=self.max_object_mode,
                 target="prompt",
-                overwrite_geojson=True
+                overwrite_geojson=True,
             )
         self.topping_polygon_sam_layer()
+        self._reset_prompt_press_state()
+        self._restore_active_prompt_tool()
 
         return True
 
@@ -1024,16 +1273,16 @@ class Selector(QDockWidget):
         # parse whether the new selected layer is same as current layer
         if hasattr(self, "polygon"):
             old_layer = QgsProject.instance().mapLayer(self.polygon.layer_id)
-            if (old_layer and new_layer and
-                    old_layer.id() == new_layer.id()):
+            if old_layer and new_layer and old_layer.id() == new_layer.id():
                 return
             if not self.polygon.reset_layer(new_layer):
                 self.MapLayerComboBox.setLayer(None)
         else:
             self.polygon = SAM_PolygonFeature(
-                self.img_crs_manager, layer=new_layer,
+                self.img_crs_manager,
+                layer=new_layer,
                 kwargs_preview_polygon=self.style_preview_polygon,
-                kwargs_prompt_polygon=self.style_prompt_polygon
+                kwargs_prompt_polygon=self.style_prompt_polygon,
             )
 
         # clear layer history
@@ -1047,10 +1296,11 @@ class Selector(QDockWidget):
         file_dialog.setFileMode(QFileDialog.AnyFile)
 
         file_path, _ = file_dialog.getSaveFileName(
-            None, "QFileDialog.getOpenFileName()",
+            None,
+            "QFileDialog.getOpenFileName()",
             "",
             "Shapefile (*.shp)",
-            options=QFileDialog.DontConfirmOverwrite
+            options=QFileDialog.DontConfirmOverwrite,
         )
 
         if file_path is None or file_path == "":
@@ -1059,8 +1309,7 @@ class Selector(QDockWidget):
         file_path = Path(file_path)
         if not file_path.parent.is_dir():
             MessageTool.MessageBoxOK(
-                "Oops: "
-                "Failed to open file, please choose a existing folder"
+                "Oops: Failed to open file, please choose a existing folder"
             )
             return
         if file_path.suffix.lower() != ".shp":
@@ -1069,31 +1318,33 @@ class Selector(QDockWidget):
         layer_list = QgsProject.instance().mapLayersByName(file_path.stem)
         if len(layer_list) > 0:
             self.polygon = SAM_PolygonFeature(
-                self.img_crs_manager, layer=layer_list[0],
+                self.img_crs_manager,
+                layer=layer_list[0],
                 kwargs_preview_polygon=self.style_preview_polygon,
-                kwargs_prompt_polygon=self.style_prompt_polygon
+                kwargs_prompt_polygon=self.style_prompt_polygon,
             )
             if not hasattr(self.polygon, "layer"):
                 return
             MessageTool.MessageBar(
                 "Attention",
                 f"Layer '{file_path.name}' has already been in the project, "
-                "you can start labeling now"
+                "you can start labeling now",
             )
             self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
 
         else:
             self.polygon = SAM_PolygonFeature(
-                self.img_crs_manager, shapefile=file_path,
+                self.img_crs_manager,
+                shapefile=file_path,
                 kwargs_preview_polygon=self.style_preview_polygon,
-                kwargs_prompt_polygon=self.style_prompt_polygon
+                kwargs_prompt_polygon=self.style_prompt_polygon,
             )
             if not hasattr(self.polygon, "layer"):
                 return
         # clear layer history
         self.sam_feature_history = []
         self.wdg_sel.MapLayerComboBox.setLayer(self.polygon.layer)
-            # self.set_user_settings_color()
+        # self.set_user_settings_color()
 
     def load_feature(self):
         """Load feature"""
@@ -1116,6 +1367,7 @@ class Selector(QDockWidget):
     def clear_layers(self, clear_extent: bool = False):
         """Clear all temporary layers (canvas and new sam result) and reset prompt"""
         self.clear_canvas_layers_safely(clear_extent=clear_extent)
+        self._clear_query_chip_extent_cache(keep_source_boundary=not clear_extent)
         if hasattr(self, "polygon"):
             self.polygon.clear_canvas_polygons()
         self.prompt_history.clear()
@@ -1138,7 +1390,8 @@ class Selector(QDockWidget):
             self.polygon.add_geojson_feature_to_layer(
                 self.polygon.geojson_canvas_prompt,
                 self.t_area,
-                self.prompt_history
+                self.prompt_history,
+                max_object_mode=self.max_object_mode,
             )
 
             self.polygon.commit_changes()
@@ -1155,7 +1408,7 @@ class Selector(QDockWidget):
                 if self.sam_feature_history[-1][0] > last_id:
                     MessageTool.MessageLog(
                         "New features id is smaller than last id in history",
-                        level="warning"
+                        level="warning",
                     )
                 self.sam_feature_history[-1].append(last_id)
 
@@ -1163,6 +1416,7 @@ class Selector(QDockWidget):
         if need_toggle:
             self.toggle_hover_mode()
         self.clear_canvas_layers_safely()
+        self._clear_query_chip_extent_cache(keep_source_boundary=True)
         self.prompt_history.clear()
         self.polygon.reset_geojson()
 
@@ -1190,7 +1444,7 @@ class Selector(QDockWidget):
         if len(last_ids) == 1:
             self.clear_layers(clear_extent=False)
             return
-        rm_ids = list(range(last_ids[0], last_ids[1]+1))
+        rm_ids = list(range(last_ids[0], last_ids[1] + 1))
         self.polygon.layer.dataProvider().deleteFeatures(rm_ids)
 
         # If caching is enabled, a simple canvas refresh might not be sufficient
@@ -1211,10 +1465,7 @@ class Selector(QDockWidget):
     def reset_background_color(self):
         """Reset background color"""
         color = self.wdg_sel.ColorButton_bgpt.color()
-        save_user_settings(
-            {"bg_color": color.name()},
-            mode="update"
-        )
+        save_user_settings({"bg_color": color.name()}, mode="update")
         if not hasattr(self, "canvas_points"):
             return
         self.canvas_points.background_color = color
@@ -1224,10 +1475,7 @@ class Selector(QDockWidget):
     def reset_foreground_color(self):
         """Reset foreground color"""
         color = self.wdg_sel.ColorButton_fgpt.color()
-        save_user_settings(
-            {"fg_color": color.name()},
-            mode="update"
-        )
+        save_user_settings({"fg_color": color.name()}, mode="update")
         if not hasattr(self, "canvas_points"):
             return
         self.canvas_points.foreground_color = color
@@ -1237,10 +1485,7 @@ class Selector(QDockWidget):
     def reset_rectangular_color(self):
         """Reset rectangular color"""
         color = self.wdg_sel.ColorButton_bbox.color()
-        save_user_settings(
-            {"bbox_color": color.name()},
-            mode="update"
-        )
+        save_user_settings({"bbox_color": color.name()}, mode="update")
         if not hasattr(self, "canvas_rect"):
             return
 
@@ -1258,25 +1503,15 @@ class Selector(QDockWidget):
         if not hasattr(self, "canvas_extent"):
             return
         self.canvas_extent.set_color(color)
-        save_user_settings(
-            {"extent_color": color.name()},
-            mode="update"
-        )
-
-        if self.wdg_sel.radioButton_show_extent.isChecked():
-            self.canvas_extent.clear()
-            if hasattr(self, "source_extent_canvas_crs"):
-                self.canvas_extent.add_extent(self.source_extent_canvas_crs)
+        save_user_settings({"extent_color": color.name()}, mode="update")
+        self._render_boundary_overlays()
 
     def reset_prompt_polygon_color(self):
         """Reset prompt polygon color"""
         if not hasattr(self, "polygon"):
             return
         color = self.wdg_sel.ColorButton_prompt.color()
-        save_user_settings(
-            {"prompt_color": color.name()},
-            mode="update"
-        )
+        save_user_settings({"prompt_color": color.name()}, mode="update")
         self.polygon.canvas_prompt_polygon.set_line_style(color)
 
     def reset_preview_polygon_color(self):
@@ -1284,10 +1519,7 @@ class Selector(QDockWidget):
         if not hasattr(self, "polygon"):
             return
         color = self.wdg_sel.ColorButton_preview.color()
-        save_user_settings(
-            {"preview_color": color.name()},
-            mode="update"
-        )
+        save_user_settings({"preview_color": color.name()}, mode="update")
 
         self.polygon.canvas_preview_polygon.set_line_style(color)
 
@@ -1326,26 +1558,29 @@ class EncoderCopilot(QDockWidget):
             ########## connect functions to widget items ##########
             # upper part
             self.wdg_copilot.MapLayerComboBox.setFilters(
-                QgsMapLayerProxyModel.RasterLayer)
+                QgsMapLayerProxyModel.RasterLayer
+            )
             self.wdg_copilot.MapLayerComboBox.layerChanged.connect(
-                self.parse_raster_info)
+                self.parse_raster_info
+            )
             self.wdg_copilot.ExtentGroupBox.setMapCanvas(self.canvas)
-            self.wdg_copilot.ExtentGroupBox.extentChanged.connect(
-                self.show_extents)
-            self.wdg_copilot.BoxResolutionScale.valueChanged.connect(
-                self.show_extents)
-            self.wdg_copilot.BoxOverlap.valueChanged.connect(
-                self.show_extents)
+            self.wdg_copilot.ExtentGroupBox.extentChanged.connect(self.show_extents)
+            self.wdg_copilot.BoxResolutionScale.valueChanged.connect(self.show_extents)
+            self.wdg_copilot.BoxOverlap.valueChanged.connect(self.show_extents)
             self.wdg_copilot.pushButton_CopySetting.clicked.connect(
-                self.json_setting_to_clipboard)
+                self.json_setting_to_clipboard
+            )
             self.wdg_copilot.pushButton_ExportSetting.clicked.connect(
-                self.json_setting_to_file)
+                self.json_setting_to_file
+            )
             self.wdg_copilot.pushButton_parse_raster.clicked.connect(
-                self.parse_min_max_value)
+                self.parse_min_max_value
+            )
 
             # bottom part
             self.wdg_copilot.CheckpointFileWidget.fileChanged.connect(
-                self.parse_model_type)
+                self.parse_model_type
+            )
 
             # signal
             self.retrieve_range.connect(self.set_range_to_widget)
@@ -1361,8 +1596,7 @@ class EncoderCopilot(QDockWidget):
             self.wdg_copilot.AdvancedParameterGroupBox.setCollapsed(True)
             # checkpoint
             self.wdg_copilot.CheckpointFileWidget.setFilter("*.pt")
-            self.wdg_copilot.CheckpointFileWidget.setStorageMode(
-                QgsFileWidget.GetFile)
+            self.wdg_copilot.CheckpointFileWidget.setStorageMode(QgsFileWidget.GetFile)
             self.wdg_copilot.CheckpointFileWidget.setConfirmOverwrite(False)
 
             if self.wdg_copilot.SAMModelComboBox.count() == 0:
@@ -1391,7 +1625,7 @@ class EncoderCopilot(QDockWidget):
     def show_patch_extent_in_canvas(self, extents: str):
         extents = eval(extents)
         num_patch = len(extents)
-        idx = np.random.randint(0, num_patch, size=(int(num_patch/10)))
+        idx = np.random.randint(0, num_patch, size=(int(num_patch / 10)))
         alphas = np.full(num_patch, 100)
         line_widths = np.full(num_patch, 2)
         alphas[idx] = 254
@@ -1410,26 +1644,21 @@ class EncoderCopilot(QDockWidget):
                 QgsRectangle(*extent),
                 use_type="patch_extent",
                 alpha=alpha,
-                line_width=line_width
+                line_width=line_width,
             )
-        self.wdg_copilot.label_patch_settings.setText(
-            f"Done! {len(extents)} patches")
+        self.wdg_copilot.label_patch_settings.setText(f"Done! {len(extents)} patches")
 
     def parse_raster_info(self):
         """Parse raster info and set to widget items"""
         # clear widget items
         self.wdg_copilot.label_range_status.setText("")
         self.wdg_copilot.label_patch_settings.setText("")
-        self.wdg_copilot.MaxValueBox.setClearValue(
-            0, "Not set")
-        self.wdg_copilot.MinValueBox.setClearValue(
-            0, "Not set")
+        self.wdg_copilot.MaxValueBox.setClearValue(0, "Not set")
+        self.wdg_copilot.MinValueBox.setClearValue(0, "Not set")
         self.wdg_copilot.MinValueBox.clear()
         self.wdg_copilot.MaxValueBox.clear()
-        self.wdg_copilot.BoxResolutionScale.setClearValue(
-            1, "Not set")
-        self.wdg_copilot.BoxOverlap.setClearValue(
-            50, "Not set")
+        self.wdg_copilot.BoxResolutionScale.setClearValue(1, "Not set")
+        self.wdg_copilot.BoxOverlap.setClearValue(50, "Not set")
 
         if not self.valid_raster_layer():
             self.clear_bands()
@@ -1449,7 +1678,7 @@ class EncoderCopilot(QDockWidget):
                 "Note:",
                 "Project crs has been changed to the layer crs temporarily. "
                 "It will be reset to the original crs when this widget is closed.",
-                duration=30
+                duration=30,
             )
 
         if not hasattr(self, "canvas_extent"):
@@ -1460,23 +1689,24 @@ class EncoderCopilot(QDockWidget):
         if not self.valid_raster_layer():
             return
         extent = self.get_extent()
-        if (extent.xMinimum() == extent.xMaximum() or
-                extent.yMinimum() == extent.yMaximum()):
+        if (
+            extent.xMinimum() == extent.xMaximum()
+            or extent.yMinimum() == extent.yMaximum()
+        ):
             extent = None
         else:
-            extent = [extent.xMinimum(),
-                      extent.yMinimum(),
-                      extent.xMaximum(),
-                      extent.yMaximum()]
+            extent = [
+                extent.xMinimum(),
+                extent.yMinimum(),
+                extent.xMaximum(),
+                extent.yMaximum(),
+            ]
 
         bands = list(set(self.get_bands()))
 
         self.wdg_copilot.label_range_status.setText("Parse ...")
         self.ParseThread = ParseRangeThread(
-            self.retrieve_range,
-            self.raster_layer.source(),
-            extent,
-            bands
+            self.retrieve_range, self.raster_layer.source(), extent, bands
         )
         self.ParseThread.start()
 
@@ -1509,17 +1739,14 @@ class EncoderCopilot(QDockWidget):
         scale = self.wdg_copilot.BoxResolutionScale.value()
         resolution_layer = (
             self.raster_layer.rasterUnitsPerPixelX(),
-            self.raster_layer.rasterUnitsPerPixelY()
+            self.raster_layer.rasterUnitsPerPixelY(),
         )
-        return (
-            resolution_layer[0] * scale,
-            resolution_layer[1] * scale
-        )
+        return (resolution_layer[0] * scale, resolution_layer[1] * scale)
 
     def get_stride(self) -> int:
         """Get stride from overlap group box"""
         overlaps = self.wdg_copilot.BoxOverlap.value()
-        return int((100 - overlaps)/100 * 1024)
+        return int((100 - overlaps) / 100 * 1024)
 
     def get_extent(self) -> QgsRectangle:
         return self.wdg_copilot.ExtentGroupBox.outputExtent()
@@ -1527,10 +1754,12 @@ class EncoderCopilot(QDockWidget):
     def get_extent_str(self) -> str:
         """Get extent string from extent group box"""
         extent = self.get_extent()
-        xMin, yMin, xMax, yMax = (extent.xMinimum(),
-                                  extent.yMinimum(),
-                                  extent.xMaximum(),
-                                  extent.yMaximum())
+        xMin, yMin, xMax, yMax = (
+            extent.xMinimum(),
+            extent.yMinimum(),
+            extent.xMaximum(),
+            extent.yMaximum(),
+        )
         return f"{xMin}, {xMax}, {yMin}, {yMax}"
 
     def get_checkpoint_path(self) -> str:
@@ -1574,8 +1803,7 @@ class EncoderCopilot(QDockWidget):
         """Check if extent has been set. If not, alert user to set extent"""
         extent = self.get_extent_str()
         vals = extent.split(",")
-        if (float(vals[0]) == float(vals[1])
-                or float(vals[2]) == float(vals[3])):
+        if float(vals[0]) == float(vals[1]) or float(vals[2]) == float(vals[3]):
             # alert user to set extent
             MessageTool.MessageBoxOK(
                 "Oops: Extent has not been set. Please set extent first."
@@ -1617,20 +1845,20 @@ class EncoderCopilot(QDockWidget):
         gpu_id = self.get_GPU_ID()
 
         json_dict = {
-            "inputs":
-                {"INPUT": self.raster_layer.source(),
-                 "BANDS": bands,
-                 # TODO: show image with range interactively
-                 "RANGE": range,
-                 "CRS": crs,
-                 "EXTENT": extent,
-                 "RESOLUTION": resolution[0],
-                 "STRIDE": stride,
-                 "CKPT": checkpoint_path,
-                 "MODEL_TYPE": model_type,
-                 "BATCH_SIZE": batch_size,
-                 "CUDA_ID": gpu_id,
-                 }
+            "inputs": {
+                "INPUT": self.raster_layer.source(),
+                "BANDS": bands,
+                # TODO: show image with range interactively
+                "RANGE": range,
+                "CRS": crs,
+                "EXTENT": extent,
+                "RESOLUTION": resolution[0],
+                "STRIDE": stride,
+                "CKPT": checkpoint_path,
+                "MODEL_TYPE": model_type,
+                "BATCH_SIZE": batch_size,
+                "CUDA_ID": gpu_id,
+            }
         }
         return json.dumps(json_dict, indent=4)
 
@@ -1645,7 +1873,7 @@ class EncoderCopilot(QDockWidget):
             "Note:",
             "Setting has been copied to clipboard. "
             "You can paste it to Geo-SAM Image Encoder or a json file now.",
-            duration=30
+            duration=30,
         )
 
     def json_setting_to_file(self) -> None:
@@ -1658,9 +1886,8 @@ class EncoderCopilot(QDockWidget):
         file_dialog.setFileMode(QFileDialog.AnyFile)
 
         file_path, _ = file_dialog.getSaveFileName(
-            None, "QFileDialog.getOpenFileName()",
-            "",
-            "Json Files (*.json)")
+            None, "QFileDialog.getOpenFileName()", "", "Json Files (*.json)"
+        )
         file_path = Path(file_path)
         try:
             if not file_path.parent.is_dir():
@@ -1677,8 +1904,7 @@ class EncoderCopilot(QDockWidget):
                 f.write(json_str)
         except Exception as e:
             MessageTool.MessageLog(
-                f"Failed to save setting to file. Error: {e}",
-                level="critical"
+                f"Failed to save setting to file. Error: {e}", level="critical"
             )
             return
 
@@ -1728,7 +1954,7 @@ class EncoderCopilot(QDockWidget):
                 "Oops!!!",
                 "No available patch sample inside the chosen extent!!! "
                 "Please choose another extent.",
-                duration=30
+                duration=30,
             )
             return
 
