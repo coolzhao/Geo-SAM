@@ -240,12 +240,6 @@ class Selector(QDockWidget):
                 self.toggle_max_object_mode
             )
 
-            # threshold of area
-            self.wdg_sel.Box_min_pixel.valueChanged.connect(self.filter_feature_by_area)
-            self.wdg_sel.Box_min_pixel_default.valueChanged.connect(
-                self.load_default_t_area
-            )
-
             self.wdg_sel.ColorButton_bgpt.colorChanged.connect(
                 self.reset_background_color
             )
@@ -381,9 +375,6 @@ class Selector(QDockWidget):
         self.max_object_mode = enabled
 
         self.set_user_settings_color()
-        self.wdg_sel.Box_min_pixel_default.setValue(
-            float(Settings["default_minimum_pixels"])
-        )
 
     def reset_default_settings(self):
         save_user_settings({}, mode="overwrite")
@@ -404,10 +395,6 @@ class Selector(QDockWidget):
             bool(DefaultSettings.get("max_polygon_only", False))
         )
         self.max_object_mode = bool(DefaultSettings.get("max_polygon_only", False))
-
-        self.wdg_sel.Box_min_pixel_default.setValue(
-            DefaultSettings["default_minimum_pixels"]
-        )
 
         # set default color
         self.wdg_sel.ColorButton_bgpt.setColor(DefaultSettings["bg_color"])
@@ -469,8 +456,6 @@ class Selector(QDockWidget):
         """Toggle whether only the largest polygon should be kept."""
         enabled = bool(self.wdg_sel.radioButton_max_object_mode.isChecked())
         self.max_object_mode = enabled
-        self.wdg_sel.Box_min_pixel.setEnabled(not enabled)
-        self.wdg_sel.Box_min_pixel_default.setEnabled(not enabled)
         save_user_settings({"max_polygon_only": enabled}, mode="update")
         if enabled:
             MessageTool.MessageBar(
@@ -873,7 +858,7 @@ class Selector(QDockWidget):
         if not self.need_execute_sam_filter_area:
             return
 
-        t_area = self.wdg_sel.Box_min_pixel.value()
+        t_area = 0.0
         if not hasattr(self, "polygon"):
             return
 
@@ -893,10 +878,7 @@ class Selector(QDockWidget):
         self.t_area = t_area
 
     def load_default_t_area(self):
-        min_pixel = self.wdg_sel.Box_min_pixel_default.value()
-        self.t_area_default = min_pixel * self.pixel_area
-        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
-        save_user_settings({"default_minimum_pixels": min_pixel}, mode="update")
+        self.t_area_default = 0.0
 
     def _reset_prompt_press_state(self):
         """Clear one-shot pressed flags after a segmentation attempt."""
@@ -1420,9 +1402,8 @@ class Selector(QDockWidget):
         self.prompt_history.clear()
         self.polygon.reset_geojson()
 
-        # avoid execute sam when reset min pixel to default value
+        # avoid triggering area filtering while clearing the saved prompt state
         self.need_execute_sam_filter_area = False
-        self.wdg_sel.Box_min_pixel.setValue(self.t_area_default)
         self.need_execute_sam_filter_area = True
         return None
 
