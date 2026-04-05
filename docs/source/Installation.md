@@ -7,9 +7,9 @@ You are suggested to install the latest version of [QGIS](https://www.qgis.org/e
 
 ## Install Library Dependencies
 
-Some dependencies need to be installed into the Python environment in QGIS beforehand to use Geo-SAM. `Pytorch` is a fundamental dependency. If you want to install the GPU version of `Pytorch`, it is recommended to refer to the official website for installation: <https://pytorch.org/get-started/locally/#start-locally>
+Some dependencies need to be installed into the Python environment in QGIS beforehand to use Geo-SAM. `PyTorch` is a fundamental dependency. If you want to install the GPU version of `PyTorch`, it is recommended to refer to the official website for installation: <https://pytorch.org/get-started/locally/#start-locally>
 
-After installing `PyTorch`, `torchgeo` and `segment-anything` need to be installed subsequently. Below are tutorials for installing these dependencies on different operating systems.
+After installing `PyTorch`, install `geosam` and the raster/vector IO dependencies used by the plugin. Below are tutorials for installing these dependencies on different operating systems.
 
 ### For Windows Users
 
@@ -17,8 +17,7 @@ Open the **OSGeo4W Shell** ![OsGeo4WShell](img/OsGeo4WShell.png) application fro
 
 ```bash
 pip3 install torch torchvision
-pip3 install torchgeo
-pip3 install segment-anything
+pip3 install geosam rasterio geopandas pyarrow ultralytics
 ```
 
 `Geo-SAM Encoder Tool` now supports using CUDA GPU to accelerate the encoding process. If your PC has dedicated CUDA GPUs, you can install the CUDA library first and then install the gpu-version pytorch using the following command (using CUDA version 11.7 as an example):
@@ -52,8 +51,7 @@ Then install the libraries.
 ```bash
 # !important, add ./ to avoid using your default Python in the system
 ./pip3 install torch torchvision
-./pip3 install torchgeo
-./pip3 install segment-anything
+./pip3 install geosam rasterio geopandas pyarrow ultralytics
 ```
 
 For Linux users, if `pip3` is not found in `/usr/bin`, try the following commands:

@@ -84,4 +84,4 @@ Read the documentation for more details: <https://geo-sam.readthedocs.io/en/late
 
 ## Acknowledgement
 
-This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [TorchGeo](https://github.com/microsoft/torchgeo). Thanks for their wonderful work.
+This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [GeoSAM](https://github.com/Fanchengyan/geosam). Thanks for their wonderful work.

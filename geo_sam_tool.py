@@ -1,15 +1,16 @@
-from qgis.core import QgsApplication
-from qgis.gui import QgisInterface
-from PyQt5.QtCore import pyqtSignal, QObject
+import processing
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import (
     QAction,
     QToolBar,
 )
-import processing
+from qgis.core import QgsApplication
+from qgis.gui import QgisInterface
 
-from .tools.widgetTool import Selector, EncoderCopilot
-from .ui.icons import QIcon_GeoSAMTool, QIcon_EncoderTool, QIcon_EncoderCopilot
 from .geo_sam_provider import GeoSamProvider
+from .tools.settingsTool import GeoSamSettingsDialog
+from .tools.widgetTool import EncoderCopilot, Selector
+from .ui.icons import QIcon_EncoderCopilot, QIcon_EncoderTool, QIcon_GeoSAMTool
 
 
 class Geo_SAM(QObject):
@@ -31,9 +32,9 @@ class Geo_SAM(QObject):
     def initGui(self):
         self.initProcessing()
 
-        self.toolbar: QToolBar = self.iface.addToolBar('Geo SAM Toolbar')
-        self.toolbar.setObjectName('mGeoSamToolbar')
-        self.toolbar.setToolTip('Geo SAM Toolbar')
+        self.toolbar: QToolBar = self.iface.addToolBar("Geo SAM Toolbar")
+        self.toolbar.setObjectName("mGeoSamToolbar")
+        self.toolbar.setToolTip("Geo SAM Toolbar")
 
         self.actionSamTool = QAction(
             QIcon_GeoSAMTool,
@@ -50,6 +51,10 @@ class Geo_SAM(QObject):
         self.actionSamEncoderCopilot = QAction(
             QIcon_EncoderCopilot,
             "Geo-SAM Encoder Copilot",
+            self.iface.mainWindow()
+        )
+        self.actionSamSettings = QAction(
+            "Geo-SAM Settings",
             self.iface.mainWindow()
         )
 
@@ -69,32 +74,45 @@ class Geo_SAM(QObject):
             "Encoder Copilot: Assist you in optimizing your Encoder Settings")
         self.actionSamEncoderCopilot.triggered.connect(
             self.create_widget_encoder_copilot)
+        self.actionSamSettings.setObjectName("mActionGeoSamSettings")
+        self.actionSamSettings.setToolTip(
+            "Geo-SAM Settings: Manage dependencies, models, cache, and help")
+        self.actionSamSettings.triggered.connect(self.open_settings_dialog)
 
-        self.iface.addPluginToMenu('Geo-SAM Tools', self.actionSamTool)
-        self.iface.addPluginToMenu('Geo-SAM Tools', self.actionSamEncoder)
+        self.iface.addPluginToMenu("Geo-SAM Tools", self.actionSamTool)
+        self.iface.addPluginToMenu("Geo-SAM Tools", self.actionSamEncoder)
         self.iface.addPluginToMenu(
-            'Geo-SAM Tools', self.actionSamEncoderCopilot)
+            "Geo-SAM Tools", self.actionSamEncoderCopilot)
+        self.iface.addPluginToMenu("Geo-SAM Tools", self.actionSamSettings)
 
         # self.iface.addToolBarIcon(self.action)
         self.toolbar.addAction(self.actionSamTool)
         self.toolbar.addAction(self.actionSamEncoder)
         self.toolbar.addAction(self.actionSamEncoderCopilot)
+        self.toolbar.addAction(self.actionSamSettings)
         self.toolbar.setVisible(True)
 
     def create_widget_selector(self):
-        '''Create widget for selecting landform by prompts'''
+        """Create widget for selecting landform by prompts"""
         if not hasattr(self, "wdg_select"):
             self.wdg_select = Selector(self, self.iface, self.cwd)
         self.wdg_select.open_widget()
 
     def create_widget_encoder_copilot(self):
-        '''Create widget for co-piloting encoder settings'''
+        """Create widget for co-piloting encoder settings"""
         if not hasattr(self, "wdg_copilot"):
             self.wdg_copilot = EncoderCopilot(self, self.iface, self.cwd)
         self.wdg_copilot.open_widget()
 
+    def open_settings_dialog(self):
+        """Open the standalone settings dialog."""
+        dialog = GeoSamSettingsDialog(self.iface.mainWindow())
+        dialog.exec()
+        if hasattr(self, "wdg_select"):
+            self.wdg_select.refresh_runtime_controls()
+
     def unload(self):
-        '''Unload actions when plugin is closed'''
+        """Unload actions when plugin is closed"""
         if hasattr(self, "wdg_select"):
             self.wdg_select.unload()
             self.wdg_select.setParent(None)
@@ -106,17 +124,20 @@ class Geo_SAM(QObject):
         self.iface.removeToolBarIcon(self.actionSamTool)
         self.iface.removeToolBarIcon(self.actionSamEncoder)
         self.iface.removeToolBarIcon(self.actionSamEncoderCopilot)
-        self.iface.removePluginMenu('&Geo-SAM Tools', self.actionSamTool)
-        self.iface.removePluginMenu('&Geo-SAM Tools', self.actionSamEncoder)
+        self.iface.removeToolBarIcon(self.actionSamSettings)
+        self.iface.removePluginMenu("&Geo-SAM Tools", self.actionSamTool)
+        self.iface.removePluginMenu("&Geo-SAM Tools", self.actionSamEncoder)
         self.iface.removePluginMenu(
-            '&Geo-SAM Tools', self.actionSamEncoderCopilot)
+            "&Geo-SAM Tools", self.actionSamEncoderCopilot)
+        self.iface.removePluginMenu("&Geo-SAM Tools", self.actionSamSettings)
 
         del self.actionSamTool
         del self.actionSamEncoder
         del self.actionSamEncoderCopilot
+        del self.actionSamSettings
         del self.toolbar
         QgsApplication.processingRegistry().removeProvider(self.provider)
 
     def encodeImage(self):
-        '''Convert layer containing a point x & y coordinate to a new point layer'''
-        processing.execAlgorithmDialog('geo_sam:geo_sam_encoder', {})
+        """Convert layer containing a point x & y coordinate to a new point layer"""
+        processing.execAlgorithmDialog("geo_sam:geo_sam_encoder", {})
