@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -29,7 +31,6 @@ from qgis.gui import (
 )
 from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
-from rasterio.transform import Affine, rowcol
 
 from ..ui.cursors import (
     UI_SCALE,
@@ -44,7 +45,25 @@ from .geoTool import ImageCRSManager, LayerExtent
 from .messageTool import MessageTool
 from .ulid import GroupId
 
+if TYPE_CHECKING:
+    from rasterio.transform import Affine
+
 logger = logging.getLogger(__name__)
+
+
+def _rowcol(transform: Affine, x_value: float, y_value: float) -> tuple[int, int]:
+    """Resolve raster row and column lazily so plugin import stays lightweight."""
+    try:
+        from rasterio.transform import rowcol
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "rasterio is required for raster coordinate conversion. "
+            "Open Geo-SAM Settings and install dependencies first."
+        ) from exc
+    from rasterio.transform import rowcol
+
+    row_index, col_index = rowcol(transform, x_value, y_value)
+    return int(row_index), int(col_index)
 
 SAM_Feature_Fields = [
     QgsField("group_ulid", QVariant.String),
@@ -255,8 +274,8 @@ class Canvas_Rectangle:
     def get_img_box(self, transform):
         '''Return the box for SAM image'''
         if self.box_geo is not None:
-            rowcol1 = rowcol(transform, self.box_geo[0], self.box_geo[1])
-            rowcol2 = rowcol(transform, self.box_geo[2], self.box_geo[3])
+            rowcol1 = _rowcol(transform, self.box_geo[0], self.box_geo[1])
+            rowcol2 = _rowcol(transform, self.box_geo[2], self.box_geo[3])
             box = [
                 min(rowcol1[1], rowcol2[1]),
                 min(rowcol1[0], rowcol2[0]),
@@ -529,7 +548,7 @@ class Canvas_Points:
             return None, None
         points = []
         for point in self.img_crs_points:
-            row_point, col_point = rowcol(tf, point.x(), point.y())
+            row_point, col_point = _rowcol(tf, point.x(), point.y())
             points.append((col_point, row_point))
 
         points = np.array(points)

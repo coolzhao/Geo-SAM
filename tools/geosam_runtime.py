@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import gc
 import hashlib
+import importlib.metadata
 import importlib.util
 import json
 import logging
+import os
 import shutil
 import subprocess
 import sys
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Callable, Literal
 from urllib.parse import urlparse
 
 from PyQt5.QtCore import QUrl
@@ -52,59 +54,61 @@ HELP_LINKS = {
 }
 ONLINE_QUERY_REFRESH_MARGIN_PIXELS = 128
 
-try:
-    from geosam.runtime import (
-        DEFAULT_MODEL_REPOSITORY as RUNTIME_DEFAULT_MODEL_REPOSITORY,
-        MODEL_DEFINITIONS as RUNTIME_MODEL_DEFINITIONS,
-        ModelDefinition as RuntimeModelDefinition,
-    )
-except ModuleNotFoundError:
-    DEFAULT_MODEL_REPOSITORY = "https://github.com/Fanchengyan/geosam-models"
+_DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
+_FROZEN_DATACLASS_KWARGS = {"frozen": True, **_DATACLASS_SLOTS_KWARGS}
+_MUTABLE_DATACLASS_KWARGS = dict(_DATACLASS_SLOTS_KWARGS)
 
-    @dataclass(slots=True, frozen=True)
-    class ModelDefinition:
-        """Supported downloadable model definition."""
-
-        model_id: str
-        label: str
-        model_type: Literal["sam", "sam2", "sam3"]
-        filename: str
-        supports_feature_reuse: bool = True
+DEFAULT_MODEL_REPOSITORY = "https://github.com/Fanchengyan/geosam-models"
+DEPENDENCY_DISTRIBUTIONS: dict[str, str] = {
+    "geosam": "geosam",
+    "torch": "torch",
+    "ultralytics": "ultralytics",
+    "rasterio": "rasterio",
+    "geopandas": "geopandas",
+    "pyarrow": "pyarrow",
+}
 
 
-    MODEL_DEFINITIONS: tuple[ModelDefinition, ...] = (
-        ModelDefinition("sam_b", "SAM Base", "sam", "sam_b.pt"),
-        ModelDefinition("sam_l", "SAM Large", "sam", "sam_l.pt"),
-        ModelDefinition("sam2_t", "SAM2 Tiny", "sam2", "sam2_t.pt"),
-        ModelDefinition("sam2_s", "SAM2 Small", "sam2", "sam2_s.pt"),
-        ModelDefinition("sam2_b", "SAM2 Base", "sam2", "sam2_b.pt"),
-        ModelDefinition("sam2_l", "SAM2 Large", "sam2", "sam2_l.pt"),
-        ModelDefinition("sam2.1_t", "SAM2.1 Tiny", "sam2", "sam2.1_t.pt"),
-        ModelDefinition("sam2.1_s", "SAM2.1 Small", "sam2", "sam2.1_s.pt"),
-        ModelDefinition("sam2.1_b", "SAM2.1 Base", "sam2", "sam2.1_b.pt"),
-        ModelDefinition("sam2.1_l", "SAM2.1 Large", "sam2", "sam2.1_l.pt"),
-        ModelDefinition(
-            "sam3",
-            "SAM3",
-            "sam3",
-            "sam3.pt",
-            supports_feature_reuse=False,
-        ),
-        ModelDefinition(
-            "sam3.1_multiplex",
-            "SAM3.1 Multiplex",
-            "sam3",
-            "sam3.1_multiplex.pt",
-            supports_feature_reuse=False,
-        ),
-    )
-else:
-    DEFAULT_MODEL_REPOSITORY = RUNTIME_DEFAULT_MODEL_REPOSITORY
-    ModelDefinition = RuntimeModelDefinition  # type: ignore[misc]
-    MODEL_DEFINITIONS = RUNTIME_MODEL_DEFINITIONS
+@dataclass(**_FROZEN_DATACLASS_KWARGS)
+class ModelDefinition:
+    """Supported downloadable model definition."""
+
+    model_id: str
+    label: str
+    model_type: Literal["sam", "sam2", "sam3"]
+    filename: str
+    supports_feature_reuse: bool = True
 
 
-@dataclass(slots=True, frozen=True)
+MODEL_DEFINITIONS: tuple[ModelDefinition, ...] = (
+    ModelDefinition("sam_b", "SAM Base", "sam", "sam_b.pt"),
+    ModelDefinition("sam_l", "SAM Large", "sam", "sam_l.pt"),
+    ModelDefinition("sam2_t", "SAM2 Tiny", "sam2", "sam2_t.pt"),
+    ModelDefinition("sam2_s", "SAM2 Small", "sam2", "sam2_s.pt"),
+    ModelDefinition("sam2_b", "SAM2 Base", "sam2", "sam2_b.pt"),
+    ModelDefinition("sam2_l", "SAM2 Large", "sam2", "sam2_l.pt"),
+    ModelDefinition("sam2.1_t", "SAM2.1 Tiny", "sam2", "sam2.1_t.pt"),
+    ModelDefinition("sam2.1_s", "SAM2.1 Small", "sam2", "sam2.1_s.pt"),
+    ModelDefinition("sam2.1_b", "SAM2.1 Base", "sam2", "sam2.1_b.pt"),
+    ModelDefinition("sam2.1_l", "SAM2.1 Large", "sam2", "sam2.1_l.pt"),
+    ModelDefinition(
+        "sam3",
+        "SAM3",
+        "sam3",
+        "sam3.pt",
+        supports_feature_reuse=False,
+    ),
+    ModelDefinition(
+        "sam3.1_multiplex",
+        "SAM3.1 Multiplex",
+        "sam3",
+        "sam3.1_multiplex.pt",
+        supports_feature_reuse=False,
+    ),
+)
+
+
+@dataclass(**_FROZEN_DATACLASS_KWARGS)
 class FeatureSourceSummary:
     """Summary metadata for a cached GeoSAM feature source."""
 
@@ -117,7 +121,7 @@ class FeatureSourceSummary:
     checkpoint_path: str | None = None
 
 
-@dataclass(slots=True)
+@dataclass(**_MUTABLE_DATACLASS_KWARGS)
 class RealtimeQueryCache:
     """Session cache for realtime raster queries."""
 
@@ -136,15 +140,15 @@ class RealtimeQueryCache:
         self.query_cache = None
 
 
-RealtimeQueryProgressCallback: TypeAlias = Callable[[str, float], None]
-RealtimeQueryCancelCallback: TypeAlias = Callable[[], bool]
+RealtimeQueryProgressCallback = Callable[[str, float], None]
+RealtimeQueryCancelCallback = Callable[[], bool]
 
 
 class _RealtimeQueryCanceledError(RuntimeError):
     """Internal exception used to stop a background realtime query task."""
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(**_FROZEN_DATACLASS_KWARGS)
 class PreparedRealtimeRasterQuery:
     """Prepared background-query inputs for a realtime raster request.
 
@@ -176,7 +180,7 @@ class PreparedRealtimeRasterQuery:
     supports_feature_reuse: bool
 
 
-@dataclass(slots=True)
+@dataclass(**_MUTABLE_DATACLASS_KWARGS)
 class PreparedRealtimeRasterQueryResult:
     """Result payload returned by a background realtime raster query.
 
@@ -300,9 +304,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 def sanitize_path_component(value: str) -> str:
     """Convert an arbitrary label into a filesystem-safe path component."""
     sanitized = "".join(
-        character
-        if character.isalnum() or character in {"-", "_", "."}
-        else "_"
+        character if character.isalnum() or character in {"-", "_", "."} else "_"
         for character in value.strip()
     )
     sanitized = sanitized.strip("._")
@@ -337,9 +339,7 @@ def save_plugin_settings(updates: dict[str, Any]) -> dict[str, Any]:
     settings.update(updates)
     defaults = _default_plugin_settings()
     user_settings = {
-        key: value
-        for key, value in settings.items()
-        if defaults.get(key) != value
+        key: value for key, value in settings.items() if defaults.get(key) != value
     }
     SETTINGS_USER_PATH.write_text(
         json.dumps(user_settings, indent=4),
@@ -465,30 +465,149 @@ def create_model_spec_from_checkpoint(
 
 
 def dependency_status() -> dict[str, bool]:
-    """Return import availability for required runtime dependencies."""
-    modules = [
-        "geosam",
-        "torch",
-        "ultralytics",
-        "rasterio",
-        "geopandas",
-        "pyarrow",
-    ]
-    return {
-        module_name: importlib.util.find_spec(module_name) is not None
-        for module_name in modules
-    }
+    """Return installed-package availability for required dependencies.
+
+    Notes
+    -----
+    This check intentionally uses distribution metadata instead of
+    ``importlib.util.find_spec`` so the result reflects the current environment
+    after install or uninstall operations in the same QGIS session.
+    """
+    status: dict[str, bool] = {}
+    for module_name, distribution_name in DEPENDENCY_DISTRIBUTIONS.items():
+        try:
+            importlib.metadata.distribution(distribution_name)
+        except importlib.metadata.PackageNotFoundError:
+            status[module_name] = False
+        else:
+            status[module_name] = True
+    return status
 
 
-def install_dependencies() -> tuple[bool, str]:
-    """Install GeoSAM plugin dependencies with pip."""
-    geosam_requirement = (
-        str(LOCAL_GEOSAM_REPOSITORY)
-        if LOCAL_GEOSAM_REPOSITORY.exists()
-        else "geosam"
+def _is_relative_to(path: Path, base_path: Path) -> bool:
+    """Return whether ``path`` is located inside ``base_path``."""
+    try:
+        path.relative_to(base_path)
+    except ValueError:
+        return False
+    return True
+
+
+def _iter_python_interpreter_candidates() -> list[Path]:
+    """Return candidate Python executables for the active QGIS environment.
+
+    The QGIS macOS application often reports ``sys.executable`` as the GUI
+    launcher binary instead of the environment Python interpreter. This helper
+    derives Python candidates from ``sys.prefix`` first, then uses ``sys.path``
+    to discover additional prefix-local Python binaries.
+
+    Returns
+    -------
+    list[Path]
+        Ordered executable candidates, with duplicates removed.
+    """
+    prefix_path = Path(sys.prefix).expanduser().resolve()
+    candidate_paths: list[Path] = []
+
+    for relative_path in (
+        "bin/python",
+        "bin/python3",
+        "bin/python3.11",
+        "python",
+        "python3",
+        "python3.11",
+    ):
+        candidate_paths.append(prefix_path / relative_path)
+
+    for raw_path in sys.path:
+        if not raw_path:
+            continue
+        try:
+            resolved_path = Path(raw_path).expanduser().resolve()
+        except OSError:
+            continue
+        if not _is_relative_to(resolved_path, prefix_path):
+            continue
+
+        for parent_path in (resolved_path, *resolved_path.parents):
+            if parent_path == prefix_path.parent:
+                break
+            if parent_path.name not in {"bin", "Scripts"}:
+                continue
+            for child_path in sorted(parent_path.glob("python*")):
+                candidate_paths.append(child_path)
+
+    unique_candidates: list[Path] = []
+    seen_paths: set[Path] = set()
+    for candidate_path in candidate_paths:
+        try:
+            resolved_candidate = candidate_path.expanduser().resolve()
+        except OSError:
+            continue
+        if resolved_candidate in seen_paths:
+            continue
+        seen_paths.add(resolved_candidate)
+        unique_candidates.append(resolved_candidate)
+    return unique_candidates
+
+
+def resolve_python_interpreter() -> Path:
+    """Resolve the Python interpreter for the active QGIS runtime environment.
+
+    Returns
+    -------
+    Path
+        Resolved Python interpreter path that belongs to ``sys.prefix``.
+
+    Raises
+    ------
+    RuntimeError
+        Raised when no suitable Python interpreter can be found.
+    """
+    prefix_path = Path(sys.prefix).expanduser().resolve()
+    executable_path = Path(sys.executable).expanduser().resolve()
+    if executable_path.is_file() and executable_path.name.startswith("python"):
+        return executable_path
+
+    for candidate_path in _iter_python_interpreter_candidates():
+        if not candidate_path.is_file():
+            continue
+        if not os.access(candidate_path, os.X_OK):
+            continue
+        if not candidate_path.name.startswith("python"):
+            continue
+        if not _is_relative_to(candidate_path, prefix_path):
+            continue
+        return candidate_path
+
+    msg = (
+        "Could not resolve a Python interpreter from the current QGIS runtime. "
+        f"sys.executable={sys.executable!r}, sys.prefix={sys.prefix!r}"
     )
-    command = [
-        sys.executable,
+    logger.error(msg)
+    raise RuntimeError(msg)
+
+
+def get_dependency_install_command() -> list[str]:
+    """Build the pip command used to install plugin dependencies.
+
+    Returns
+    -------
+    list[str]
+        Command arguments suitable for ``subprocess`` execution.
+
+    Raises
+    ------
+    RuntimeError
+        Raised when the current QGIS runtime Python interpreter cannot be
+        resolved.
+    """
+    geosam_requirement = (
+        str(LOCAL_GEOSAM_REPOSITORY) if LOCAL_GEOSAM_REPOSITORY.exists() else "geosam"
+    )
+    python_interpreter = resolve_python_interpreter()
+    return [
+        str(python_interpreter),
         "-m",
         "pip",
         "install",
@@ -500,16 +619,48 @@ def install_dependencies() -> tuple[bool, str]:
         "geopandas",
         "pyarrow",
     ]
-    result = subprocess.run(
+
+
+def install_dependencies(
+    log_callback: Callable[[str], None] | None = None,
+) -> tuple[bool, str]:
+    """Install GeoSAM plugin dependencies with pip.
+
+    Parameters
+    ----------
+    log_callback : Callable[[str], None] | None, optional
+        Callback that receives incremental install log lines.
+
+    Returns
+    -------
+    tuple[bool, str]
+        Installation success flag and combined command output.
+    """
+    try:
+        command = get_dependency_install_command()
+    except RuntimeError as exc:
+        logger.error("Dependency installation aborted: %s", exc)
+        return False, str(exc)
+
+    process = subprocess.Popen(
         command,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
-        check=False,
+        bufsize=1,
     )
-    output = "\n".join(
-        part for part in [result.stdout.strip(), result.stderr.strip()] if part
-    )
-    return result.returncode == 0, output
+    output_lines: list[str] = []
+
+    if process.stdout is not None:
+        for raw_line in process.stdout:
+            line = raw_line.rstrip()
+            output_lines.append(line)
+            if log_callback is not None:
+                log_callback(line)
+
+    return_code = process.wait()
+    output = "\n".join(line for line in output_lines if line.strip())
+    return return_code == 0, output
 
 
 def open_url(url: str) -> None:
@@ -898,8 +1049,12 @@ def _query_is_far_from_chip_edge(query, *, chip_bounds, chip_grid) -> bool:
     height, width = chip_grid.shape
     pixel_size_x = abs(float(chip_grid.transform.a))
     pixel_size_y = abs(float(chip_grid.transform.e))
-    margin_x_pixels = min(max(ONLINE_QUERY_REFRESH_MARGIN_PIXELS, 1), max(width // 2, 1))
-    margin_y_pixels = min(max(ONLINE_QUERY_REFRESH_MARGIN_PIXELS, 1), max(height // 2, 1))
+    margin_x_pixels = min(
+        max(ONLINE_QUERY_REFRESH_MARGIN_PIXELS, 1), max(width // 2, 1)
+    )
+    margin_y_pixels = min(
+        max(ONLINE_QUERY_REFRESH_MARGIN_PIXELS, 1), max(height // 2, 1)
+    )
     margin_x = margin_x_pixels * pixel_size_x
     margin_y = margin_y_pixels * pixel_size_y
 
@@ -944,14 +1099,12 @@ def _persistent_cache_entry_paths_for_directory(
 ) -> tuple[Path, Path]:
     """Return persistent cache paths for one encoded realtime chip."""
     chip_key = sanitize_path_component(
-        "_".join(
-            [
-                f"{chip_bounds.left:.3f}",
-                f"{chip_bounds.bottom:.3f}",
-                f"{chip_bounds.right:.3f}",
-                f"{chip_bounds.top:.3f}",
-            ]
-        )
+        "_".join([
+            f"{chip_bounds.left:.3f}",
+            f"{chip_bounds.bottom:.3f}",
+            f"{chip_bounds.right:.3f}",
+            f"{chip_bounds.top:.3f}",
+        ])
     )
     entry_dir = cache_dir / chip_key
     entry_dir.mkdir(parents=True, exist_ok=True)
@@ -989,7 +1142,11 @@ def _save_persistent_query_cache_entry(
     settings = load_plugin_settings()
     if not settings.get("cache_enabled", True):
         return
-    if query_cache is None or query_cache.encoded is None or query_cache.chip_grid is None:
+    if (
+        query_cache is None
+        or query_cache.encoded is None
+        or query_cache.chip_grid is None
+    ):
         return
     if query_cache.chip_bounds is None:
         return
@@ -1097,7 +1254,9 @@ def prepare_realtime_raster_query(
         if (source_path := _normalize_local_raster_source(source_candidate)) is not None
     ]
     if len(source_candidates) == 0:
-        source_candidates = [_export_online_raster_source(layer, query, model_id=model_id)]
+        source_candidates = [
+            _export_online_raster_source(layer, query, model_id=model_id)
+        ]
 
     return PreparedRealtimeRasterQuery(
         model_id=model_id,
@@ -1279,7 +1438,9 @@ def _load_persistent_query_cache(
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         except Exception as exc:
-            logger.warning("Failed to read query cache metadata %s: %s", metadata_path, exc)
+            logger.warning(
+                "Failed to read query cache metadata %s: %s", metadata_path, exc
+            )
             continue
 
         if metadata.get("source_fingerprint") != expected_fingerprint:
@@ -1322,10 +1483,14 @@ def _load_persistent_query_cache(
             chip_grid=chip_grid,
             encoded=encoded,
         )
-        best_match = (distance, source_path, query_cache) if best_match is None else min(
-            best_match,
-            (distance, source_path, query_cache),
-            key=lambda item: item[0],
+        best_match = (
+            (distance, source_path, query_cache)
+            if best_match is None
+            else min(
+                best_match,
+                (distance, source_path, query_cache),
+                key=lambda item: item[0],
+            )
         )
 
     if best_match is None:
@@ -1349,7 +1514,9 @@ def _resolve_pixel_size(layer: QgsRasterLayer) -> tuple[float, float]:
     )
 
 
-def _chip_extent_for_online_layer(layer: QgsRasterLayer, query, *, chip_size: tuple[int, int]) -> QgsRectangle:
+def _chip_extent_for_online_layer(
+    layer: QgsRasterLayer, query, *, chip_size: tuple[int, int]
+) -> QgsRectangle:
     """Build a chip extent in layer CRS for an online raster query."""
     from geosam.query import query_center
 
@@ -1423,16 +1590,14 @@ def _export_online_raster_source(layer: QgsRasterLayer, query, *, model_id: str)
         _layer_source_fingerprint(layer).encode("utf-8")
     ).hexdigest()[:16]
     file_stem = sanitize_path_component(
-        "_".join(
-            [
-                model_id,
-                source_fingerprint,
-                f"{chip_extent.xMinimum():.3f}",
-                f"{chip_extent.yMinimum():.3f}",
-                f"{chip_extent.xMaximum():.3f}",
-                f"{chip_extent.yMaximum():.3f}",
-            ]
-        )
+        "_".join([
+            model_id,
+            source_fingerprint,
+            f"{chip_extent.xMinimum():.3f}",
+            f"{chip_extent.yMinimum():.3f}",
+            f"{chip_extent.xMaximum():.3f}",
+            f"{chip_extent.yMaximum():.3f}",
+        ])
     )
     destination_path = _online_layer_raster_cache_directory(layer) / f"{file_stem}.tif"
     if destination_path.exists():
@@ -1555,16 +1720,25 @@ def query_raster_layer(
                 cache.source_candidate = source_candidate
                 cache.engine = engine
                 if supports_feature_reuse and cache.query_cache is None:
-                    if persistent_cache_hit is not None and source_candidate == persistent_cache_hit[0]:
+                    if (
+                        persistent_cache_hit is not None
+                        and source_candidate == persistent_cache_hit[0]
+                    ):
                         cache.query_cache = persistent_cache_hit[1]
                     else:
                         cache.query_cache = OnlineQueryCache()
 
             result = engine.query(
                 query,
-                cache=cache.query_cache if (cache is not None and supports_feature_reuse) else None,
+                cache=cache.query_cache
+                if (cache is not None and supports_feature_reuse)
+                else None,
             )
-            if supports_feature_reuse and cache is not None and cache.query_cache is not None:
+            if (
+                supports_feature_reuse
+                and cache is not None
+                and cache.query_cache is not None
+            ):
                 _save_persistent_query_cache(
                     layer=layer,
                     model_id=model_id,
@@ -1596,9 +1770,15 @@ def query_raster_layer(
             cache.query_cache = OnlineQueryCache() if supports_feature_reuse else None
         result = engine.query(
             query,
-            cache=cache.query_cache if (cache is not None and supports_feature_reuse) else None,
+            cache=cache.query_cache
+            if (cache is not None and supports_feature_reuse)
+            else None,
         )
-        if supports_feature_reuse and cache is not None and cache.query_cache is not None:
+        if (
+            supports_feature_reuse
+            and cache is not None
+            and cache.query_cache is not None
+        ):
             _save_persistent_query_cache(
                 layer=layer,
                 model_id=model_id,

@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 import json
 import os
 from numbers import Real
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
-import rasterio
 from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QKeySequence
 from PyQt5.QtWidgets import (
@@ -23,7 +24,6 @@ from qgis.core import (
     QgsRectangle,
 )
 from qgis.gui import QgisInterface, QgsFileWidget, QgsMapToolPan
-from rasterio.windows import from_bounds as window_from_bounds
 
 from ..ui import (
     DefaultSettings,
@@ -62,6 +62,33 @@ from .geosam_runtime import (
 from .geoTool import ImageCRSManager
 from .messageTool import MessageTool
 
+if TYPE_CHECKING:
+    from rasterio.io import DatasetReader
+
+
+def _open_raster_dataset(raster_path: str) -> DatasetReader:
+    """Open a raster dataset lazily so the plugin can load without rasterio."""
+    try:
+        import rasterio
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "rasterio is required to read raster ranges. "
+            "Open Geo-SAM Settings and install dependencies first."
+        ) from exc
+    return rasterio.open(raster_path)
+
+
+def _window_from_bounds(*bounds: float, transform: Any) -> Any:
+    """Build a rasterio window lazily from bounds."""
+    try:
+        from rasterio.windows import from_bounds
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "rasterio is required to compute raster windows. "
+            "Open Geo-SAM Settings and install dependencies first."
+        ) from exc
+    return from_bounds(*bounds, transform)
+
 
 class ParseRangeThread(QThread):
     def __init__(
@@ -78,7 +105,7 @@ class ParseRangeThread(QThread):
         self.bands = bands
 
     def run(self):
-        with rasterio.open(self.raster_path) as src:
+        with _open_raster_dataset(self.raster_path) as src:
             # if image is too large, downsample it
             width = src.width
             height = src.height
@@ -90,7 +117,7 @@ class ParseRangeThread(QThread):
             if self.extent is None:
                 window = None
             else:
-                window = window_from_bounds(*self.extent, src.transform)
+                window = _window_from_bounds(*self.extent, transform=src.transform)
 
             arr = src.read(
                 self.bands, out_shape=(len(self.bands), height, width), window=window

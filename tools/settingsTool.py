@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QProcess, Qt
 from PyQt5.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -18,6 +18,8 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QTabWidget,
@@ -37,9 +39,9 @@ from .geosam_runtime import (
     download_model,
     get_cache_directory,
     get_cache_size_bytes,
+    get_dependency_install_command,
     get_model_directory,
     get_model_status_rows,
-    install_dependencies,
     load_plugin_settings,
     open_path,
     open_url,
@@ -57,6 +59,8 @@ class GeoSamSettingsDialog(QDialog):
         self.setWindowTitle("Geo-SAM Settings")
         self.resize(760, 520)
         self.settings = load_plugin_settings()
+        self._dependency_install_process: QProcess | None = None
+        self._dependency_install_output_buffer = ""
 
         self.tab_widget = QTabWidget(self)
         self.tab_widget.addTab(self._build_dependency_tab(), "Dependencies")
@@ -64,12 +68,12 @@ class GeoSamSettingsDialog(QDialog):
         self.tab_widget.addTab(self._build_cache_tab(), "Cache")
         self.tab_widget.addTab(self._build_help_tab(), "Help")
 
-        close_button = QPushButton("Close", self)
-        close_button.clicked.connect(self.accept)
+        self.close_button = QPushButton("Close", self)
+        self.close_button.clicked.connect(self.accept)
 
         root_layout = QVBoxLayout(self)
         root_layout.addWidget(self.tab_widget)
-        root_layout.addWidget(close_button, alignment=Qt.AlignRight)
+        root_layout.addWidget(self.close_button, alignment=Qt.AlignRight)
 
         self.refresh_dependency_status()
         self.refresh_model_list()
@@ -86,18 +90,33 @@ class GeoSamSettingsDialog(QDialog):
             self.dependency_labels[module_name] = label
             self.dependency_form.addRow(module_name, label)
 
+        self.dependency_install_status_label = QLabel("Ready", tab)
+        self.dependency_form.addRow("Install Status", self.dependency_install_status_label)
+
         button_row = QHBoxLayout()
-        refresh_button = QPushButton("Refresh", tab)
-        refresh_button.clicked.connect(self.refresh_dependency_status)
-        install_button = QPushButton("Install", tab)
-        install_button.clicked.connect(self.install_dependencies_clicked)
-        button_row.addWidget(refresh_button)
-        button_row.addWidget(install_button)
+        self.refresh_dependencies_button = QPushButton("Refresh", tab)
+        self.refresh_dependencies_button.clicked.connect(self.refresh_dependency_status)
+        self.install_dependencies_button = QPushButton("Install", tab)
+        self.install_dependencies_button.clicked.connect(self.install_dependencies_clicked)
+        button_row.addWidget(self.refresh_dependencies_button)
+        button_row.addWidget(self.install_dependencies_button)
         button_row.addStretch(1)
+
+        self.dependency_install_progress = QProgressBar(tab)
+        self.dependency_install_progress.setRange(0, 0)
+        self.dependency_install_progress.setVisible(False)
+
+        self.dependency_install_log = QPlainTextEdit(tab)
+        self.dependency_install_log.setReadOnly(True)
+        self.dependency_install_log.setPlaceholderText(
+            "Dependency installation output will appear here."
+        )
+        self.dependency_install_log.setMinimumHeight(180)
 
         layout.addLayout(self.dependency_form)
         layout.addLayout(button_row)
-        layout.addStretch(1)
+        layout.addWidget(self.dependency_install_progress)
+        layout.addWidget(self.dependency_install_log)
         return tab
 
     def _build_model_tab(self) -> QWidget:
@@ -235,11 +254,108 @@ class GeoSamSettingsDialog(QDialog):
             )
 
     def install_dependencies_clicked(self) -> None:
-        ok, output = install_dependencies()
-        title = "Dependencies Installed" if ok else "Dependency Installation Failed"
-        message = output if output else title
-        MessageTool.MessageBoxOK(message, title=title)
+        if self._dependency_install_process is not None:
+            return
+
+        self.dependency_install_log.clear()
+        self.dependency_install_status_label.setText("Installing...")
+        self.dependency_install_progress.setVisible(True)
+        self.install_dependencies_button.setEnabled(False)
+        self.refresh_dependencies_button.setEnabled(False)
+        self.close_button.setEnabled(False)
+        self._dependency_install_output_buffer = ""
+        self._append_dependency_install_log("Starting dependency installation...")
+        try:
+            command = get_dependency_install_command()
+        except RuntimeError as exc:
+            self._finish_dependency_install(False, str(exc))
+            return
+
+        process = QProcess(self)
+        process.setProgram(command[0])
+        process.setArguments(command[1:])
+        process.setProcessChannelMode(QProcess.MergedChannels)
+        process.readyReadStandardOutput.connect(self._read_dependency_install_output)
+        process.errorOccurred.connect(self._dependency_install_error)
+        process.finished.connect(self._dependency_install_finished)
+        self._dependency_install_process = process
+        process.start()
+
+    def _read_dependency_install_output(self) -> None:
+        """Read and append incremental dependency install output."""
+        process = self._dependency_install_process
+        if process is None:
+            return
+
+        raw_output = bytes(process.readAllStandardOutput()).decode(
+            "utf-8",
+            errors="replace",
+        )
+        if not raw_output:
+            return
+
+        self._dependency_install_output_buffer += raw_output
+        while "\n" in self._dependency_install_output_buffer:
+            line, self._dependency_install_output_buffer = (
+                self._dependency_install_output_buffer.split("\n", maxsplit=1)
+            )
+            self._append_dependency_install_log(line.rstrip("\r"))
+
+    def _dependency_install_finished(self, exit_code: int, _exit_status: int) -> None:
+        """Handle completion of the asynchronous dependency install command."""
+        if self._dependency_install_process is None:
+            return
+
+        if self._dependency_install_output_buffer:
+            self._append_dependency_install_log(
+                self._dependency_install_output_buffer.rstrip("\r\n")
+            )
+            self._dependency_install_output_buffer = ""
+
+        output = self.dependency_install_log.toPlainText().strip()
+        self._finish_dependency_install(exit_code == 0, output)
+
+    def _dependency_install_error(self, _error: QProcess.ProcessError) -> None:
+        """Handle startup or runtime failures from the dependency installer."""
+        process = self._dependency_install_process
+        if process is None:
+            return
+
+        self._read_dependency_install_output()
+        error_message = process.errorString().strip() or (
+            "Dependency installer process failed to start."
+        )
+        combined_output = self.dependency_install_log.toPlainText().strip()
+        if combined_output:
+            combined_output = f"{combined_output}\n{error_message}"
+        else:
+            combined_output = error_message
+        self._finish_dependency_install(False, combined_output)
+
+    def _finish_dependency_install(self, ok: bool, output: str) -> None:
+        """Restore dependency install UI state and report the result."""
+        self.dependency_install_progress.setVisible(False)
+        self.install_dependencies_button.setEnabled(True)
+        self.refresh_dependencies_button.setEnabled(True)
+        self.close_button.setEnabled(True)
+        self.dependency_install_status_label.setText(
+            "Installed" if ok else "Failed"
+        )
+        self._dependency_install_process = None
+
+        if ok and not output.strip():
+            self._append_dependency_install_log("Dependency installation completed.")
+        elif not ok and not output.strip():
+            self._append_dependency_install_log("Dependency installation failed.")
         self.refresh_dependency_status()
+
+    def _append_dependency_install_log(self, message: str) -> None:
+        """Append a dependency installation log line to the settings dialog."""
+        if not message:
+            return
+        self.dependency_install_log.appendPlainText(message)
+        scrollbar = self.dependency_install_log.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def save_model_repository(self) -> None:
         self.settings = save_plugin_settings({

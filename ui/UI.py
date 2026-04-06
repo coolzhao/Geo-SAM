@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from typing import cast
 
@@ -5,9 +7,9 @@ from PyQt5 import uic
 from qgis.gui import QgsDockWidget
 
 try:
-    from qgis.PyQt.QtGui import QDockWidget, QWidget
+    from qgis.PyQt.QtGui import QWidget
 except Exception:
-    from qgis.PyQt.QtWidgets import QDockWidget, QWidget
+    from qgis.PyQt.QtWidgets import QWidget
 
 cwd = os.path.abspath(os.path.dirname(__file__))
 selector_path = os.path.join(cwd, "Selector.ui")
