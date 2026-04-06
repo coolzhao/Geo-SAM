@@ -8,9 +8,15 @@ from qgis.core import QgsApplication
 from qgis.gui import QgisInterface
 
 from .geo_sam_provider import GeoSamProvider
+from .tools.geosam_runtime import cleanup_on_plugin_unload
 from .tools.settingsTool import GeoSamSettingsDialog
 from .tools.widgetTool import EncoderCopilot, Selector
-from .ui.icons import QIcon_EncoderCopilot, QIcon_EncoderTool, QIcon_GeoSAMTool
+from .ui.icons import (
+    QIcon_EncoderCopilot,
+    QIcon_EncoderTool,
+    QIcon_GeoSAMSettings,
+    QIcon_GeoSAMTool,
+)
 
 
 class Geo_SAM(QObject):
@@ -54,6 +60,7 @@ class Geo_SAM(QObject):
             self.iface.mainWindow()
         )
         self.actionSamSettings = QAction(
+            QIcon_GeoSAMSettings,
             "Geo-SAM Settings",
             self.iface.mainWindow()
         )
@@ -137,6 +144,7 @@ class Geo_SAM(QObject):
         del self.actionSamSettings
         del self.toolbar
         QgsApplication.processingRegistry().removeProvider(self.provider)
+        cleanup_on_plugin_unload()
 
     def encodeImage(self):
         """Convert layer containing a point x & y coordinate to a new point layer"""

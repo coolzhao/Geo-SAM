@@ -30,6 +30,7 @@ from .geosam_runtime import (
     DEFAULT_MODEL_DIR,
     HELP_LINKS,
     PLUGIN_ROOT,
+    clear_cache,
     cleanup_cache,
     delete_model,
     dependency_status,
@@ -42,6 +43,7 @@ from .geosam_runtime import (
     load_plugin_settings,
     open_path,
     open_url,
+    release_runtime_models,
     save_plugin_settings,
 )
 from .messageTool import MessageTool
@@ -132,10 +134,13 @@ class GeoSamSettingsDialog(QDialog):
         self.download_button.clicked.connect(self.download_selected_model)
         self.delete_button = QPushButton("Delete", tab)
         self.delete_button.clicked.connect(self.delete_selected_model)
+        release_button = QPushButton("Release Loaded Models", tab)
+        release_button.clicked.connect(self.release_loaded_models_clicked)
         refresh_button = QPushButton("Refresh", tab)
         refresh_button.clicked.connect(self.refresh_model_list)
         action_row.addWidget(self.download_button)
         action_row.addWidget(self.delete_button)
+        action_row.addWidget(release_button)
         action_row.addWidget(refresh_button)
         action_row.addStretch(1)
 
@@ -169,15 +174,28 @@ class GeoSamSettingsDialog(QDialog):
         self.cache_size_box.setValue(int(self.settings["cache_max_size_mb"]))
         self.cache_size_box.valueChanged.connect(self.save_cache_settings)
 
+        self.clear_cache_on_close_checkbox = QCheckBox(
+            "Clear cache when the plugin closes",
+            tab,
+        )
+        self.clear_cache_on_close_checkbox.setChecked(
+            bool(self.settings.get("clear_cache_on_plugin_close", True))
+        )
+        self.clear_cache_on_close_checkbox.toggled.connect(self.save_cache_settings)
+
         self.cache_status_label = QLabel("", tab)
         cleanup_button = QPushButton("Cleanup Now", tab)
         cleanup_button.clicked.connect(self.cleanup_cache_clicked)
+        clear_button = QPushButton("Clear All Cache", tab)
+        clear_button.clicked.connect(self.clear_cache_clicked)
 
         form_layout.addRow("Cache", self.cache_enabled_checkbox)
         form_layout.addRow("Location", cache_dir_row)
         form_layout.addRow("Max Size (MB)", self.cache_size_box)
+        form_layout.addRow("Close Behavior", self.clear_cache_on_close_checkbox)
         form_layout.addRow("Current Usage", self.cache_status_label)
         form_layout.addRow("", cleanup_button)
+        form_layout.addRow("", clear_button)
 
         layout.addLayout(form_layout)
         layout.addStretch(1)
@@ -301,6 +319,15 @@ class GeoSamSettingsDialog(QDialog):
         delete_model(model_id)
         self.refresh_model_list()
 
+    def release_loaded_models_clicked(self) -> None:
+        """Release loaded GeoSAM model sessions from memory."""
+        removed_count = release_runtime_models()
+        MessageTool.MessageBar(
+            "Geo-SAM",
+            f"Released {removed_count} loaded model session(s).",
+            level="info",
+        )
+
     def save_cache_settings(self) -> None:
         cache_dir = self.cache_dir_edit.text().strip() or str(DEFAULT_CACHE_DIR)
         self.cache_dir_edit.setText(cache_dir)
@@ -308,6 +335,7 @@ class GeoSamSettingsDialog(QDialog):
             "cache_enabled": self.cache_enabled_checkbox.isChecked(),
             "cache_dir": cache_dir,
             "cache_max_size_mb": self.cache_size_box.value(),
+            "clear_cache_on_plugin_close": self.clear_cache_on_close_checkbox.isChecked(),
         })
         self.refresh_cache_status()
 
@@ -331,5 +359,15 @@ class GeoSamSettingsDialog(QDialog):
         MessageTool.MessageBar(
             "Geo-SAM",
             f"Removed {removed_count} cached file(s).",
+            level="info",
+        )
+
+    def clear_cache_clicked(self) -> None:
+        """Delete all plugin cache files immediately."""
+        removed_count = clear_cache()
+        self.refresh_cache_status()
+        MessageTool.MessageBar(
+            "Geo-SAM",
+            f"Deleted {removed_count} cached file(s).",
             level="info",
         )

@@ -8,9 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-import geopandas as gpd
 import numpy as np
-import torch
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
@@ -38,15 +36,13 @@ from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtWidgets import QAction, QDockWidget
 from qgis.utils import iface
 
-from geosam import BoundingBox, RasterDataset, build_model_adapter
-from geosam.models import EncodedImageFeatures
-
 from ..docs import encoder_help
 from ..ui.icons import QIcon_EncoderTool
 from .geosam_runtime import (
     chip_extent_rectangles_for_source,
     create_model_spec_from_checkpoint,
     get_model_display_items,
+    sanitize_path_component,
 )
 
 # 0 for meters, 6 for degrees, 9 for unknown
@@ -206,6 +202,16 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback: QgsProcessingFeedback,
     ) -> dict[str, Any]:
         """Run the cache-building workflow."""
+        try:
+            from geosam import BoundingBox, RasterDataset, build_model_adapter
+        except ModuleNotFoundError as exc:
+            raise QgsProcessingException(
+                self.tr(
+                    "GeoSAM dependencies are not installed yet. "
+                    "Open Geo-SAM Settings and install dependencies first."
+                )
+            ) from exc
+
         self.feature_dir = ""
         self.iPatch = 0
         self.load_feature = False
@@ -269,9 +275,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             target_crs = raster_layer.crs()
 
         layer_units = (
-            "degrees"
-            if raster_layer.crs().mapUnits() == UNIT_DEGREES
-            else "meters"
+            "degrees" if raster_layer.crs().mapUnits() == UNIT_DEGREES else "meters"
         )
         if np.isnan(resolution) or resolution == 0:
             resolution = raster_layer.rasterUnitsPerPixelX()
@@ -330,6 +334,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             context=context,
             feedback=feedback,
         )
+        output_dir = output_dir / sanitize_path_component(raster_layer.name())
         output_dir.mkdir(parents=True, exist_ok=True)
         features_dir = output_dir / "features"
         features_dir.mkdir(parents=True, exist_ok=True)
@@ -337,9 +342,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(f"Layer path: {source_path}")
         feedback.pushInfo(f"Layer name: {raster_layer.name()}")
         feedback.pushInfo(f"Bands selected: {selected_bands}")
-        feedback.pushInfo(
-            f"Target CRS: {target_crs.authid() or target_crs.toWkt()}"
-        )
+        feedback.pushInfo(f"Target CRS: {target_crs.authid() or target_crs.toWkt()}")
         feedback.pushInfo(f"Target resolution: {resolution} {target_units}")
         feedback.pushInfo(f"Device type: {device or 'cpu'}")
         feedback.pushInfo(f"Patch size: {model_spec.resolved_imgsz}")
@@ -381,6 +384,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         if len(rows) == 0:
             raise QgsProcessingException(self.tr("No feature cache was written."))
 
+        import geopandas as gpd
+
         manifest = gpd.GeoDataFrame(rows, geometry="geometry", crs=dataset.crs)
         manifest_path = output_dir / "manifest.parquet"
         manifest.to_parquet(manifest_path)
@@ -411,6 +416,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     @staticmethod
     def _select_device(*, use_gpu: bool, cuda_id: int) -> str | None:
         """Resolve the preferred inference device string."""
+        try:
+            import torch
+        except ModuleNotFoundError:
+            return None
         if not use_gpu:
             return None
         if torch.cuda.is_available():
@@ -526,7 +535,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     def _manifest_row(
         *,
         sample,
-        encoded: EncodedImageFeatures,
+        encoded,
         chip_id: str,
         feature_path: Path,
     ) -> dict[str, Any]:
@@ -575,9 +584,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     "\n GeoSAM widget found and features loaded in "
                     f"{elapsed_time:.3f} ms \n"
                 )
-                feedback.pushInfo(
-                    loaded_message
-                )
+                feedback.pushInfo(loaded_message)
                 return True
             if elapsed_time > 3000:
                 feedback.pushInfo(

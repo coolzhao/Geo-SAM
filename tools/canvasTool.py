@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,8 @@ from .geoTool import ImageCRSManager, LayerExtent
 from .messageTool import MessageTool
 from .ulid import GroupId
 
+logger = logging.getLogger(__name__)
+
 SAM_Feature_Fields = [
     QgsField("group_ulid", QVariant.String),
     QgsField("N_GM", QVariant.Int),
@@ -56,6 +59,23 @@ SAM_Feature_QgsFields = QgsFields()
 new_fields = QgsFields()
 for field in SAM_Feature_Fields:
     SAM_Feature_QgsFields.append(field)
+
+_ICON_TYPE_ATTRS = {
+    "Cross": "ICON_CROSS",
+    "X": "ICON_X",
+    "Box": "ICON_BOX",
+    "Circle": "ICON_CIRCLE",
+    "Double Triangle": "ICON_DOUBLE_TRIANGLE",
+    "Triangle": "ICON_TRIANGLE",
+    "Rhombus": "ICON_RHOMBUS",
+    "Inverted Triangle": "ICON_INVERTED_TRIANGLE",
+}
+ICON_TYPE = {
+    label: getattr(QgsVertexMarker, attr_name)
+    for label, attr_name in _ICON_TYPE_ATTRS.items()
+    if hasattr(QgsVertexMarker, attr_name)
+}
+DEFAULT_POINT_ICON_NAME = "Circle" if "Circle" in ICON_TYPE else next(iter(ICON_TYPE))
 
 
 class Canvas_Rectangle:
@@ -410,10 +430,16 @@ class Canvas_Points:
         self.labels: list[bool] = []
         self.foreground_color = QColor(0, 0, 255)
         self.background_color = QColor(255, 0, 0)
+        self.point_size = 1.0
+        self.icon_type = ICON_TYPE[DEFAULT_POINT_ICON_NAME]
 
     @property
     def project_crs(self):
         return QgsProject.instance().crs()
+
+    def _marker_icon_size(self) -> int:
+        """Return the rendered vertex-marker size in canvas pixels."""
+        return max(1, round(UI_SCALE * self.point_size / 3))
 
     def addPoint(self, point: QgsPointXY, foreground: bool, show: bool = True):
         """
@@ -433,9 +459,8 @@ class Canvas_Points:
             else:
                 m.setColor(self.background_color)
                 m.setFillColor(self.background_color)
-            # m.setIconSize(12)
-            m.setIconSize(round(UI_SCALE/3))
-            m.setIconType(QgsVertexMarker.ICON_CIRCLE)
+            m.setIconSize(self._marker_icon_size())
+            m.setIconType(self.icon_type)
 
         # add to markers and labels
         self.markers.append(m)
@@ -446,8 +471,8 @@ class Canvas_Points:
 
         self._update_extent()
 
-    def flush_points_color(self):
-        '''Flush the color of points'''
+    def flush_points_style(self):
+        """Flush point colors and marker styles."""
         for i, m in enumerate(self.markers):
             if self.labels[i]:
                 m.setColor(self.foreground_color)
@@ -455,6 +480,12 @@ class Canvas_Points:
             else:
                 m.setColor(self.background_color)
                 m.setFillColor(self.background_color)
+            m.setIconSize(self._marker_icon_size())
+            m.setIconType(self.icon_type)
+
+    def flush_points_color(self):
+        """Flush point colors while preserving the current marker style."""
+        self.flush_points_style()
 
     def popPoint(self):
         """remove the last marker"""
@@ -711,17 +742,42 @@ class SAM_PolygonFeature:
 
     @property
     def layer_name(self):
-        try:
-            return self.layer.name()
-        except:
+        layer = self.get_layer()
+        if layer is None:
             return self.default_name
+        return layer.name()
 
     @property
     def layer_id(self):
-        try:
-            return self.layer.id()
-        except:
+        layer = self.get_layer()
+        if layer is None:
             return None
+        return layer.id()
+
+    def get_layer(self) -> QgsVectorLayer | None:
+        """Return the current output layer when the wrapped QGIS object is valid.
+
+        Returns
+        -------
+        QgsVectorLayer | None
+            The current output layer when it is still alive, otherwise ``None``.
+
+        Notes
+        -----
+        QGIS can delete the underlying C++ layer object while the Python
+        wrapper is still stored on this instance. Accessing methods such as
+        ``layer.id()`` on that stale wrapper raises ``RuntimeError``.
+        """
+        layer = getattr(self, "layer", None)
+        if layer is None:
+            return None
+        try:
+            layer.id()
+        except RuntimeError as exc:
+            logger.warning("Stored SAM polygon layer is no longer valid: %s", exc)
+            self.layer = None
+            return None
+        return layer
 
     def layer_fields_correct(self, layer: QgsVectorLayer):
         fields = layer.fields().names()
