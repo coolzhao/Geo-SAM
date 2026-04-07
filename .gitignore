@@ -5,4 +5,4 @@ rasters/**/*.aux.xml
 .tmp.driveupload/*
 docs/build
 models
-docs
+.cache

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import weakref
 from numbers import Real
 from pathlib import Path
 from time import perf_counter
 from typing import Any, TYPE_CHECKING
 
 import numpy as np
-from PyQt5.QtCore import QEvent, Qt, QThread, pyqtSignal
+from PyQt5.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QKeySequence
 from PyQt5.QtWidgets import (
     QApplication,
@@ -149,6 +150,50 @@ class ShowPatchExtentThread(QThread):
             extents.append([bbox.minx, bbox.miny, bbox.maxx, bbox.maxy])
         self.retrieve_patch.emit(f"{extents}")
 
+
+class PromptCanvasTabEventFilter(QObject):
+    """Filter Tab on the active map canvas while prompt tools are selected.
+
+    Parameters
+    ----------
+    selector : Selector
+        The selector controller that owns prompt-cycle state.
+    """
+
+    def __init__(self, selector: "Selector") -> None:
+        """Initialize the canvas-only Tab event filter.
+
+        Parameters
+        ----------
+        selector : Selector
+            The selector controller that should receive Tab presses.
+        """
+        super().__init__(selector.canvas)
+        self._selector_ref: weakref.ReferenceType[Selector] = weakref.ref(selector)
+
+    def eventFilter(self, watched: object, event: QEvent) -> bool:
+        """Consume prompt-cycle Tab presses routed through the map canvas.
+
+        Parameters
+        ----------
+        watched : object
+            The QObject currently receiving the event.
+        event : QEvent
+            The Qt event under inspection.
+
+        Returns
+        -------
+        bool
+            True when the selector consumes the event, otherwise False.
+        """
+        selector = self._selector_ref()
+        if selector is None:
+            return False
+        try:
+            return selector.handle_prompt_canvas_tab_event(watched, event)
+        except RuntimeError:
+            return False
+
 class Selector(QDockWidget):
     execute_SAM = pyqtSignal()
 
@@ -182,7 +227,8 @@ class Selector(QDockWidget):
         self.realtime_query_cache = RealtimeQueryCache()
         self.query_chip_extents_canvas_crs: list[QgsRectangle] = []
         self.resume_preview_mode_after_cache_hit: bool = False
-        self._selector_event_filters_installed: bool = False
+        self._prompt_canvas_tab_filter = PromptCanvasTabEventFilter(self)
+        self._prompt_canvas_filter_installed: bool = False
         # colors
         self.style_preview_polygon: dict[str, Any] = {
             "line_color": Settings["preview_color"],
@@ -195,35 +241,45 @@ class Selector(QDockWidget):
             "line_width": 3,
         }
 
-    def _install_selector_event_filters(self) -> None:
-        """Install selector event filters once per dock visibility cycle."""
-        if self._selector_event_filters_installed or not hasattr(self, "wdg_sel"):
-            return
-        app = QApplication.instance()
-        if app is not None:
-            app.installEventFilter(self)
-        self.wdg_sel.installEventFilter(self)
-        self._selector_event_filters_installed = True
-
-    def _remove_selector_event_filters(self) -> None:
-        """Remove selector event filters safely."""
-        app = QApplication.instance()
-        if app is not None:
-            try:
-                app.removeEventFilter(self)
-            except RuntimeError:
-                pass
-        if hasattr(self, "wdg_sel"):
-            try:
-                self.wdg_sel.removeEventFilter(self)
-            except RuntimeError:
-                pass
-        self._selector_event_filters_installed = False
-
     def _on_selector_closed(self) -> None:
-        """Release event filters when the selector dock is closed."""
-        self._remove_selector_event_filters()
+        """Run selector cleanup when the dock widget closes."""
+        self._remove_prompt_canvas_tab_filter()
         self.destruct()
+
+    def _prompt_canvas_filter_targets(self) -> list[QObject]:
+        """Return the canvas widgets that may receive Tab during prompt input.
+
+        Returns
+        -------
+        list[QObject]
+            Canvas-related QObject targets that should be filtered.
+        """
+        targets: list[QObject] = [self.canvas]
+        viewport_widget = getattr(self.canvas, "viewport", None)
+        if callable(viewport_widget):
+            viewport_object = viewport_widget()
+            if viewport_object is not None:
+                targets.append(viewport_object)
+        return targets
+
+    def _install_prompt_canvas_tab_filter(self) -> None:
+        """Install the canvas-only Tab filter after prompt tools are activated."""
+        if self._prompt_canvas_filter_installed:
+            return
+        for target in self._prompt_canvas_filter_targets():
+            target.installEventFilter(self._prompt_canvas_tab_filter)
+        self._prompt_canvas_filter_installed = True
+
+    def _remove_prompt_canvas_tab_filter(self) -> None:
+        """Remove the canvas-only Tab filter safely."""
+        if not self._prompt_canvas_filter_installed:
+            return
+        for target in self._prompt_canvas_filter_targets():
+            try:
+                target.removeEventFilter(self._prompt_canvas_tab_filter)
+            except RuntimeError:
+                pass
+        self._prompt_canvas_filter_installed = False
 
     def open_widget(self):
         """Create widget selector"""
@@ -372,8 +428,6 @@ class Selector(QDockWidget):
             self.dockFirstOpen = False
         else:
             self.clear_layers(clear_extent=True)
-
-        self._install_selector_event_filters()
 
         # add widget to QGIS
         self.wdg_sel.setFloating(False)
@@ -568,7 +622,7 @@ class Selector(QDockWidget):
             self.disconnect_safely(self.shortcut_save)
         if hasattr(self, "shortcut_hover_mode"):
             self.disconnect_safely(self.shortcut_hover_mode)
-        self._remove_selector_event_filters()
+        self._remove_prompt_canvas_tab_filter()
         if hasattr(self, "wdg_sel"):
             self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
             self.iface.removeDockWidget(self.wdg_sel)
@@ -984,55 +1038,97 @@ class Selector(QDockWidget):
         self._reset_prompt_press_state()
         self._restore_active_prompt_tool()
 
-    def eventFilter(self, watched: object, event: QEvent) -> bool:
-        """Intercept Tab presses to rotate prompt buttons.
+    def cycle_prompt_type_shortcut(self) -> bool:
+        """Rotate the active prompt tool when the selector owns the current focus.
+
+        Returns
+        -------
+        bool
+            True when the Tab press is consumed.
+        """
+        if not hasattr(self, "wdg_sel"):
+            return False
+        try:
+            if not self.wdg_sel.isVisible():
+                return False
+        except RuntimeError:
+            return False
+
+        focus_widget = QApplication.focusWidget()
+        if not (
+            self._is_prompt_cycle_target(focus_widget)
+            or self._is_prompt_tool_active()
+        ):
+            return False
+
+        self.loop_prompt_type()
+        return True
+
+    def handle_prompt_canvas_tab_event(self, watched: object, event: QEvent) -> bool:
+        """Intercept Tab presses delivered to the active map canvas widgets.
 
         Parameters
         ----------
         watched : object
-            The QObject currently receiving the event.
+            The canvas-related QObject currently receiving the event.
         event : QEvent
             The Qt event under inspection.
 
         Returns
         -------
         bool
-            True when the event is consumed locally, otherwise delegates to the
-            default event filter implementation.
+            True when the prompt-cycle Tab press is consumed.
         """
-        if (
-            hasattr(self, "wdg_sel")
-            and self.wdg_sel.isVisible()
-            and event.type() == QEvent.KeyPress
-            and event.key() == Qt.Key_Tab
-            and event.modifiers() == Qt.NoModifier
-            and self._is_prompt_cycle_target(watched)
-        ):
-            self.loop_prompt_type()
-            return True
-        return super().eventFilter(watched, event)
+        if watched not in self._prompt_canvas_filter_targets():
+            return False
+        if event.type() != QEvent.KeyPress:
+            return False
+        if event.key() != Qt.Key_Tab or event.modifiers() != Qt.NoModifier:
+            return False
+        if not self._is_prompt_tool_active():
+            return False
+        return self.cycle_prompt_type_shortcut()
 
-    def _is_prompt_cycle_target(self, watched: object) -> bool:
-        """Return whether the watched object should honor prompt-cycle Tab presses.
+    def _is_prompt_tool_active(self) -> bool:
+        """Return whether one of the prompt map tools is currently active."""
+        if not hasattr(self, "tool_click_fg"):
+            return False
+        try:
+            current_map_tool = self.canvas.mapTool()
+        except RuntimeError:
+            return False
+        return current_map_tool in (
+            self.tool_click_fg,
+            self.tool_click_bg,
+            self.tool_click_rect,
+        )
+
+    def _is_prompt_cycle_target(self, watched: object | None) -> bool:
+        """Return whether the focused widget should honor prompt-cycle Tab presses.
 
         Parameters
         ----------
-        watched : object
-            The QObject currently receiving the key event.
+        watched : object | None
+            The currently focused QObject.
 
         Returns
         -------
         bool
-            True when the object belongs to the selector dock widget or the map
-            canvas hierarchy.
+            True when the focused object belongs to the selector dock widget or
+            the map canvas hierarchy.
         """
         for root_widget in (getattr(self, "wdg_sel", None), self.canvas):
             current_object = watched
             while current_object is not None:
-                if current_object is root_widget:
-                    return True
-                parent_method = getattr(current_object, "parent", None)
-                current_object = parent_method() if callable(parent_method) else None
+                try:
+                    if current_object is root_widget:
+                        return True
+                    parent_method = getattr(current_object, "parent", None)
+                    current_object = (
+                        parent_method() if callable(parent_method) else None
+                    )
+                except RuntimeError:
+                    return False
         return False
 
     def loop_prompt_type(self) -> None:
@@ -1069,6 +1165,7 @@ class Selector(QDockWidget):
         radioButton = self.wdg_sel.radioButton_enable
         if not radioButton.isChecked():
             self.canvas.setMapTool(self.toolPan)
+            self._remove_prompt_canvas_tab_filter()
             self.wdg_sel.pushButton_fg.setEnabled(False)
             self.wdg_sel.pushButton_bg.setEnabled(False)
             self.wdg_sel.pushButton_rect.setEnabled(False)
@@ -1524,6 +1621,7 @@ class Selector(QDockWidget):
         if not hasattr(self, "tool_click_fg"):
             self._require_runtime_source()
             return
+        self._install_prompt_canvas_tab_filter()
         self.canvas.setMapTool(self.tool_click_fg)
         button = self.wdg_sel.pushButton_fg
         if not button.isChecked():
@@ -1540,6 +1638,7 @@ class Selector(QDockWidget):
         if not hasattr(self, "tool_click_bg"):
             self._require_runtime_source()
             return
+        self._install_prompt_canvas_tab_filter()
         self.canvas.setMapTool(self.tool_click_bg)
         button = self.wdg_sel.pushButton_bg
         if not button.isChecked():
@@ -1556,6 +1655,7 @@ class Selector(QDockWidget):
         if not hasattr(self, "tool_click_rect"):
             self._require_runtime_source()
             return
+        self._install_prompt_canvas_tab_filter()
         self.canvas.setMapTool(self.tool_click_rect)
         button = self.wdg_sel.pushButton_rect  # self.sender()
         if not button.isChecked():
