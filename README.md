@@ -2,12 +2,13 @@
 
 By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
-- [Introduction](#introduction)
-- [Reasons for choosing Geo-SAM](#reasons-for-choosing-geo-sam)
-- [Installation and Usage](#installation-and-usage)
-- [Demos](#demos)
-- [Citation](#citation)
-- [Acknowledgement](#acknowledgement)
+- [Geo SAM](#geo-sam)
+  - [Introduction](#introduction)
+  - [Reasons for choosing Geo-SAM](#reasons-for-choosing-geo-sam)
+  - [Installation and Usage](#installation-and-usage)
+  - [Demos](#demos)
+  - [Citation](#citation)
+  - [Acknowledgement](#acknowledgement)
 
 ## Introduction
 
@@ -84,4 +85,4 @@ Read the documentation for more details: <https://geo-sam.readthedocs.io/en/late
 
 ## Acknowledgement
 
-This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [GeoSAM](https://github.com/Fanchengyan/geosam). Thanks for their wonderful work.
+This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [Ultralytics](https://github.com/ultralytics/ultralytics). Thanks for their wonderful work.

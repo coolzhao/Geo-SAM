@@ -1,3 +1,3 @@
 # Acknowledgement
 
-This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [GeoSAM](https://github.com/Fanchengyan/geosam). Thanks for their wonderful work.
+This repo benefits from [Segment Anything](https://github.com/facebookresearch/segment-anything) and [Ultralytics](https://github.com/ultralytics/ultralytics). Thanks for their wonderful work.

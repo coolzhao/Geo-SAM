@@ -44,7 +44,6 @@ Reasons for choosing Geo-SAM
 
    Installation
    Usage/index
-   future
    Citation
    Acknowledgement
 
