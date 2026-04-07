@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import gc
 import importlib.metadata
-import importlib.util
 import json
 import logging
 import os
@@ -29,7 +28,11 @@ from .messageTool import MessageTool
 from .online_tile_export import (
     OnlineRasterExportError,
     OnlineRasterPreflightError,
+)
+from .online_tile_export import (
     export_online_raster_source as export_online_tile_raster_source,
+)
+from .online_tile_export import (
     online_export_failure_message as describe_online_export_failure,
 )
 
@@ -92,19 +95,9 @@ MODEL_DEFINITIONS: tuple[ModelDefinition, ...] = (
     ModelDefinition("sam2.1_s", "SAM2.1 Small", "sam2", "sam2.1_s.pt"),
     ModelDefinition("sam2.1_b", "SAM2.1 Base", "sam2", "sam2.1_b.pt"),
     ModelDefinition("sam2.1_l", "SAM2.1 Large", "sam2", "sam2.1_l.pt"),
+    ModelDefinition("sam3", "SAM3", "sam3", "sam3.pt"),
     ModelDefinition(
-        "sam3",
-        "SAM3",
-        "sam3",
-        "sam3.pt",
-        supports_feature_reuse=False,
-    ),
-    ModelDefinition(
-        "sam3.1_multiplex",
-        "SAM3.1 Multiplex",
-        "sam3",
-        "sam3.1_multiplex.pt",
-        supports_feature_reuse=False,
+        "sam3.1_multiplex", "SAM3.1 Multiplex", "sam3", "sam3.1_multiplex.pt"
     ),
 )
 
@@ -200,8 +193,6 @@ class PreparedRealtimeRasterQueryResult:
     source_path: str
     result: QueryResult
     query_cache: Any | None = None
-
-
 
 
 class _ModelSessionRegistry:
@@ -801,6 +792,74 @@ def _flush_torch_memory() -> None:
             empty_cache()
 
 
+def _clear_online_engine_predictor_state(
+    engine: Any,
+    *,
+    keep_features: bool,
+) -> None:
+    """Clear transient predictor state retained by an online engine.
+
+    Parameters
+    ----------
+    engine : Any
+        Online query engine that may hold an Ultralytics SAM predictor.
+    keep_features : bool
+        True to preserve ``predictor.features`` as the hot cache for the
+        current active image. False to clear all image-specific predictor
+        state, including cached features.
+
+    Notes
+    -----
+    This only clears image-specific predictor state. Model weights remain
+    loaded so cached prompt inference can continue using the same engine
+    instance.
+
+    """
+    predictor = getattr(getattr(engine, "adapter", None), "model", None)
+    predictor = getattr(predictor, "predictor", None)
+    if predictor is None:
+        return
+
+    attributes_to_clear: list[tuple[str, Any]] = [
+        ("im", None),
+        ("dataset", None),
+        ("source_type", None),
+        ("batch", None),
+        ("results", None),
+        ("txt_path", None),
+        ("plotted_img", None),
+        ("prompts", {}),
+        ("vid_writer", {}),
+    ]
+    if not keep_features:
+        attributes_to_clear.insert(0, ("features", None))
+
+    for attribute_name, empty_value in attributes_to_clear:
+        if hasattr(predictor, attribute_name):
+            setattr(predictor, attribute_name, empty_value)
+
+
+def release_online_runtime_hot_cache(*, keep_source_path: str | None = None) -> int:
+    """Release cached online engines and clear accelerator memory.
+
+    Parameters
+    ----------
+    keep_source_path : str | None, optional
+        Preserve the online engine for this source path when provided.
+
+    Returns
+    -------
+    int
+        Number of released online engines.
+
+    """
+    removed_count = MODEL_SESSIONS.release_online_engines(
+        keep_source_path=keep_source_path,
+    )
+    _flush_torch_memory()
+    return removed_count
+
+
 def release_runtime_models(*, model_id: str | None = None) -> int:
     """Release loaded GeoSAM engines and clear accelerator caches."""
     removed_count = MODEL_SESSIONS.release(model_id=model_id)
@@ -1016,6 +1075,7 @@ def _layer_source_fingerprint(layer: QgsRasterLayer) -> str:
         except Exception:
             provider_uri = ""
     return "|".join([layer.name(), provider_name, layer_source, provider_uri])
+
 
 def _rectangle_to_bbox(rectangle: QgsRectangle, *, crs_text: str):
     """Convert a QGIS rectangle into a GeoSAM bounding box."""
@@ -1572,8 +1632,7 @@ def query_raster_layer(
     ):
         cached_source_path = Path(cache.source_candidate).expanduser()
         if cached_source_path.exists():
-            MODEL_SESSIONS.release_online_engines(
-                model_id=model_id,
+            release_online_runtime_hot_cache(
                 keep_source_path=str(cached_source_path),
             )
             engine = MODEL_SESSIONS.get_online_engine(
@@ -1584,7 +1643,10 @@ def query_raster_layer(
             cache.model_id = model_id
             cache.source_candidate = str(cached_source_path)
             cache.engine = engine
-            return engine.query(query, cache=cache.query_cache)
+            result = engine.query(query, cache=cache.query_cache)
+            _clear_online_engine_predictor_state(engine, keep_features=True)
+            _flush_torch_memory()
+            return result
 
     source_candidates = [
         source_path
@@ -1604,8 +1666,7 @@ def query_raster_layer(
     for source_candidate in dict.fromkeys(preferred_sources):
         try:
             if cache is not None and cache.source_candidate != source_candidate:
-                MODEL_SESSIONS.release_online_engines(
-                    model_id=model_id,
+                release_online_runtime_hot_cache(
                     keep_source_path=source_candidate,
                 )
             engine = MODEL_SESSIONS.get_online_engine(
@@ -1643,6 +1704,9 @@ def query_raster_layer(
                     source_path=source_candidate,
                     query_cache=cache.query_cache,
                 )
+            if supports_feature_reuse:
+                _clear_online_engine_predictor_state(engine, keep_features=True)
+                _flush_torch_memory()
             return result
         except Exception as exc:
             errors.append(f"{source_candidate}: {exc}")
@@ -1652,8 +1716,7 @@ def query_raster_layer(
 
     try:
         exported_source = _export_online_raster_source(layer, query, model_id=model_id)
-        MODEL_SESSIONS.release_online_engines(
-            model_id=model_id,
+        release_online_runtime_hot_cache(
             keep_source_path=exported_source,
         )
         engine = MODEL_SESSIONS.get_online_engine(
@@ -1683,6 +1746,9 @@ def query_raster_layer(
                 source_path=exported_source,
                 query_cache=cache.query_cache,
             )
+        if supports_feature_reuse:
+            _clear_online_engine_predictor_state(engine, keep_features=True)
+            _flush_torch_memory()
         return result
     except (OnlineRasterPreflightError, OnlineRasterExportError) as exc:
         error_prefix = (

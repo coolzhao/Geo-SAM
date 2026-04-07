@@ -57,6 +57,7 @@ from .geosam_runtime import (
     query_feature_source,
     query_raster_layer,
     query_result_to_geojson_features,
+    release_online_runtime_hot_cache,
     release_runtime_models,
     save_plugin_settings,
 )
@@ -776,6 +777,7 @@ class Selector(QDockWidget):
 
     def _set_runtime_for_feature_folder(self, feature_dir: str):
         """Load feature-folder runtime metadata and canvas tools."""
+        release_online_runtime_hot_cache()
         summary = describe_feature_source(feature_dir)
         self.feature_dir = feature_dir
         self.runtime_feature_summary = summary
@@ -802,6 +804,9 @@ class Selector(QDockWidget):
 
     def _set_runtime_for_layer(self, layer: QgsRasterLayer):
         """Load realtime raster-layer runtime metadata and canvas tools."""
+        current_runtime_layer = getattr(self, "runtime_layer", None)
+        if current_runtime_layer is None or current_runtime_layer.id() != layer.id():
+            release_online_runtime_hot_cache()
         self.runtime_layer = layer
         self.runtime_feature_summary = None
         self._set_runtime_context(
