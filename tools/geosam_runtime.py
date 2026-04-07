@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import gc
-import hashlib
 import importlib.metadata
 import importlib.util
 import json
@@ -21,16 +20,18 @@ from urllib.parse import urlparse
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
 from qgis.core import (
-    Qgis,
     QgsCoordinateReferenceSystem,
-    QgsProject,
-    QgsRasterFileWriter,
     QgsRasterLayer,
-    QgsRasterPipe,
     QgsRectangle,
 )
 
 from .messageTool import MessageTool
+from .online_tile_export import (
+    OnlineRasterExportError,
+    OnlineRasterPreflightError,
+    export_online_raster_source as export_online_tile_raster_source,
+    online_export_failure_message as describe_online_export_failure,
+)
 
 if TYPE_CHECKING:
     from geosam.engines import QueryResult
@@ -199,6 +200,8 @@ class PreparedRealtimeRasterQueryResult:
     source_path: str
     result: QueryResult
     query_cache: Any | None = None
+
+
 
 
 class _ModelSessionRegistry:
@@ -1014,7 +1017,6 @@ def _layer_source_fingerprint(layer: QgsRasterLayer) -> str:
             provider_uri = ""
     return "|".join([layer.name(), provider_name, layer_source, provider_uri])
 
-
 def _rectangle_to_bbox(rectangle: QgsRectangle, *, crs_text: str):
     """Convert a QGIS rectangle into a GeoSAM bounding box."""
     from geosam import BoundingBox
@@ -1498,119 +1500,15 @@ def _load_persistent_query_cache(
     return best_match[1], best_match[2]
 
 
-def _resolve_pixel_size(layer: QgsRasterLayer) -> tuple[float, float]:
-    """Return raster pixel size in layer units."""
-    pixel_size_x = abs(float(layer.rasterUnitsPerPixelX()))
-    pixel_size_y = abs(float(layer.rasterUnitsPerPixelY()))
-    if pixel_size_x > 0 and pixel_size_y > 0:
-        return pixel_size_x, pixel_size_y
-
-    extent = layer.extent()
-    width = max(int(layer.width()), 1)
-    height = max(int(layer.height()), 1)
-    return (
-        abs(float(extent.width())) / width,
-        abs(float(extent.height())) / height,
-    )
-
-
-def _chip_extent_for_online_layer(
-    layer: QgsRasterLayer, query, *, chip_size: tuple[int, int]
-) -> QgsRectangle:
-    """Build a chip extent in layer CRS for an online raster query."""
-    from geosam.query import query_center
-
-    projected_query = _query_in_layer_crs(layer, query)
-    center_x, center_y = query_center(projected_query)
-    pixel_size_x, pixel_size_y = _resolve_pixel_size(layer)
-    chip_height, chip_width = chip_size
-    half_width = pixel_size_x * chip_width / 2.0
-    half_height = pixel_size_y * chip_height / 2.0
-    extent = QgsRectangle(
-        center_x - half_width,
-        center_y - half_height,
-        center_x + half_width,
-        center_y + half_height,
-    )
-    if extent.isNull() or extent.isEmpty():
-        return layer.extent()
-    return extent.intersect(layer.extent())
-
-
-def _export_raster_extent(
-    layer: QgsRasterLayer,
-    *,
-    extent: QgsRectangle,
-    width: int,
-    height: int,
-    destination_path: Path,
-) -> Path:
-    """Export a raster extent to a GeoTIFF using QGIS raster IO."""
-    provider = layer.dataProvider()
-    if provider is None:
-        msg = "The selected raster layer does not provide a raster data provider."
-        logger.error(msg)
-        raise ValueError(msg)
-
-    provider_clone = provider.clone()
-    if provider_clone is None:
-        msg = "Failed to clone the raster provider for cache export."
-        logger.error(msg)
-        raise RuntimeError(msg)
-
-    pipe = QgsRasterPipe()
-    if not pipe.set(provider_clone):
-        msg = "Failed to initialize a raster pipe for cache export."
-        logger.error(msg)
-        raise RuntimeError(msg)
-
-    destination_path.parent.mkdir(parents=True, exist_ok=True)
-    writer = QgsRasterFileWriter(str(destination_path))
-    writer.setOutputFormat("GTiff")
-    result = writer.writeRaster(
-        pipe,
-        int(width),
-        int(height),
-        extent,
-        layer.crs(),
-        QgsProject.instance().transformContext(),
-    )
-    if result != Qgis.RasterFileWriterResult.NoError:
-        msg = f"Failed to export online raster cache. QGIS writer result={result!r}"
-        logger.error(msg)
-        raise RuntimeError(msg)
-    return destination_path
-
-
 def _export_online_raster_source(layer: QgsRasterLayer, query, *, model_id: str) -> str:
-    """Export the current online-layer chip into the plugin cache."""
-    chip_size = create_model_spec(model_id).resolved_imgsz
-    chip_extent = _chip_extent_for_online_layer(layer, query, chip_size=chip_size)
-    source_fingerprint = hashlib.sha256(
-        _layer_source_fingerprint(layer).encode("utf-8")
-    ).hexdigest()[:16]
-    file_stem = sanitize_path_component(
-        "_".join([
-            model_id,
-            source_fingerprint,
-            f"{chip_extent.xMinimum():.3f}",
-            f"{chip_extent.yMinimum():.3f}",
-            f"{chip_extent.xMaximum():.3f}",
-            f"{chip_extent.yMaximum():.3f}",
-        ])
-    )
-    destination_path = _online_layer_raster_cache_directory(layer) / f"{file_stem}.tif"
-    if destination_path.exists():
-        return str(destination_path)
-
-    return str(
-        _export_raster_extent(
-            layer,
-            extent=chip_extent,
-            width=chip_size[1],
-            height=chip_size[0],
-            destination_path=destination_path,
-        )
+    """Export supported online tiles into the plugin cache as a GeoTIFF."""
+    return export_online_tile_raster_source(
+        layer,
+        query,
+        model_id=model_id,
+        chip_size=create_model_spec(model_id).resolved_imgsz,
+        source_fingerprint=_layer_source_fingerprint(layer),
+        cache_directory=_online_layer_raster_cache_directory(layer),
     )
 
 
@@ -1786,6 +1684,17 @@ def query_raster_layer(
                 query_cache=cache.query_cache,
             )
         return result
+    except (OnlineRasterPreflightError, OnlineRasterExportError) as exc:
+        error_prefix = (
+            "online-export-preflight"
+            if isinstance(exc, OnlineRasterPreflightError)
+            else "online-export-failed"
+        )
+        errors.append(f"{error_prefix}: {exc}")
+        msg = describe_online_export_failure(exc)
+        MessageTool.MessageLog("\n".join([msg, *errors]), level="warning")
+        logger.warning("%s Details: %s", msg, errors)
+        raise ValueError(msg) from exc
     except Exception as exc:
         errors.append(f"online-export: {exc}")
 

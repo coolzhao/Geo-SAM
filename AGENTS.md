@@ -13,6 +13,26 @@ Root entry points such as `__init__.py`, [`geo_sam_tool.py`](/Users/fancy/Librar
 
 Keep new plugin behavior in `tools/`, keep static assets in `ui/`, and avoid committing generated caches such as `.cache/`, `__pycache__/`, or machine-local settings.
 
+## Code Style Guidelines
+
+### Language and Naming
+
+- Write all code and comments in English
+- Use descriptive English names for variables, functions, and classes
+- Follow PEP 8 and PEP 257 standards
+
+## Code Conventions
+
+- **Python 3.9+ and 3.11+ typing** required
+- **`from __future__ import annotations`** in every file
+- **Type hints**: Use Python 3.11+ syntax (`str | None`, `dict[str, int]`). Use `Literal` for fixed value sets. Do not using Union，Optional.
+- **Docstrings**: Use NumPy-style docstrings for all public modules, classes, functions, and methods. Include Parameters, Returns, Raises, and Examples where applicable, and use Sphinx reStructuredText markup such as :func:..., :class:..., and directives like .. note::, .. tip::, and .. warning:: when needed.
+- **Logging**: Use `from geosam.logging import setup_logger; logger = setup_logger(__name__)` — log before raising exceptions errors
+- **Paths**: Use `pathlib.Path` internally; convert to `str` only when passing to ISCE2/ISCE3 APIs
+- **Type-checking imports**: Put heavy/circular imports inside `if TYPE_CHECKING:` blocks
+- **Commits**: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`)
+- **Linter**: ruff only (no black, no flake8). Line length 88. Ruff excludes `tests/`, `docs/`, `examples/` directories.
+
 ## Build, Test, and Development Commands
 
 - `uv run ruff check tools ui *.py`: lint Python sources.
