@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import os
+import sys
 import weakref
 from numbers import Real
 from pathlib import Path
@@ -47,14 +49,18 @@ from .geosam_runtime import (
     RealtimeQueryCache,
     chip_extent_rectangles_for_source,
     describe_feature_source,
+    get_preview_render_mode,
     layer_extent_rectangle,
     layer_pixel_area,
     prepare_realtime_raster_query,
     query_feature_source,
     query_raster_layer,
     query_result_to_geojson_features,
+    query_result_to_render_payload,
     release_online_runtime_hot_cache,
     release_runtime_models,
+    run_prepared_realtime_raster_query,
+    save_prepared_realtime_query_cache,
 )
 from .geoTool import ImageCRSManager
 from .messageTool import MessageTool
@@ -67,6 +73,9 @@ from .plugin_settings import load_plugin_settings, save_plugin_settings
 
 if TYPE_CHECKING:
     from rasterio.io import DatasetReader
+
+
+_DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 
 
 def _open_raster_dataset(raster_path: str) -> DatasetReader:
@@ -153,6 +162,89 @@ class ShowPatchExtentThread(QThread):
         self.retrieve_patch.emit(f"{extents}")
 
 
+@dataclass(**_DATACLASS_SLOTS_KWARGS)
+class _PendingRealtimeQueryRequest:
+    """Queued realtime request waiting for background encoding."""
+
+    prepared_query: Any
+    query: Any
+    had_pressed_prompt: bool
+    query_started_at: float
+    request_token: int
+
+
+class RealtimePreparedQueryThread(QThread):
+    """Background worker for prepared realtime raster queries."""
+
+    succeeded = pyqtSignal(object, object, int)
+    failed = pyqtSignal(str, int, bool)
+    progress_updated = pyqtSignal(str, float, int)
+
+    def __init__(
+        self,
+        prepared_query: Any,
+        query: Any,
+        request_token: int,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.prepared_query = prepared_query
+        self.query = query
+        self.request_token = request_token
+        self._cancel_requested = False
+
+    def cancel(self) -> None:
+        """Request cooperative cancellation for the running query."""
+        self._cancel_requested = True
+
+    def run(self) -> None:
+        """Execute the prepared realtime query."""
+        try:
+            result = run_prepared_realtime_raster_query(
+                self.prepared_query,
+                self.query,
+                progress_callback=self._emit_progress,
+                is_canceled=lambda: self._cancel_requested,
+            )
+        except Exception as exc:
+            self.failed.emit(str(exc), self.request_token, self._cancel_requested)
+            return
+        self.succeeded.emit(self.prepared_query, result, self.request_token)
+
+    def _emit_progress(self, stage_text: str, progress_value: float) -> None:
+        """Forward background progress to the main thread."""
+        self.progress_updated.emit(stage_text, progress_value, self.request_token)
+
+
+class RealtimeQueryCacheSaveThread(QThread):
+    """Background worker that persists realtime encoded cache entries."""
+
+    failed = pyqtSignal(str)
+
+    def __init__(
+        self,
+        prepared_query: Any,
+        source_path: str,
+        query_cache: Any,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.prepared_query = prepared_query
+        self.source_path = source_path
+        self.query_cache = query_cache
+
+    def run(self) -> None:
+        """Persist the realtime query cache in the background."""
+        try:
+            save_prepared_realtime_query_cache(
+                prepared_query=self.prepared_query,
+                source_path=self.source_path,
+                query_cache=self.query_cache,
+            )
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class PromptCanvasTabEventFilter(QObject):
     """Filter Tab on the active map canvas while prompt tools are selected.
 
@@ -229,6 +321,12 @@ class Selector(QDockWidget):
         self.realtime_query_cache = RealtimeQueryCache()
         self.query_chip_extents_canvas_crs: list[QgsRectangle] = []
         self.resume_preview_mode_after_cache_hit: bool = False
+        self._realtime_query_request_token: int = 0
+        self._active_realtime_query_thread: RealtimePreparedQueryThread | None = None
+        self._pending_realtime_query_request: _PendingRealtimeQueryRequest | None = None
+        self._cache_save_threads: set[RealtimeQueryCacheSaveThread] = set()
+        self._latest_prompt_query_result: Any | None = None
+        self._latest_preview_query_result: Any | None = None
         self._prompt_canvas_tab_filter = PromptCanvasTabEventFilter(self)
         self._prompt_canvas_filter_installed: bool = False
         # colors
@@ -481,6 +579,7 @@ class Selector(QDockWidget):
     def on_model_changed(self):
         """Persist the selected model and validate checkpoint availability."""
         model_id = self.selected_model_id()
+        self._reset_realtime_background_state()
         release_runtime_models()
         self.realtime_query_cache.clear()
         self.resume_preview_mode_after_cache_hit = False
@@ -500,6 +599,7 @@ class Selector(QDockWidget):
 
     def on_realtime_layer_changed(self):
         """React to realtime layer changes and rebuild the runtime context."""
+        self._reset_realtime_background_state()
         self.realtime_query_cache.clear()
         self.resume_preview_mode_after_cache_hit = False
         if self.wdg_sel.RealTimeLayerComboBox.currentLayer() is None:
@@ -559,16 +659,38 @@ class Selector(QDockWidget):
         self.set_user_settings_color()
         self.set_user_settings_point_style()
 
+    def _cancel_active_realtime_query(self) -> None:
+        """Cancel the active background realtime query when present."""
+        if self._active_realtime_query_thread is None:
+            return
+        self._active_realtime_query_thread.cancel()
+
+    def _reset_realtime_background_state(self) -> None:
+        """Clear queued realtime background-query state."""
+        self._cancel_active_realtime_query()
+        self._pending_realtime_query_request = None
+        self._latest_preview_query_result = None
+        self._latest_prompt_query_result = None
+        self._realtime_query_request_token += 1
+
+    def _current_request_token(self) -> int:
+        """Return a fresh monotonic token for async realtime requests."""
+        self._realtime_query_request_token += 1
+        return self._realtime_query_request_token
+
     def reset_default_settings(self):
         save_user_settings({}, mode="overwrite")
         self.realtime_query_cache.clear()
         self.resume_preview_mode_after_cache_hit = False
+        self._reset_realtime_background_state()
         save_plugin_settings({
             "selected_model_id": "",
             "model_store_dir": str(load_plugin_settings()["model_store_dir"]),
             "cache_enabled": bool(load_plugin_settings()["cache_enabled"]),
             "cache_dir": str(load_plugin_settings()["cache_dir"]),
             "cache_max_size_mb": int(load_plugin_settings()["cache_max_size_mb"]),
+            "performance_mode": "balanced",
+            "preview_render_mode": "light",
         })
 
         self.wdg_sel.radioButton_show_extent.setChecked(
@@ -606,6 +728,7 @@ class Selector(QDockWidget):
 
     def destruct(self):
         """Destruct actions when closed widget"""
+        self._reset_realtime_background_state()
         self.clear_layers(clear_extent=True)
         self.reset_to_project_crs()
         self.iface.actionPan().trigger()
@@ -725,6 +848,7 @@ class Selector(QDockWidget):
         pixel_area: float,
     ):
         """Initialize shared canvas tools for the active runtime source."""
+        self._reset_realtime_background_state()
         self.realtime_query_cache.clear()
         self.runtime_source_kind = source_kind
         self.runtime_extent = extent
@@ -985,7 +1109,11 @@ class Selector(QDockWidget):
     ) -> None:
         """Render a finished GeoSAM query result back onto the canvas."""
         elapsed_ms = round((perf_counter() - query_started_at) * 1000, 3)
-        geojson_features = query_result_to_geojson_features(result)
+        render_payload = query_result_to_render_payload(
+            result,
+            render_mode=get_preview_render_mode(),
+        )
+        geojson_features = render_payload.geojson_features
         self._update_query_chip_extent_cache(result.chip_bounds)
         self._log_sam_execution(
             "finish",
@@ -998,28 +1126,37 @@ class Selector(QDockWidget):
         self.polygon.canvas_preview_polygon.clear()
         self.polygon.canvas_prompt_polygon.clear()
         if self.preview_mode:
-            self.polygon.add_geojson_feature_to_canvas(
-                geojson_features,
+            self._latest_preview_query_result = result
+            self.polygon.add_qgs_geometry_to_canvas(
+                render_payload.canvas_geometries,
                 self.t_area,
                 max_object_mode=self.max_object_mode,
                 overwrite_geojson=True,
+                geojson=geojson_features,
+                source_crs=self.runtime_crs,
             )
         else:
-            self.polygon.add_geojson_feature_to_canvas(
-                geojson_features,
+            self._latest_prompt_query_result = result
+            self.polygon.add_qgs_geometry_to_canvas(
+                render_payload.canvas_geometries,
                 self.t_area,
                 max_object_mode=self.max_object_mode,
                 target="prompt",
                 overwrite_geojson=True,
+                geojson=geojson_features,
+                source_crs=self.runtime_crs,
             )
 
         if self.preview_mode and had_pressed_prompt:
-            self.polygon.add_geojson_feature_to_canvas(
-                self.polygon.geojson_canvas_preview,
+            self._latest_prompt_query_result = result
+            self.polygon.add_qgs_geometry_to_canvas(
+                render_payload.canvas_geometries,
                 self.t_area,
                 max_object_mode=self.max_object_mode,
                 target="prompt",
                 overwrite_geojson=True,
+                geojson=geojson_features,
+                source_crs=self.runtime_crs,
             )
         self.topping_polygon_sam_layer()
         self._reset_prompt_press_state()
@@ -1319,21 +1456,19 @@ class Selector(QDockWidget):
     def _sync_preview_mode_for_realtime_query(
         self,
         *,
-        model_id: str,
-        query: Any,
         had_pressed_prompt: bool,
+        prepared_query: Any | None,
     ) -> None:
         """Pause or resume preview mode around realtime cache transitions.
 
         Parameters
         ----------
-        model_id : str
-            Selected GeoSAM model identifier.
-        query : Any
-            Current query payload built from active prompts.
         had_pressed_prompt : bool
             True when the current execution comes from a click press instead of
             a hover-only preview refresh.
+        prepared_query : Any | None
+            Prepared background query payload when the current request requires
+            a new realtime encoding pass.
         """
         if (
             self.runtime_source_kind != "realtime"
@@ -1342,12 +1477,6 @@ class Selector(QDockWidget):
         ):
             return
 
-        prepared_query = prepare_realtime_raster_query(
-            self.runtime_layer,
-            model_id,
-            query,
-            cache=self.realtime_query_cache,
-        )
         if self.preview_mode and prepared_query is not None:
             self.resume_preview_mode_after_cache_hit = True
             self._set_preview_mode_enabled(False)
@@ -1355,6 +1484,202 @@ class Selector(QDockWidget):
         if self.resume_preview_mode_after_cache_hit and prepared_query is None:
             self.resume_preview_mode_after_cache_hit = False
             self._set_preview_mode_enabled(True)
+
+    def _schedule_realtime_query_cache_save(
+        self,
+        *,
+        prepared_query: Any,
+        source_path: str,
+        query_cache: Any,
+    ) -> None:
+        """Persist a realtime query cache entry after the result is shown."""
+        cache_save_thread = RealtimeQueryCacheSaveThread(
+            prepared_query,
+            source_path,
+            query_cache,
+            parent=self,
+        )
+        self._cache_save_threads.add(cache_save_thread)
+        cache_save_thread.failed.connect(
+            lambda error_text: MessageTool.MessageLog(
+                f"Failed to persist realtime query cache: {error_text}",
+                level="warning",
+                notify_user=False,
+            )
+        )
+        cache_save_thread.finished.connect(
+            lambda thread_ref=cache_save_thread: self._cache_save_threads.discard(
+                thread_ref
+            )
+        )
+        cache_save_thread.finished.connect(cache_save_thread.deleteLater)
+        cache_save_thread.start()
+
+    def _launch_realtime_background_query(
+        self,
+        request: _PendingRealtimeQueryRequest,
+    ) -> None:
+        """Start the realtime background query for a prepared encode request."""
+        self._cancel_active_realtime_query()
+        query_thread = RealtimePreparedQueryThread(
+            request.prepared_query,
+            request.query,
+            request.request_token,
+            parent=self,
+        )
+        self._active_realtime_query_thread = query_thread
+        query_thread.progress_updated.connect(self._on_realtime_query_progress)
+        query_thread.failed.connect(
+            lambda error_text, request_token, was_canceled, started_at=request.query_started_at: self._on_realtime_query_failed(
+                error_text,
+                request_token,
+                was_canceled,
+                query_started_at=started_at,
+            )
+        )
+        query_thread.succeeded.connect(
+            lambda prepared_query, result, request_token, started_at=request.query_started_at, had_pressed_prompt=request.had_pressed_prompt: self._on_realtime_query_succeeded(
+                prepared_query,
+                result,
+                request_token,
+                had_pressed_prompt=had_pressed_prompt,
+                query_started_at=started_at,
+            )
+        )
+        query_thread.finished.connect(self._on_realtime_query_finished)
+        query_thread.finished.connect(query_thread.deleteLater)
+        self._reset_prompt_press_state()
+        MessageTool.MessageLog(
+            "Realtime query is encoding in the background.",
+            level="info",
+            tag="Geo SAM Debug",
+            notify_user=False,
+        )
+        query_thread.start()
+
+    def _start_or_queue_realtime_background_query(
+        self,
+        *,
+        prepared_query: Any,
+        query: Any,
+        had_pressed_prompt: bool,
+        query_started_at: float,
+    ) -> None:
+        """Run or queue a prepared realtime query using latest-request wins."""
+        request = _PendingRealtimeQueryRequest(
+            prepared_query=prepared_query,
+            query=query,
+            had_pressed_prompt=had_pressed_prompt,
+            query_started_at=query_started_at,
+            request_token=self._current_request_token(),
+        )
+        if (
+            self._active_realtime_query_thread is not None
+            and self._active_realtime_query_thread.isRunning()
+        ):
+            self._pending_realtime_query_request = request
+            self._active_realtime_query_thread.cancel()
+            return
+        self._pending_realtime_query_request = None
+        self._launch_realtime_background_query(request)
+
+    def _on_realtime_query_progress(
+        self,
+        stage_text: str,
+        progress_value: float,
+        request_token: int,
+    ) -> None:
+        """Handle progress updates from the background realtime query."""
+        if request_token != self._realtime_query_request_token:
+            return
+        MessageTool.MessageLog(
+            json.dumps(
+                {
+                    "phase": "background_progress",
+                    "execution_count": self.sam_execution_count,
+                    "stage": stage_text,
+                    "progress": round(float(progress_value), 2),
+                },
+                ensure_ascii=True,
+            ),
+            level="info",
+            tag="Geo SAM Debug",
+            notify_user=False,
+        )
+
+    def _on_realtime_query_failed(
+        self,
+        error_text: str,
+        request_token: int,
+        was_canceled: bool,
+        *,
+        query_started_at: float,
+    ) -> None:
+        """Handle a failed or canceled realtime background query."""
+        if request_token != self._realtime_query_request_token:
+            return
+        if was_canceled:
+            MessageTool.MessageLog(
+                "Canceled a stale realtime background query.",
+                level="info",
+                tag="Geo SAM Debug",
+                notify_user=False,
+            )
+            return
+        if self.resume_preview_mode_after_cache_hit:
+            self.resume_preview_mode_after_cache_hit = False
+            self._set_preview_mode_enabled(True)
+        self._handle_segmentation_error(
+            error_text,
+            query_started_at=query_started_at,
+        )
+
+    def _on_realtime_query_succeeded(
+        self,
+        prepared_query: Any,
+        prepared_result: Any,
+        request_token: int,
+        *,
+        had_pressed_prompt: bool,
+        query_started_at: float,
+    ) -> None:
+        """Apply a finished realtime background query on the main thread."""
+        if request_token != self._realtime_query_request_token:
+            return
+        if (
+            self.runtime_layer is None
+            or self.runtime_layer.id() != prepared_query.layer_id
+            or self.selected_model_id() != prepared_query.model_id
+        ):
+            return
+        self.realtime_query_cache.layer_id = prepared_query.layer_id
+        self.realtime_query_cache.model_id = prepared_query.model_id
+        self.realtime_query_cache.source_candidate = prepared_result.source_path
+        self.realtime_query_cache.engine = None
+        self.realtime_query_cache.query_cache = prepared_result.query_cache
+        self._apply_segmentation_result(
+            prepared_result.result,
+            had_pressed_prompt=had_pressed_prompt,
+            query_started_at=query_started_at,
+        )
+        if prepared_result.query_cache is not None:
+            self._schedule_realtime_query_cache_save(
+                prepared_query=prepared_query,
+                source_path=prepared_result.source_path,
+                query_cache=prepared_result.query_cache,
+            )
+        if self.resume_preview_mode_after_cache_hit:
+            self.resume_preview_mode_after_cache_hit = False
+            self._set_preview_mode_enabled(True)
+
+    def _on_realtime_query_finished(self) -> None:
+        """Start the latest queued realtime query after the current one ends."""
+        self._active_realtime_query_thread = None
+        if self._pending_realtime_query_request is None:
+            return
+        pending_request = self._pending_realtime_query_request
+        self._pending_realtime_query_request = None
+        self._launch_realtime_background_query(pending_request)
 
     def _show_boundary_enabled(self) -> bool:
         """Return whether boundary overlays should currently be visible.
@@ -1576,12 +1901,27 @@ class Selector(QDockWidget):
             "start",
             had_pressed_prompt=had_pressed_prompt,
         )
-        self._sync_preview_mode_for_realtime_query(
-            model_id=model_id,
-            query=query,
-            had_pressed_prompt=had_pressed_prompt,
-        )
         query_started_at = perf_counter()
+        prepared_query = None
+        if self.runtime_source_kind == "realtime" and self.runtime_layer is not None:
+            prepared_query = prepare_realtime_raster_query(
+                self.runtime_layer,
+                model_id,
+                query,
+                cache=self.realtime_query_cache,
+            )
+        self._sync_preview_mode_for_realtime_query(
+            had_pressed_prompt=had_pressed_prompt,
+            prepared_query=prepared_query,
+        )
+        if prepared_query is not None:
+            self._start_or_queue_realtime_background_query(
+                prepared_query=prepared_query,
+                query=query,
+                had_pressed_prompt=had_pressed_prompt,
+                query_started_at=query_started_at,
+            )
+            return True
         try:
             if (
                 self.runtime_source_kind == "realtime"
@@ -1789,8 +2129,11 @@ class Selector(QDockWidget):
 
     def clear_layers(self, clear_extent: bool = False):
         """Clear all temporary layers (canvas and new sam result) and reset prompt"""
+        self._reset_realtime_background_state()
         self.clear_canvas_layers_safely(clear_extent=clear_extent)
         self._clear_query_chip_extent_cache(keep_source_boundary=not clear_extent)
+        self._latest_prompt_query_result = None
+        self._latest_preview_query_result = None
         if hasattr(self, "polygon"):
             self.polygon.clear_canvas_polygons()
         self.prompt_history.clear()
@@ -1815,8 +2158,17 @@ class Selector(QDockWidget):
             polygon_layer = self.polygon.get_layer()
             if polygon_layer is None:
                 return False
+            prompt_geojson = self.polygon.geojson_canvas_prompt
+            if (
+                get_preview_render_mode() == "light"
+                and self._latest_prompt_query_result is not None
+            ):
+                prompt_geojson = query_result_to_geojson_features(
+                    self._latest_prompt_query_result,
+                    render_mode="exact",
+                )
             self.polygon.add_geojson_feature_to_layer(
-                self.polygon.geojson_canvas_prompt,
+                prompt_geojson,
                 self.t_area,
                 self.prompt_history,
                 max_object_mode=self.max_object_mode,

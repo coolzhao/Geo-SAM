@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
@@ -37,6 +37,14 @@ DEPENDENCY_DISTRIBUTIONS: dict[str, str] = {
     "geopandas": "geopandas",
     "pyarrow": "pyarrow",
 }
+PerformanceMode = Literal["balanced", "fastest", "low_memory"]
+PreviewRenderMode = Literal["light", "exact"]
+PERFORMANCE_MODE_VALUES: tuple[PerformanceMode, ...] = (
+    "balanced",
+    "fastest",
+    "low_memory",
+)
+PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = ("light", "exact")
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -69,6 +77,10 @@ def load_plugin_settings() -> dict[str, Any]:
     """
     settings = _default_plugin_settings()
     settings.update(_load_json(SETTINGS_USER_PATH))
+    if settings.get("performance_mode") not in PERFORMANCE_MODE_VALUES:
+        settings["performance_mode"] = "balanced"
+    if settings.get("preview_render_mode") not in PREVIEW_RENDER_MODE_VALUES:
+        settings["preview_render_mode"] = "light"
     return settings
 
 
@@ -90,6 +102,8 @@ def _default_plugin_settings() -> dict[str, Any]:
     settings.setdefault("selected_model_id", "")
     settings.setdefault("show_boundary", True)
     settings.setdefault("default_minimum_pixels", 0)
+    settings.setdefault("performance_mode", "balanced")
+    settings.setdefault("preview_render_mode", "light")
     return settings
 
 

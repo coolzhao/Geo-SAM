@@ -8,11 +8,12 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Literal
 from urllib.parse import urlparse
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
+    QgsGeometry,
     QgsRasterLayer,
     QgsRectangle,
 )
@@ -48,6 +49,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 ONLINE_QUERY_REFRESH_MARGIN_PIXELS = 128
+PerformanceMode = Literal["balanced", "fastest", "low_memory"]
+PreviewRenderMode = Literal["light", "exact"]
 
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 _FROZEN_DATACLASS_KWARGS = {"frozen": True, **_DATACLASS_SLOTS_KWARGS}
@@ -146,6 +149,14 @@ class PreparedRealtimeRasterQueryResult:
     query_cache: Any | None = None
 
 
+@dataclass(**_FROZEN_DATACLASS_KWARGS)
+class QueryResultRenderPayload:
+    """Rendered query payload used by Geo-SAM canvas overlays."""
+
+    geojson_features: list[dict[str, Any]]
+    canvas_geometries: list[QgsGeometry]
+
+
 class _ModelSessionRegistry:
     """Registry for loaded GeoSAM engines so memory can be released explicitly."""
 
@@ -206,6 +217,7 @@ class _ModelSessionRegistry:
                 and key_source_path == normalized_keep_source_path
             ):
                 continue
+            _close_runtime_engine(self._online_engines[key])
             del self._online_engines[key]
             removed_count += 1
         return removed_count
@@ -231,12 +243,53 @@ class _ModelSessionRegistry:
             for key in list(store):
                 if model_id is not None and not key.startswith(f"{model_id}||"):
                     continue
+                _close_runtime_engine(store[key])
                 del store[key]
                 removed_count += 1
         return removed_count
 
 
 MODEL_SESSIONS = _ModelSessionRegistry()
+
+
+def _normalize_performance_mode(value: Any) -> PerformanceMode:
+    """Normalize a configured performance mode."""
+    normalized_value = str(value or "balanced").strip().lower()
+    if normalized_value in {"balanced", "fastest", "low_memory"}:
+        return normalized_value  # type: ignore[return-value]
+    return "balanced"
+
+
+def get_performance_mode() -> PerformanceMode:
+    """Return the configured realtime performance mode."""
+    return _normalize_performance_mode(
+        load_plugin_settings().get("performance_mode", "balanced")
+    )
+
+
+def _normalize_preview_render_mode(value: Any) -> PreviewRenderMode:
+    """Normalize a configured preview render mode."""
+    normalized_value = str(value or "light").strip().lower()
+    if normalized_value in {"light", "exact"}:
+        return normalized_value  # type: ignore[return-value]
+    return "light"
+
+
+def get_preview_render_mode() -> PreviewRenderMode:
+    """Return the configured preview render mode."""
+    return _normalize_preview_render_mode(
+        load_plugin_settings().get("preview_render_mode", "light")
+    )
+
+
+def _close_runtime_engine(engine: Any) -> None:
+    """Best-effort close for cached GeoSAM engine instances."""
+    close_method = getattr(engine, "close", None)
+    if callable(close_method):
+        try:
+            close_method()
+        except Exception as exc:
+            logger.warning("Failed to close cached GeoSAM engine: %s", exc)
 
 
 def sanitize_path_component(value: str) -> str:
@@ -336,13 +389,30 @@ def _clear_online_engine_predictor_state(
             setattr(predictor, attribute_name, empty_value)
 
 
-def release_online_runtime_hot_cache(*, keep_source_path: str | None = None) -> int:
+def _should_trim_online_engines() -> bool:
+    """Return whether inactive online engines should be released immediately."""
+    return get_performance_mode() != "fastest"
+
+
+def _should_clear_online_query_state_after_result() -> bool:
+    """Return whether realtime queries should clear predictor state after use."""
+    return get_performance_mode() == "low_memory"
+
+
+def release_online_runtime_hot_cache(
+    *,
+    keep_source_path: str | None = None,
+    force: bool = False,
+) -> int:
     """Release cached online engines and clear accelerator memory.
 
     Parameters
     ----------
     keep_source_path : str | None, optional
         Preserve the online engine for this source path when provided.
+    force : bool, default=False
+        When ``True``, release engines even when the configured performance
+        mode prefers keeping them warm.
 
     Returns
     -------
@@ -350,10 +420,13 @@ def release_online_runtime_hot_cache(*, keep_source_path: str | None = None) -> 
         Number of released online engines.
 
     """
+    if not force and not _should_trim_online_engines():
+        return 0
     removed_count = MODEL_SESSIONS.release_online_engines(
         keep_source_path=keep_source_path,
     )
-    _flush_torch_memory()
+    if removed_count > 0:
+        _flush_torch_memory()
     return removed_count
 
 
@@ -688,6 +761,34 @@ def _save_persistent_query_cache(
     )
 
 
+def save_prepared_realtime_query_cache(
+    *,
+    prepared_query: PreparedRealtimeRasterQuery,
+    source_path: str,
+    query_cache: Any,
+) -> None:
+    """Persist a prepared realtime query cache entry to disk.
+
+    Parameters
+    ----------
+    prepared_query : PreparedRealtimeRasterQuery
+        Prepared realtime query metadata captured on the main thread.
+    source_path : str
+        Raster source used by the finished realtime query.
+    query_cache : Any
+        Reusable encoded-query cache returned by the background realtime query.
+
+    """
+    _save_persistent_query_cache_entry(
+        cache_directory=prepared_query.cache_directory,
+        layer_name=prepared_query.layer_name,
+        source_fingerprint=prepared_query.source_fingerprint,
+        model_id=prepared_query.model_id,
+        source_path=source_path,
+        query_cache=query_cache,
+    )
+
+
 def _save_persistent_query_cache_entry(
     *,
     cache_directory: Path,
@@ -886,6 +987,7 @@ def run_prepared_realtime_raster_query(
     model_spec = create_model_spec(prepared_query.model_id)
 
     for source_candidate in prepared_query.source_candidates:
+        engine = None
         try:
             _ensure_not_canceled()
             _report_progress("Opening raster source", 5.0)
@@ -932,17 +1034,6 @@ def run_prepared_realtime_raster_query(
                 encoded=encoded,
             )
 
-            _ensure_not_canceled()
-            _report_progress("Saving encoded cache", 90.0)
-            _save_persistent_query_cache_entry(
-                cache_directory=prepared_query.cache_directory,
-                layer_name=prepared_query.layer_name,
-                source_fingerprint=prepared_query.source_fingerprint,
-                model_id=prepared_query.model_id,
-                source_path=sample.source_path,
-                query_cache=query_cache,
-            )
-
             result = _prediction_to_result(
                 prediction,
                 sample_grid=chip_grid,
@@ -951,6 +1042,7 @@ def run_prepared_realtime_raster_query(
                 chip_id=None,
                 model_type=model_spec.model_type,
             )
+            _ensure_not_canceled()
             _report_progress("Finished realtime query", 100.0)
             return PreparedRealtimeRasterQueryResult(
                 source_path=sample.source_path,
@@ -962,6 +1054,8 @@ def run_prepared_realtime_raster_query(
         except Exception as exc:
             errors.append(f"{source_candidate}: {exc}")
             continue
+        finally:
+            _close_runtime_engine(engine)
 
     msg = "Failed to encode a realtime raster chip for the current prompt."
     logger.error("%s Details: %s", msg, errors)
@@ -1141,8 +1235,9 @@ def query_raster_layer(
             cache.source_candidate = str(cached_source_path)
             cache.engine = engine
             result = engine.query(query, cache=cache.query_cache)
-            _clear_online_engine_predictor_state(engine, keep_features=True)
-            _flush_torch_memory()
+            if supports_feature_reuse and _should_clear_online_query_state_after_result():
+                _clear_online_engine_predictor_state(engine, keep_features=True)
+                _flush_torch_memory()
             return result
 
     source_candidates = [
@@ -1198,10 +1293,10 @@ def query_raster_layer(
                 _save_persistent_query_cache(
                     layer=layer,
                     model_id=model_id,
-                    source_path=source_candidate,
-                    query_cache=cache.query_cache,
-                )
-            if supports_feature_reuse:
+                        source_path=source_candidate,
+                        query_cache=cache.query_cache,
+                    )
+            if supports_feature_reuse and _should_clear_online_query_state_after_result():
                 _clear_online_engine_predictor_state(engine, keep_features=True)
                 _flush_torch_memory()
             return result
@@ -1243,7 +1338,7 @@ def query_raster_layer(
                 source_path=exported_source,
                 query_cache=cache.query_cache,
             )
-        if supports_feature_reuse:
+        if supports_feature_reuse and _should_clear_online_query_state_after_result():
             _clear_online_engine_predictor_state(engine, keep_features=True)
             _flush_torch_memory()
         return result
@@ -1270,14 +1365,75 @@ def query_raster_layer(
     raise ValueError(msg)
 
 
-def query_result_to_geojson_features(result: QueryResult) -> list[dict[str, Any]]:
-    """Convert a GeoSAM query result into GeoJSON features."""
+def _preview_simplify_tolerance(result: QueryResult) -> float:
+    """Return a light-preview simplification tolerance in source CRS units."""
+    transform = result.mask_transform
+    return max(abs(float(transform.a)), abs(float(transform.e))) * 1.5
+
+
+def query_result_to_render_payload(
+    result: QueryResult,
+    *,
+    render_mode: PreviewRenderMode | None = None,
+) -> QueryResultRenderPayload:
+    """Convert a GeoSAM query result into canvas and GeoJSON render payloads."""
+    from shapely.geometry import mapping
+
     from geosam import MaskVectorizer
 
+    resolved_render_mode = (
+        get_preview_render_mode() if render_mode is None else render_mode
+    )
+    simplify_tolerance = (
+        _preview_simplify_tolerance(result)
+        if resolved_render_mode == "light"
+        else None
+    )
     properties = {
         "score": float(result.scores[0]) if result.scores.size > 0 else None,
     }
-    payload = MaskVectorizer.from_query_result(result).to_geojson(
-        properties=properties,
+    vectorizer = MaskVectorizer.from_query_result(result, properties=properties)
+    to_geometries = getattr(vectorizer, "to_geometries", None)
+    if callable(to_geometries):
+        shapely_geometries = to_geometries(
+            simplify_tolerance=simplify_tolerance,
+            preserve_topology=True,
+        )
+    else:
+        frame = vectorizer.to_geodataframe()
+        shapely_geometries = list(frame.geometry)
+        if simplify_tolerance is not None:
+            shapely_geometries = [
+                geometry.simplify(simplify_tolerance, preserve_topology=True)
+                for geometry in shapely_geometries
+                if geometry is not None and not geometry.is_empty
+            ]
+    geojson_features = [
+        {
+            "type": "Feature",
+            "properties": dict(properties),
+            "geometry": mapping(geometry),
+        }
+        for geometry in shapely_geometries
+    ]
+    canvas_geometries: list[QgsGeometry] = []
+    for geometry in shapely_geometries:
+        qgs_geometry = QgsGeometry()
+        qgs_geometry.fromWkb(geometry.wkb)
+        canvas_geometries.append(qgs_geometry)
+    return QueryResultRenderPayload(
+        geojson_features=geojson_features,
+        canvas_geometries=canvas_geometries,
     )
-    return list(payload.get("features", []))
+
+
+def query_result_to_geojson_features(
+    result: QueryResult,
+    *,
+    render_mode: PreviewRenderMode | None = None,
+) -> list[dict[str, Any]]:
+    """Convert a GeoSAM query result into GeoJSON features."""
+    return query_result_to_render_payload(
+        result,
+        render_mode=render_mode,
+    ).geojson_features

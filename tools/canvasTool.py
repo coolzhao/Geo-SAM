@@ -10,6 +10,8 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
 from qgis.core import (
+    QgsCoordinateTransform,
+    QgsCoordinateReferenceSystem,
     QgsFeature,
     QgsField,
     QgsFields,
@@ -939,38 +941,95 @@ class SAM_PolygonFeature:
             True for showing new SAM result.
         '''
         geometries: list[QgsGeometry] = []
-        areas: list[float] = []
         for geom in geojson:
             points = []
             coordinates = geom['geometry']['coordinates'][0]
             for coord in coordinates:
-                # transform pointXY from img_crs to polygon layer crs, if not match
                 point = QgsPointXY(*coord)
                 point = self.img_crs_manager.img_point_to_crs(
                     point, self.layer.crs())
                 points.append(point)
+            geometries.append(QgsGeometry.fromPolygonXY([points]))
+        self.add_qgs_geometry_to_canvas(
+            geometries,
+            t_area,
+            max_object_mode=max_object_mode,
+            target=target,
+            overwrite_geojson=overwrite_geojson,
+            geojson=geojson,
+        )
 
-            geometry = QgsGeometry.fromPolygonXY([points])
-            geometries.append(geometry)
-            areas.append(geometry.area())
+    def add_qgs_geometry_to_canvas(
+            self,
+            geometries: list[QgsGeometry],
+            t_area: float,
+            max_object_mode: bool = False,
+            target: str = 'preview',
+            overwrite_geojson: bool = False,
+            geojson: dict | None = None,
+            source_crs: QgsCoordinateReferenceSystem | None = None,
+    ) -> None:
+        """Add prebuilt QGIS geometries to the canvas overlay.
+
+        Parameters
+        ----------
+        geometries : list[QgsGeometry]
+            Geometries already prepared for canvas rendering.
+        t_area : float
+            Minimum geometry area to keep.
+        max_object_mode : bool, default=False
+            Whether only the largest geometry should be shown.
+        target : str, default='preview'
+            Destination overlay, either ``'preview'`` or ``'prompt'``.
+        overwrite_geojson : bool, default=False
+            Whether to replace the stored GeoJSON payload for the target.
+        geojson : dict | None, optional
+            GeoJSON payload paired with ``geometries`` when the caller wants to
+            keep downstream save/export behavior unchanged.
+        source_crs : QgsCoordinateReferenceSystem | None, optional
+            CRS of ``geometries``. When provided and different from the output
+            layer CRS, geometries are transformed once before rendering.
+
+        """
+        layer = self.get_layer()
+        target_crs = None if layer is None else layer.crs()
+        transformed_geometries: list[QgsGeometry] = []
+        for geometry in geometries:
+            transformed_geometry = QgsGeometry(geometry)
+            if (
+                source_crs is not None
+                and target_crs is not None
+                and source_crs != target_crs
+            ):
+                coordinate_transform = QgsCoordinateTransform(
+                    source_crs,
+                    target_crs,
+                    QgsProject.instance(),
+                )
+                transformed_geometry.transform(coordinate_transform)
+            transformed_geometries.append(transformed_geometry)
+
+        geometry_areas = [geometry.area() for geometry in transformed_geometries]
 
         def process_geometry(geometry: QgsGeometry) -> None:
             if target == 'preview':
                 self.canvas_preview_polygon.addPolygon(geometry)
-                if overwrite_geojson:
-                    self.geojson_canvas_preview = geojson
             else:
                 self.canvas_prompt_polygon.addPolygon(geometry)
-                if overwrite_geojson:
-                    self.geojson_canvas_prompt = geojson
+
+        if overwrite_geojson:
+            if target == 'preview':
+                self.geojson_canvas_preview = {} if geojson is None else geojson
+            else:
+                self.geojson_canvas_prompt = {} if geojson is None else geojson
 
         if max_object_mode:
-            if len(areas) == 0:
+            if len(geometry_areas) == 0:
                 return
-            process_geometry(geometries[int(np.argmax(areas))])
+            process_geometry(transformed_geometries[int(np.argmax(geometry_areas))])
             return
 
-        for geometry, geometry_area in zip(geometries, areas):
+        for geometry, geometry_area in zip(transformed_geometries, geometry_areas):
             if geometry_area < t_area:
                 continue
             process_geometry(geometry)

@@ -11,5 +11,7 @@
     "default_minimum_pixels": 0,
     "max_polygon_only": true,
     "selected_model_id": "sam2.1_b",
-    "clear_cache_on_plugin_close": true
+    "clear_cache_on_plugin_close": true,
+    "performance_mode": "balanced",
+    "preview_render_mode": "light"
 }

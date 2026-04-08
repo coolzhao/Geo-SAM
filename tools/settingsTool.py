@@ -7,6 +7,7 @@ from pathlib import Path
 from PyQt5.QtCore import QProcess, QThread, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFileDialog,
     QFormLayout,
@@ -33,7 +34,9 @@ from .plugin_settings import (
     DEFAULT_CACHE_DIR,
     DEFAULT_MODEL_DIR,
     HELP_LINKS,
+    PERFORMANCE_MODE_VALUES,
     PLUGIN_ROOT,
+    PREVIEW_RENDER_MODE_VALUES,
     clear_cache,
     cleanup_cache,
     dependency_status,
@@ -214,6 +217,37 @@ class GeoSamSettingsDialog(QDialog):
         self.cache_size_box.setValue(int(self.settings["cache_max_size_mb"]))
         self.cache_size_box.valueChanged.connect(self.save_cache_settings)
 
+        self.performance_mode_combo = QComboBox(tab)
+        self.performance_mode_combo.addItem("Balanced", "balanced")
+        self.performance_mode_combo.addItem("Fastest", "fastest")
+        self.performance_mode_combo.addItem("Low Memory", "low_memory")
+        self.performance_mode_combo.setCurrentIndex(
+            max(
+                0,
+                self.performance_mode_combo.findData(
+                    str(self.settings.get("performance_mode", "balanced"))
+                ),
+            )
+        )
+        self.performance_mode_combo.currentIndexChanged.connect(
+            self.save_cache_settings
+        )
+
+        self.preview_render_mode_combo = QComboBox(tab)
+        self.preview_render_mode_combo.addItem("Light Preview", "light")
+        self.preview_render_mode_combo.addItem("Exact Preview", "exact")
+        self.preview_render_mode_combo.setCurrentIndex(
+            max(
+                0,
+                self.preview_render_mode_combo.findData(
+                    str(self.settings.get("preview_render_mode", "light"))
+                ),
+            )
+        )
+        self.preview_render_mode_combo.currentIndexChanged.connect(
+            self.save_cache_settings
+        )
+
         self.clear_cache_on_close_checkbox = QCheckBox(
             "Clear cache when the plugin closes",
             tab,
@@ -232,6 +266,8 @@ class GeoSamSettingsDialog(QDialog):
         form_layout.addRow("Cache", self.cache_enabled_checkbox)
         form_layout.addRow("Location", cache_dir_row)
         form_layout.addRow("Max Size (MB)", self.cache_size_box)
+        form_layout.addRow("Performance", self.performance_mode_combo)
+        form_layout.addRow("Preview Rendering", self.preview_render_mode_combo)
         form_layout.addRow("Close Behavior", self.clear_cache_on_close_checkbox)
         form_layout.addRow("Current Usage", self.cache_status_label)
         form_layout.addRow("", cleanup_button)
@@ -494,11 +530,23 @@ class GeoSamSettingsDialog(QDialog):
     def save_cache_settings(self) -> None:
         cache_dir = self.cache_dir_edit.text().strip() or str(DEFAULT_CACHE_DIR)
         self.cache_dir_edit.setText(cache_dir)
+        performance_mode = str(
+            self.performance_mode_combo.currentData() or "balanced"
+        ).strip()
+        if performance_mode not in PERFORMANCE_MODE_VALUES:
+            performance_mode = "balanced"
+        preview_render_mode = str(
+            self.preview_render_mode_combo.currentData() or "light"
+        ).strip()
+        if preview_render_mode not in PREVIEW_RENDER_MODE_VALUES:
+            preview_render_mode = "light"
         self.settings = save_plugin_settings({
             "cache_enabled": self.cache_enabled_checkbox.isChecked(),
             "cache_dir": cache_dir,
             "cache_max_size_mb": self.cache_size_box.value(),
             "clear_cache_on_plugin_close": self.clear_cache_on_close_checkbox.isChecked(),
+            "performance_mode": performance_mode,
+            "preview_render_mode": preview_render_mode,
         })
         self.refresh_cache_status()
 
