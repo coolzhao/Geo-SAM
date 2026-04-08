@@ -3,21 +3,14 @@
 from __future__ import annotations
 
 import gc
-import importlib.metadata
 import json
 import logging
-import os
-import shutil
-import subprocess
 import sys
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable
 from urllib.parse import urlparse
 
-from PyQt5.QtCore import QUrl
-from PyQt5.QtGui import QDesktopServices
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsRasterLayer,
@@ -25,6 +18,11 @@ from qgis.core import (
 )
 
 from .messageTool import MessageTool
+from .model_manager import (
+    create_model_spec,
+    get_model_definition,
+    infer_model_id_from_checkpoint_path,
+)
 from .online_tile_export import (
     OnlineRasterExportError,
     OnlineRasterPreflightError,
@@ -35,6 +33,12 @@ from .online_tile_export import (
 from .online_tile_export import (
     online_export_failure_message as describe_online_export_failure,
 )
+from .plugin_settings import (
+    clear_cache,
+    cleanup_cache,
+    get_cache_directory,
+    load_plugin_settings,
+)
 
 if TYPE_CHECKING:
     from geosam.engines import QueryResult
@@ -43,64 +47,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_DIR = PLUGIN_ROOT / "ui" / "config"
-SETTINGS_DEFAULT_PATH = CONFIG_DIR / "default.json"
-SETTINGS_USER_PATH = CONFIG_DIR / "user.json"
-DEFAULT_MODEL_DIR = PLUGIN_ROOT / "models"
-DEFAULT_CACHE_DIR = PLUGIN_ROOT / ".cache"
-LOCAL_GEOSAM_REPOSITORY = Path("/Users/fancy/Documents/GitHub/geosam")
-HELP_LINKS = {
-    "Documentation": "https://geo-sam.readthedocs.io/en/latest/",
-    "GitHub": "https://github.com/coolzhao/Geo-SAM",
-    "Report Bug": "https://github.com/coolzhao/Geo-SAM/issues",
-    "Discussions": "https://github.com/coolzhao/Geo-SAM/discussions",
-}
 ONLINE_QUERY_REFRESH_MARGIN_PIXELS = 128
 
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 _FROZEN_DATACLASS_KWARGS = {"frozen": True, **_DATACLASS_SLOTS_KWARGS}
 _MUTABLE_DATACLASS_KWARGS = dict(_DATACLASS_SLOTS_KWARGS)
-
-DEFAULT_MODEL_REPOSITORY = "https://github.com/Fanchengyan/geosam-models"
-DEPENDENCY_DISTRIBUTIONS: dict[str, str] = {
-    "geosam": "geosam",
-    "torch": "torch",
-    "ultralytics": "ultralytics",
-    "rasterio": "rasterio",
-    "geopandas": "geopandas",
-    "pyarrow": "pyarrow",
-}
-
-
-@dataclass(**_FROZEN_DATACLASS_KWARGS)
-class ModelDefinition:
-    """Supported downloadable model definition."""
-
-    model_id: str
-    label: str
-    model_type: Literal["sam", "sam2", "sam3"]
-    filename: str
-    supports_feature_reuse: bool = True
-
-
-MODEL_DEFINITIONS: tuple[ModelDefinition, ...] = (
-    ModelDefinition("sam_b", "SAM Base", "sam", "sam_b.pt"),
-    ModelDefinition("sam_l", "SAM Large", "sam", "sam_l.pt"),
-    ModelDefinition("sam2_t", "SAM2 Tiny", "sam2", "sam2_t.pt"),
-    ModelDefinition("sam2_s", "SAM2 Small", "sam2", "sam2_s.pt"),
-    ModelDefinition("sam2_b", "SAM2 Base", "sam2", "sam2_b.pt"),
-    ModelDefinition("sam2_l", "SAM2 Large", "sam2", "sam2_l.pt"),
-    ModelDefinition("sam2.1_t", "SAM2.1 Tiny", "sam2", "sam2.1_t.pt"),
-    ModelDefinition("sam2.1_s", "SAM2.1 Small", "sam2", "sam2.1_s.pt"),
-    ModelDefinition("sam2.1_b", "SAM2.1 Base", "sam2", "sam2.1_b.pt"),
-    ModelDefinition("sam2.1_l", "SAM2.1 Large", "sam2", "sam2.1_l.pt"),
-    ModelDefinition("sam3", "SAM3", "sam3", "sam3.pt"),
-    ModelDefinition(
-        "sam3.1_multiplex", "SAM3.1 Multiplex", "sam3", "sam3.1_multiplex.pt"
-    ),
-)
-
 
 @dataclass(**_FROZEN_DATACLASS_KWARGS)
 class FeatureSourceSummary:
@@ -288,13 +239,6 @@ class _ModelSessionRegistry:
 MODEL_SESSIONS = _ModelSessionRegistry()
 
 
-def _load_json(path: Path) -> dict[str, Any]:
-    """Load a JSON object from disk."""
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def sanitize_path_component(value: str) -> str:
     """Convert an arbitrary label into a filesystem-safe path component."""
     sanitized = "".join(
@@ -305,141 +249,11 @@ def sanitize_path_component(value: str) -> str:
     return sanitized or "unnamed"
 
 
-def load_plugin_settings() -> dict[str, Any]:
-    """Load effective plugin settings."""
-    settings = _default_plugin_settings()
-    settings.update(_load_json(SETTINGS_USER_PATH))
-    return settings
-
-
-def _default_plugin_settings() -> dict[str, Any]:
-    """Return the effective default plugin settings."""
-    settings = _load_json(SETTINGS_DEFAULT_PATH)
-    settings.setdefault("model_repo_url", DEFAULT_MODEL_REPOSITORY)
-    settings.setdefault("model_store_dir", str(DEFAULT_MODEL_DIR))
-    settings.setdefault("cache_enabled", True)
-    settings.setdefault("cache_dir", str(DEFAULT_CACHE_DIR))
-    settings.setdefault("cache_max_size_mb", 2048)
-    settings.setdefault("clear_cache_on_plugin_close", True)
-    settings.setdefault("selected_model_id", "")
-    settings.setdefault("show_boundary", True)
-    settings.setdefault("default_minimum_pixels", 0)
-    return settings
-
-
-def save_plugin_settings(updates: dict[str, Any]) -> dict[str, Any]:
-    """Persist plugin settings."""
-    settings = load_plugin_settings()
-    settings.update(updates)
-    defaults = _default_plugin_settings()
-    user_settings = {
-        key: value for key, value in settings.items() if defaults.get(key) != value
-    }
-    SETTINGS_USER_PATH.write_text(
-        json.dumps(user_settings, indent=4),
-        encoding="utf-8",
-    )
-    return settings
-
-
-def get_model_definition(model_id: str) -> ModelDefinition:
-    """Return a model definition by id."""
-    for definition in MODEL_DEFINITIONS:
-        if definition.model_id == model_id:
-            return definition
-    logger.error("Unknown GeoSAM model id requested: %s", model_id)
-    raise KeyError(model_id)
-
-
-def get_model_directory() -> Path:
-    """Return the local model directory."""
-    settings = load_plugin_settings()
-    model_dir = Path(settings["model_store_dir"]).expanduser()
-    model_dir.mkdir(parents=True, exist_ok=True)
-    return model_dir
-
-
-def get_cache_directory() -> Path:
-    """Return the local cache directory."""
-    settings = load_plugin_settings()
-    cache_dir = Path(settings["cache_dir"]).expanduser()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir
-
-
 def get_layer_cache_directory(layer_name: str) -> Path:
     """Return the cache root for a raster layer name."""
     layer_cache_dir = get_cache_directory() / sanitize_path_component(layer_name)
     layer_cache_dir.mkdir(parents=True, exist_ok=True)
     return layer_cache_dir
-
-
-def get_model_checkpoint_path(model_id: str) -> Path:
-    """Return the local checkpoint path for a model."""
-    definition = get_model_definition(model_id)
-    return get_model_directory() / definition.filename
-
-
-def get_model_display_items() -> list[tuple[str, str]]:
-    """Return selectable model entries for UI comboboxes."""
-    return [(definition.model_id, definition.label) for definition in MODEL_DEFINITIONS]
-
-
-def get_model_status_rows() -> list[dict[str, Any]]:
-    """Return model download status rows."""
-    rows: list[dict[str, Any]] = []
-    for definition in MODEL_DEFINITIONS:
-        checkpoint_path = get_model_checkpoint_path(definition.model_id)
-        rows.append({
-            "model_id": definition.model_id,
-            "label": definition.label,
-            "model_type": definition.model_type,
-            "downloaded": checkpoint_path.exists(),
-            "path": checkpoint_path,
-        })
-    return rows
-
-
-def create_model_spec(model_id: str) -> ModelSpec:
-    """Create a GeoSAM model spec for the selected model."""
-    from geosam.runtime import create_model_spec as create_runtime_model_spec
-
-    checkpoint_path = get_model_checkpoint_path(model_id)
-    if not checkpoint_path.exists():
-        logger.error("Model checkpoint is missing: %s", checkpoint_path)
-        raise FileNotFoundError(checkpoint_path)
-    return create_runtime_model_spec(model_id, checkpoint_path)
-
-
-def infer_model_id_from_checkpoint_path(
-    checkpoint_path: str | Path,
-    *,
-    fallback_model_id: str | None = None,
-    allow_unknown: bool = False,
-) -> str | None:
-    """Infer a registered model id from a checkpoint file path."""
-    checkpoint_name = Path(checkpoint_path).name.lower()
-    for definition in MODEL_DEFINITIONS:
-        if checkpoint_name == definition.filename.lower():
-            return definition.model_id
-    for definition in MODEL_DEFINITIONS:
-        stem = Path(definition.filename).stem.lower()
-        if stem in checkpoint_name:
-            return definition.model_id
-    if fallback_model_id is not None:
-        return fallback_model_id
-    if allow_unknown:
-        logger.warning(
-            "Could not infer a GeoSAM model id from checkpoint path: %s",
-            checkpoint_path,
-        )
-        return None
-    msg = (
-        "Could not infer a GeoSAM model id from the checkpoint path. "
-        "Please select a supported model explicitly."
-    )
-    logger.error(msg)
-    raise ValueError(msg)
 
 
 def create_model_spec_from_checkpoint(
@@ -456,323 +270,6 @@ def create_model_spec_from_checkpoint(
         model_id=model_id,
         device=device,
     )
-
-
-def dependency_status() -> dict[str, bool]:
-    """Return installed-package availability for required dependencies.
-
-    Notes
-    -----
-    This check intentionally uses distribution metadata instead of
-    ``importlib.util.find_spec`` so the result reflects the current environment
-    after install or uninstall operations in the same QGIS session.
-    """
-    status: dict[str, bool] = {}
-    for module_name, distribution_name in DEPENDENCY_DISTRIBUTIONS.items():
-        try:
-            importlib.metadata.distribution(distribution_name)
-        except importlib.metadata.PackageNotFoundError:
-            status[module_name] = False
-        else:
-            status[module_name] = True
-    return status
-
-
-def _is_relative_to(path: Path, base_path: Path) -> bool:
-    """Return whether ``path`` is located inside ``base_path``."""
-    try:
-        path.relative_to(base_path)
-    except ValueError:
-        return False
-    return True
-
-
-def _iter_python_interpreter_candidates() -> list[Path]:
-    """Return candidate Python executables for the active QGIS environment.
-
-    The QGIS macOS application often reports ``sys.executable`` as the GUI
-    launcher binary instead of the environment Python interpreter. This helper
-    derives Python candidates from ``sys.prefix`` first, then uses ``sys.path``
-    to discover additional prefix-local Python binaries.
-
-    Returns
-    -------
-    list[Path]
-        Ordered executable candidates, with duplicates removed.
-    """
-    prefix_path = Path(sys.prefix).expanduser().resolve()
-    candidate_paths: list[Path] = []
-
-    for relative_path in (
-        "bin/python",
-        "bin/python3",
-        "bin/python3.11",
-        "python",
-        "python3",
-        "python3.11",
-    ):
-        candidate_paths.append(prefix_path / relative_path)
-
-    for raw_path in sys.path:
-        if not raw_path:
-            continue
-        try:
-            resolved_path = Path(raw_path).expanduser().resolve()
-        except OSError:
-            continue
-        if not _is_relative_to(resolved_path, prefix_path):
-            continue
-
-        for parent_path in (resolved_path, *resolved_path.parents):
-            if parent_path == prefix_path.parent:
-                break
-            if parent_path.name not in {"bin", "Scripts"}:
-                continue
-            for child_path in sorted(parent_path.glob("python*")):
-                candidate_paths.append(child_path)
-
-    unique_candidates: list[Path] = []
-    seen_paths: set[Path] = set()
-    for candidate_path in candidate_paths:
-        try:
-            resolved_candidate = candidate_path.expanduser().resolve()
-        except OSError:
-            continue
-        if resolved_candidate in seen_paths:
-            continue
-        seen_paths.add(resolved_candidate)
-        unique_candidates.append(resolved_candidate)
-    return unique_candidates
-
-
-def resolve_python_interpreter() -> Path:
-    """Resolve the Python interpreter for the active QGIS runtime environment.
-
-    Returns
-    -------
-    Path
-        Resolved Python interpreter path that belongs to ``sys.prefix``.
-
-    Raises
-    ------
-    RuntimeError
-        Raised when no suitable Python interpreter can be found.
-    """
-    prefix_path = Path(sys.prefix).expanduser().resolve()
-    executable_path = Path(sys.executable).expanduser().resolve()
-    if executable_path.is_file() and executable_path.name.startswith("python"):
-        return executable_path
-
-    for candidate_path in _iter_python_interpreter_candidates():
-        if not candidate_path.is_file():
-            continue
-        if not os.access(candidate_path, os.X_OK):
-            continue
-        if not candidate_path.name.startswith("python"):
-            continue
-        if not _is_relative_to(candidate_path, prefix_path):
-            continue
-        return candidate_path
-
-    msg = (
-        "Could not resolve a Python interpreter from the current QGIS runtime. "
-        f"sys.executable={sys.executable!r}, sys.prefix={sys.prefix!r}"
-    )
-    logger.error(msg)
-    raise RuntimeError(msg)
-
-
-def get_dependency_install_command() -> list[str]:
-    """Build the pip command used to install plugin dependencies.
-
-    Returns
-    -------
-    list[str]
-        Command arguments suitable for ``subprocess`` execution.
-
-    Raises
-    ------
-    RuntimeError
-        Raised when the current QGIS runtime Python interpreter cannot be
-        resolved.
-    """
-    geosam_requirement = (
-        str(LOCAL_GEOSAM_REPOSITORY) if LOCAL_GEOSAM_REPOSITORY.exists() else "geosam"
-    )
-    python_interpreter = resolve_python_interpreter()
-    return [
-        str(python_interpreter),
-        "-m",
-        "pip",
-        "install",
-        geosam_requirement,
-        "torch",
-        "torchvision",
-        "ultralytics",
-        "rasterio",
-        "geopandas",
-        "pyarrow",
-    ]
-
-
-def install_dependencies(
-    log_callback: Callable[[str], None] | None = None,
-) -> tuple[bool, str]:
-    """Install GeoSAM plugin dependencies with pip.
-
-    Parameters
-    ----------
-    log_callback : Callable[[str], None] | None, optional
-        Callback that receives incremental install log lines.
-
-    Returns
-    -------
-    tuple[bool, str]
-        Installation success flag and combined command output.
-    """
-    try:
-        command = get_dependency_install_command()
-    except RuntimeError as exc:
-        logger.error("Dependency installation aborted: %s", exc)
-        return False, str(exc)
-
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-    output_lines: list[str] = []
-
-    if process.stdout is not None:
-        for raw_line in process.stdout:
-            line = raw_line.rstrip()
-            output_lines.append(line)
-            if log_callback is not None:
-                log_callback(line)
-
-    return_code = process.wait()
-    output = "\n".join(line for line in output_lines if line.strip())
-    return return_code == 0, output
-
-
-def open_url(url: str) -> None:
-    """Open a URL in the desktop browser."""
-    QDesktopServices.openUrl(QUrl(url))
-
-
-def open_path(path: Path) -> None:
-    """Open a local path in the desktop file manager."""
-    QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.expanduser().resolve())))
-
-
-def _resolve_model_download_source(repository: str, filename: str) -> str:
-    """Resolve a model source URL or local path."""
-    repository_path = Path(repository).expanduser()
-    if repository_path.exists():
-        return str(repository_path / filename)
-
-    normalized_repository = repository.rstrip("/")
-    if (
-        "github.com" in normalized_repository
-        and "raw.githubusercontent.com" not in normalized_repository
-    ):
-        normalized_repository = normalized_repository.replace(
-            "https://github.com/",
-            "https://raw.githubusercontent.com/",
-        ).replace(
-            "http://github.com/",
-            "https://raw.githubusercontent.com/",
-        )
-        normalized_repository = f"{normalized_repository}/main"
-    return f"{normalized_repository}/{filename}"
-
-
-def download_model(model_id: str) -> Path:
-    """Download or copy a model checkpoint into the local store."""
-    definition = get_model_definition(model_id)
-    settings = load_plugin_settings()
-    target_path = get_model_checkpoint_path(model_id)
-    if target_path.exists():
-        return target_path
-
-    source = _resolve_model_download_source(
-        str(settings["model_repo_url"]),
-        definition.filename,
-    )
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    if Path(source).exists():
-        shutil.copy2(source, target_path)
-        return target_path
-
-    download_target = target_path.with_suffix(f"{target_path.suffix}.download")
-    urllib.request.urlretrieve(source, download_target)
-    download_target.replace(target_path)
-    return target_path
-
-
-def delete_model(model_id: str) -> None:
-    """Delete a locally downloaded model checkpoint."""
-    release_runtime_models(model_id=model_id)
-    checkpoint_path = get_model_checkpoint_path(model_id)
-    if checkpoint_path.exists():
-        checkpoint_path.unlink()
-
-
-def get_cache_size_bytes(path: Path | None = None) -> int:
-    """Return the current cache size in bytes."""
-    cache_dir = get_cache_directory() if path is None else path
-    if not cache_dir.exists():
-        return 0
-    return sum(
-        file_path.stat().st_size
-        for file_path in cache_dir.rglob("*")
-        if file_path.is_file()
-    )
-
-
-def cleanup_cache() -> int:
-    """Trim cache files until the configured maximum size is respected."""
-    settings = load_plugin_settings()
-    cache_dir = get_cache_directory()
-    if not settings.get("cache_enabled", True):
-        return 0
-
-    max_size_bytes = int(settings["cache_max_size_mb"]) * 1024 * 1024
-    current_size = get_cache_size_bytes(cache_dir)
-    removed_count = 0
-    if current_size <= max_size_bytes:
-        return removed_count
-
-    files = sorted(
-        (file_path for file_path in cache_dir.rglob("*") if file_path.is_file()),
-        key=lambda file_path: file_path.stat().st_mtime,
-    )
-    for file_path in files:
-        file_size = file_path.stat().st_size
-        file_path.unlink()
-        current_size -= file_size
-        removed_count += 1
-        if current_size <= max_size_bytes:
-            break
-    return removed_count
-
-
-def clear_cache() -> int:
-    """Delete all cached files and return the number removed."""
-    cache_dir = get_cache_directory()
-    if not cache_dir.exists():
-        return 0
-    removed_count = 0
-    for path in sorted(cache_dir.rglob("*"), reverse=True):
-        if path.is_file():
-            path.unlink()
-            removed_count += 1
-        elif path.is_dir():
-            path.rmdir()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return removed_count
 
 
 def _flush_torch_memory() -> None:

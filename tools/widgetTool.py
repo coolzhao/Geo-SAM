@@ -47,22 +47,23 @@ from .geosam_runtime import (
     RealtimeQueryCache,
     chip_extent_rectangles_for_source,
     describe_feature_source,
-    get_model_checkpoint_path,
-    get_model_display_items,
-    infer_model_id_from_checkpoint_path,
     layer_extent_rectangle,
     layer_pixel_area,
-    load_plugin_settings,
     prepare_realtime_raster_query,
     query_feature_source,
     query_raster_layer,
     query_result_to_geojson_features,
     release_online_runtime_hot_cache,
     release_runtime_models,
-    save_plugin_settings,
 )
 from .geoTool import ImageCRSManager
 from .messageTool import MessageTool
+from .model_manager import (
+    get_model_checkpoint_path,
+    get_model_display_items,
+    infer_model_id_from_checkpoint_path,
+)
+from .plugin_settings import load_plugin_settings, save_plugin_settings
 
 if TYPE_CHECKING:
     from rasterio.io import DatasetReader
@@ -564,7 +565,6 @@ class Selector(QDockWidget):
         self.resume_preview_mode_after_cache_hit = False
         save_plugin_settings({
             "selected_model_id": "",
-            "model_repo_url": str(load_plugin_settings()["model_repo_url"]),
             "model_store_dir": str(load_plugin_settings()["model_store_dir"]),
             "cache_enabled": bool(load_plugin_settings()["cache_enabled"]),
             "cache_dir": str(load_plugin_settings()["cache_dir"]),

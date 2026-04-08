@@ -40,10 +40,9 @@ from ..docs import encoder_help
 from ..ui.icons import QIcon_EncoderTool
 from .geosam_runtime import (
     chip_extent_rectangles_for_source,
-    create_model_spec_from_checkpoint,
-    get_model_display_items,
     sanitize_path_component,
 )
+from .model_manager import create_model_spec_from_checkpoint, get_model_display_items
 
 # 0 for meters, 6 for degrees, 9 for unknown
 UNIT_METERS = 0

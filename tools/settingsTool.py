@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt5.QtCore import QProcess, Qt
+from PyQt5.QtCore import QProcess, QThread, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -27,28 +27,46 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from .geosam_runtime import (
+from .messageTool import MessageTool
+from .model_manager import delete_model, download_model, get_model_status_rows
+from .plugin_settings import (
     DEFAULT_CACHE_DIR,
     DEFAULT_MODEL_DIR,
     HELP_LINKS,
     PLUGIN_ROOT,
     clear_cache,
     cleanup_cache,
-    delete_model,
     dependency_status,
-    download_model,
     get_cache_directory,
     get_cache_size_bytes,
     get_dependency_install_command,
     get_model_directory,
-    get_model_status_rows,
     load_plugin_settings,
     open_path,
     open_url,
-    release_runtime_models,
     save_plugin_settings,
 )
-from .messageTool import MessageTool
+from .geosam_runtime import release_runtime_models
+
+
+class ModelDownloadThread(QThread):
+    """Background worker that downloads one model checkpoint."""
+
+    succeeded = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, model_id: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.model_id = model_id
+
+    def run(self) -> None:
+        """Download the requested model and emit the outcome."""
+        try:
+            checkpoint_path = download_model(self.model_id)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        self.succeeded.emit(str(checkpoint_path))
 
 
 class GeoSamSettingsDialog(QDialog):
@@ -61,6 +79,7 @@ class GeoSamSettingsDialog(QDialog):
         self.settings = load_plugin_settings()
         self._dependency_install_process: QProcess | None = None
         self._dependency_install_output_buffer = ""
+        self._model_download_thread: ModelDownloadThread | None = None
 
         self.tab_widget = QTabWidget(self)
         self.tab_widget.addTab(self._build_dependency_tab(), "Dependencies")
@@ -125,8 +144,6 @@ class GeoSamSettingsDialog(QDialog):
 
         path_group = QGroupBox("Storage", tab)
         path_layout = QGridLayout(path_group)
-        self.model_repo_edit = QLineEdit(str(self.settings["model_repo_url"]), tab)
-        self.model_repo_edit.editingFinished.connect(self.save_model_repository)
         self.model_dir_edit = QLineEdit(str(self.settings["model_store_dir"]), tab)
         self.model_dir_edit.editingFinished.connect(self.save_model_directory)
 
@@ -135,18 +152,22 @@ class GeoSamSettingsDialog(QDialog):
         open_button = QPushButton("Open Folder", tab)
         open_button.clicked.connect(lambda: open_path(get_model_directory()))
 
-        path_layout.addWidget(QLabel("Repository", tab), 0, 0)
-        path_layout.addWidget(self.model_repo_edit, 0, 1, 1, 2)
-        path_layout.addWidget(QLabel("Model Folder", tab), 1, 0)
-        path_layout.addWidget(self.model_dir_edit, 1, 1)
-        path_layout.addWidget(browse_button, 1, 2)
-        path_layout.addWidget(open_button, 1, 3)
+        path_layout.addWidget(QLabel("Model Folder", tab), 0, 0)
+        path_layout.addWidget(self.model_dir_edit, 0, 1)
+        path_layout.addWidget(browse_button, 0, 2)
+        path_layout.addWidget(open_button, 0, 3)
 
         list_group = QGroupBox("Models", tab)
         list_layout = QVBoxLayout(list_group)
         self.model_list = QListWidget(tab)
         self.model_list.itemSelectionChanged.connect(self.refresh_model_action_state)
         list_layout.addWidget(self.model_list)
+        self.model_download_status_label = QLabel("Ready", tab)
+        list_layout.addWidget(self.model_download_status_label)
+        self.model_download_progress = QProgressBar(tab)
+        self.model_download_progress.setRange(0, 0)
+        self.model_download_progress.setVisible(False)
+        list_layout.addWidget(self.model_download_progress)
 
         action_row = QHBoxLayout()
         self.download_button = QPushButton("Download", tab)
@@ -357,11 +378,6 @@ class GeoSamSettingsDialog(QDialog):
         scrollbar = self.dependency_install_log.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
-    def save_model_repository(self) -> None:
-        self.settings = save_plugin_settings({
-            "model_repo_url": self.model_repo_edit.text().strip(),
-        })
-
     def save_model_directory(self) -> None:
         value = self.model_dir_edit.text().strip()
         if not value:
@@ -393,8 +409,9 @@ class GeoSamSettingsDialog(QDialog):
 
     def refresh_model_action_state(self) -> None:
         has_selection = self.model_list.currentItem() is not None
-        self.download_button.setEnabled(has_selection)
-        self.delete_button.setEnabled(has_selection)
+        is_downloading = self._model_download_thread is not None
+        self.download_button.setEnabled(has_selection and not is_downloading)
+        self.delete_button.setEnabled(has_selection and not is_downloading)
 
     def _selected_model_id(self) -> str | None:
         item = self.model_list.currentItem()
@@ -404,22 +421,52 @@ class GeoSamSettingsDialog(QDialog):
 
     def download_selected_model(self) -> None:
         model_id = self._selected_model_id()
-        if model_id is None:
+        if model_id is None or self._model_download_thread is not None:
             return
-        try:
-            checkpoint_path = download_model(model_id)
-        except Exception as exc:
-            MessageTool.MessageBoxOK(
-                str(exc),
-                title="Model Download Failed",
-            )
-            return
+        self.model_download_status_label.setText(f"Downloading {model_id}...")
+        self.model_download_progress.setVisible(True)
+        self.close_button.setEnabled(False)
+        self.model_list.setEnabled(False)
+        self.model_dir_edit.setEnabled(False)
+        self.download_button.setEnabled(False)
+        self.delete_button.setEnabled(False)
+
+        thread = ModelDownloadThread(model_id, self)
+        thread.succeeded.connect(self._download_model_succeeded)
+        thread.failed.connect(self._download_model_failed)
+        thread.finished.connect(self._download_model_finished)
+        self._model_download_thread = thread
+        thread.start()
+
+    def _download_model_succeeded(self, checkpoint_path: str) -> None:
+        """Handle a successful background model download."""
+        self.model_download_status_label.setText("Download completed.")
         MessageTool.MessageBar(
             "Geo-SAM",
             f"Model downloaded to {checkpoint_path}",
             level="success",
         )
         self.refresh_model_list()
+
+    def _download_model_failed(self, error_message: str) -> None:
+        """Handle a failed background model download."""
+        self.model_download_status_label.setText("Download failed.")
+        MessageTool.MessageBoxOK(
+            error_message,
+            title="Model Download Failed",
+        )
+
+    def _download_model_finished(self) -> None:
+        """Restore UI state after the background model download ends."""
+        self.model_download_progress.setVisible(False)
+        self.close_button.setEnabled(True)
+        self.model_list.setEnabled(True)
+        self.model_dir_edit.setEnabled(True)
+        thread = self._model_download_thread
+        self._model_download_thread = None
+        if thread is not None:
+            thread.deleteLater()
+        self.refresh_model_action_state()
 
     def delete_selected_model(self) -> None:
         model_id = self._selected_model_id()
