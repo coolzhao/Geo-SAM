@@ -937,6 +937,17 @@ def prepare_realtime_raster_query(
         if cached_source_path.exists():
             return None
 
+    if supports_feature_reuse and cache is not None and cache.query_cache is None:
+        persistent_cache_hit = _load_persistent_query_cache(layer, model_id, query)
+        if persistent_cache_hit is not None:
+            source_path, query_cache = persistent_cache_hit
+            cache.layer_id = layer.id()
+            cache.model_id = model_id
+            cache.source_candidate = source_path
+            cache.engine = None
+            cache.query_cache = query_cache
+            return None
+
     source_candidates = [
         source_path
         for source_candidate in _raster_layer_source_candidates(layer)

@@ -736,6 +736,17 @@ class Selector(QDockWidget):
         self._realtime_query_request_token += 1
         return self._realtime_query_request_token
 
+    def _invalidate_realtime_background_requests(self) -> None:
+        """Cancel queued realtime background work and ignore stale completions."""
+        if (
+            self._active_realtime_query_task is None
+            and self._pending_realtime_query_request is None
+        ):
+            return
+        self._cancel_active_realtime_query()
+        self._pending_realtime_query_request = None
+        self._realtime_query_request_token += 1
+
     def reset_default_settings(self):
         save_user_settings({}, mode="overwrite")
         self.realtime_query_cache.clear()
@@ -1543,6 +1554,51 @@ class Selector(QDockWidget):
             self.resume_preview_mode_after_cache_hit = False
             self._set_preview_mode_enabled(True)
 
+    def _should_defer_hover_realtime_query(
+        self,
+        *,
+        had_pressed_prompt: bool,
+        prepared_query: Any | None,
+    ) -> bool:
+        """Return whether a hover-only realtime preview should wait for commit.
+
+        Parameters
+        ----------
+        had_pressed_prompt : bool
+            True when the current prompt interaction has been committed by a
+            click or bbox release.
+        prepared_query : Any | None
+            Prepared background-query payload when a new realtime encoding pass
+            is required.
+
+        Returns
+        -------
+        bool
+            True when the current hover preview should be deferred until the
+            prompt is committed.
+        """
+        return (
+            self.runtime_source_kind == "realtime"
+            and self.preview_mode
+            and not had_pressed_prompt
+            and prepared_query is not None
+        )
+
+    def _defer_hover_realtime_query(self) -> None:
+        """Clear transient preview state until a realtime prompt is committed.
+
+        Notes
+        -----
+        Hover previews can run immediately only when GeoSAM can reuse an
+        already encoded cache. When the current prompt needs a fresh realtime
+        encoding pass, defer execution until the user commits the prompt.
+        """
+        self._invalidate_realtime_background_requests()
+        self._latest_preview_query_result = None
+        if hasattr(self, "polygon"):
+            self.polygon.canvas_preview_polygon.clear()
+        self._clear_query_chip_extent_cache(keep_source_boundary=True)
+
     def _schedule_realtime_query_cache_save(
         self,
         *,
@@ -1938,7 +1994,6 @@ class Selector(QDockWidget):
         model_id = self._require_selected_model()
         if model_id is None:
             return False
-        self.sam_execution_count += 1
         had_pressed_prompt = self.is_pressed_prompt()
 
         # check prompt inside feature extent and add last id to history for new prompt
@@ -1993,10 +2048,6 @@ class Selector(QDockWidget):
             self._restore_active_prompt_tool()
             return True
 
-        self._log_sam_execution(
-            "start",
-            had_pressed_prompt=had_pressed_prompt,
-        )
         query_started_at = perf_counter()
         prepared_query = None
         if self.runtime_source_kind == "realtime" and self.runtime_layer is not None:
@@ -2006,6 +2057,17 @@ class Selector(QDockWidget):
                 query,
                 cache=self.realtime_query_cache,
             )
+        if self._should_defer_hover_realtime_query(
+            had_pressed_prompt=had_pressed_prompt,
+            prepared_query=prepared_query,
+        ):
+            self._defer_hover_realtime_query()
+            return True
+        self.sam_execution_count += 1
+        self._log_sam_execution(
+            "start",
+            had_pressed_prompt=had_pressed_prompt,
+        )
         self._sync_preview_mode_for_realtime_query(
             had_pressed_prompt=had_pressed_prompt,
             prepared_query=prepared_query,
