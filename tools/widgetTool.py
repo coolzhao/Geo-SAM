@@ -20,11 +20,13 @@ from PyQt5.QtWidgets import (
     QShortcut,
 )
 from qgis.core import (
+    QgsApplication,
     QgsCoordinateReferenceSystem,
     QgsMapLayerProxyModel,
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
+    QgsTask,
 )
 from qgis.gui import QgisInterface, QgsFileWidget, QgsMapToolPan
 
@@ -47,6 +49,7 @@ from .canvasTool import (
 )
 from .geosam_runtime import (
     RealtimeQueryCache,
+    _RealtimeQueryCanceledError,
     chip_extent_rectangles_for_source,
     describe_feature_source,
     get_preview_render_mode,
@@ -173,47 +176,102 @@ class _PendingRealtimeQueryRequest:
     request_token: int
 
 
-class RealtimePreparedQueryThread(QThread):
-    """Background worker for prepared realtime raster queries."""
+class RealtimePreparedQueryTask(QgsTask):
+    """QGIS background task for prepared realtime raster queries.
 
-    succeeded = pyqtSignal(object, object, int)
-    failed = pyqtSignal(str, int, bool)
-    progress_updated = pyqtSignal(str, float, int)
+    Parameters
+    ----------
+    prepared_query : Any
+        Prepared background query payload captured on the main thread.
+    query : Any
+        GeoSAM query object to run.
+    request_token : int
+        Monotonic request token used to ignore stale results.
+    """
 
     def __init__(
         self,
         prepared_query: Any,
         query: Any,
         request_token: int,
-        parent: QObject | None = None,
     ) -> None:
-        super().__init__(parent)
         self.prepared_query = prepared_query
         self.query = query
         self.request_token = request_token
-        self._cancel_requested = False
+        self.prepared_result: Any | None = None
+        self.error_text: str | None = None
+        self.was_canceled: bool = False
+        self.latest_stage_text: str = "Queued"
+        self._base_description = self._build_base_description(
+            layer_name=getattr(prepared_query, "layer_name", None),
+        )
+        super().__init__(self.progress_description(), QgsTask.CanCancel)
+        self.setProgress(0.0)
 
-    def cancel(self) -> None:
-        """Request cooperative cancellation for the running query."""
-        self._cancel_requested = True
+    @staticmethod
+    def _build_base_description(layer_name: str | None) -> str:
+        """Build the base task description shown in QGIS.
 
-    def run(self) -> None:
+        Parameters
+        ----------
+        layer_name : str | None
+            Realtime raster layer name when available.
+
+        Returns
+        -------
+        str
+            Human-readable task description.
+        """
+        if layer_name:
+            return f"Geo-SAM live encoding ({layer_name})"
+        return "Geo-SAM live encoding"
+
+    def progress_description(self) -> str:
+        """Return the task description for the latest progress stage.
+
+        Returns
+        -------
+        str
+            Task description with the current stage when available.
+        """
+        if not self.latest_stage_text:
+            return self._base_description
+        return f"{self._base_description}: {self.latest_stage_text}"
+
+    def run(self) -> bool:
         """Execute the prepared realtime query."""
+        if self.isCanceled():
+            self.was_canceled = True
+            self.error_text = "Realtime raster query task was canceled."
+            return False
         try:
-            result = run_prepared_realtime_raster_query(
+            self.prepared_result = run_prepared_realtime_raster_query(
                 self.prepared_query,
                 self.query,
-                progress_callback=self._emit_progress,
-                is_canceled=lambda: self._cancel_requested,
+                progress_callback=self._report_progress,
+                is_canceled=self.isCanceled,
             )
+        except _RealtimeQueryCanceledError as exc:
+            self.was_canceled = True
+            self.error_text = str(exc)
+            return False
         except Exception as exc:
-            self.failed.emit(str(exc), self.request_token, self._cancel_requested)
-            return
-        self.succeeded.emit(self.prepared_query, result, self.request_token)
+            self.error_text = str(exc)
+            return False
+        return True
 
-    def _emit_progress(self, stage_text: str, progress_value: float) -> None:
-        """Forward background progress to the main thread."""
-        self.progress_updated.emit(stage_text, progress_value, self.request_token)
+    def _report_progress(self, stage_text: str, progress_value: float) -> None:
+        """Update the task progress from the worker thread.
+
+        Parameters
+        ----------
+        stage_text : str
+            Human-readable progress stage.
+        progress_value : float
+            Task completion percentage in the range ``[0, 100]``.
+        """
+        self.latest_stage_text = stage_text
+        self.setProgress(float(progress_value))
 
 
 class RealtimeQueryCacheSaveThread(QThread):
@@ -322,7 +380,7 @@ class Selector(QDockWidget):
         self.query_chip_extents_canvas_crs: list[QgsRectangle] = []
         self.resume_preview_mode_after_cache_hit: bool = False
         self._realtime_query_request_token: int = 0
-        self._active_realtime_query_thread: RealtimePreparedQueryThread | None = None
+        self._active_realtime_query_task: RealtimePreparedQueryTask | None = None
         self._pending_realtime_query_request: _PendingRealtimeQueryRequest | None = None
         self._cache_save_threads: set[RealtimeQueryCacheSaveThread] = set()
         self._latest_prompt_query_result: Any | None = None
@@ -661,9 +719,9 @@ class Selector(QDockWidget):
 
     def _cancel_active_realtime_query(self) -> None:
         """Cancel the active background realtime query when present."""
-        if self._active_realtime_query_thread is None:
+        if self._active_realtime_query_task is None:
             return
-        self._active_realtime_query_thread.cancel()
+        self._active_realtime_query_task.cancel()
 
     def _reset_realtime_background_state(self) -> None:
         """Clear queued realtime background-query state."""
@@ -1521,33 +1579,34 @@ class Selector(QDockWidget):
     ) -> None:
         """Start the realtime background query for a prepared encode request."""
         self._cancel_active_realtime_query()
-        query_thread = RealtimePreparedQueryThread(
+        query_task = RealtimePreparedQueryTask(
             request.prepared_query,
             request.query,
             request.request_token,
-            parent=self,
         )
-        self._active_realtime_query_thread = query_thread
-        query_thread.progress_updated.connect(self._on_realtime_query_progress)
-        query_thread.failed.connect(
-            lambda error_text, request_token, was_canceled, started_at=request.query_started_at: self._on_realtime_query_failed(
-                error_text,
-                request_token,
-                was_canceled,
-                query_started_at=started_at,
+        if self.runtime_layer is not None:
+            query_task.setDependentLayers([self.runtime_layer])
+        self._active_realtime_query_task = query_task
+        query_task.progressChanged.connect(
+            lambda progress_value, task_ref=query_task: self._on_realtime_query_progress(
+                task_ref,
+                progress_value,
             )
         )
-        query_thread.succeeded.connect(
-            lambda prepared_query, result, request_token, started_at=request.query_started_at, had_pressed_prompt=request.had_pressed_prompt: self._on_realtime_query_succeeded(
-                prepared_query,
-                result,
-                request_token,
+        query_task.taskCompleted.connect(
+            lambda task_ref=query_task, started_at=request.query_started_at, had_pressed_prompt=request.had_pressed_prompt: self._finalize_realtime_query_task(
+                task_ref,
                 had_pressed_prompt=had_pressed_prompt,
                 query_started_at=started_at,
             )
         )
-        query_thread.finished.connect(self._on_realtime_query_finished)
-        query_thread.finished.connect(query_thread.deleteLater)
+        query_task.taskTerminated.connect(
+            lambda task_ref=query_task, started_at=request.query_started_at, had_pressed_prompt=request.had_pressed_prompt: self._finalize_realtime_query_task(
+                task_ref,
+                had_pressed_prompt=had_pressed_prompt,
+                query_started_at=started_at,
+            )
+        )
         self._reset_prompt_press_state()
         MessageTool.MessageLog(
             "Realtime query is encoding in the background.",
@@ -1555,7 +1614,7 @@ class Selector(QDockWidget):
             tag="Geo SAM Debug",
             notify_user=False,
         )
-        query_thread.start()
+        QgsApplication.taskManager().addTask(query_task)
 
     def _start_or_queue_realtime_background_query(
         self,
@@ -1574,30 +1633,30 @@ class Selector(QDockWidget):
             request_token=self._current_request_token(),
         )
         if (
-            self._active_realtime_query_thread is not None
-            and self._active_realtime_query_thread.isRunning()
+            self._active_realtime_query_task is not None
+            and self._active_realtime_query_task.isActive()
         ):
             self._pending_realtime_query_request = request
-            self._active_realtime_query_thread.cancel()
+            self._active_realtime_query_task.cancel()
             return
         self._pending_realtime_query_request = None
         self._launch_realtime_background_query(request)
 
     def _on_realtime_query_progress(
         self,
-        stage_text: str,
+        task: RealtimePreparedQueryTask,
         progress_value: float,
-        request_token: int,
     ) -> None:
         """Handle progress updates from the background realtime query."""
-        if request_token != self._realtime_query_request_token:
+        if task.request_token != self._realtime_query_request_token:
             return
+        task.setDescription(task.progress_description())
         MessageTool.MessageLog(
             json.dumps(
                 {
                     "phase": "background_progress",
                     "execution_count": self.sam_execution_count,
-                    "stage": stage_text,
+                    "stage": task.latest_stage_text,
                     "progress": round(float(progress_value), 2),
                 },
                 ensure_ascii=True,
@@ -1606,6 +1665,33 @@ class Selector(QDockWidget):
             tag="Geo SAM Debug",
             notify_user=False,
         )
+
+    def _finalize_realtime_query_task(
+        self,
+        task: RealtimePreparedQueryTask,
+        *,
+        had_pressed_prompt: bool,
+        query_started_at: float,
+    ) -> None:
+        """Apply the finished task result and schedule the next queued request."""
+        try:
+            if task.prepared_result is not None and not task.was_canceled:
+                self._on_realtime_query_succeeded(
+                    task.prepared_query,
+                    task.prepared_result,
+                    task.request_token,
+                    had_pressed_prompt=had_pressed_prompt,
+                    query_started_at=query_started_at,
+                )
+                return
+            self._on_realtime_query_failed(
+                task.error_text or "Realtime query failed.",
+                task.request_token,
+                task.was_canceled or task.isCanceled(),
+                query_started_at=query_started_at,
+            )
+        finally:
+            self._on_realtime_query_finished(completed_task=task)
 
     def _on_realtime_query_failed(
         self,
@@ -1672,9 +1758,19 @@ class Selector(QDockWidget):
             self.resume_preview_mode_after_cache_hit = False
             self._set_preview_mode_enabled(True)
 
-    def _on_realtime_query_finished(self) -> None:
+    def _on_realtime_query_finished(
+        self,
+        *,
+        completed_task: RealtimePreparedQueryTask | None = None,
+    ) -> None:
         """Start the latest queued realtime query after the current one ends."""
-        self._active_realtime_query_thread = None
+        if (
+            completed_task is not None
+            and self._active_realtime_query_task is not None
+            and completed_task is not self._active_realtime_query_task
+        ):
+            return
+        self._active_realtime_query_task = None
         if self._pending_realtime_query_request is None:
             return
         pending_request = self._pending_realtime_query_request
@@ -1870,7 +1966,7 @@ class Selector(QDockWidget):
 
             # add last id to history
             features = list(polygon_layer.getFeatures())
-            if len(list(features)) == 0:
+            if len(features) == 0:
                 last_id = 1
             else:
                 last_id = features[-1].id() + 1
@@ -2180,7 +2276,7 @@ class Selector(QDockWidget):
 
             # add last id of new features to history
             features = list(polygon_layer.getFeatures())
-            if len(list(features)) == 0:
+            if len(features) == 0:
                 return None
             last_id = features[-1].id()
 

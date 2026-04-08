@@ -26,13 +26,20 @@ from .model_manager import (
 )
 from .online_tile_export import (
     OnlineRasterExportError,
+    OnlineTileExportPlan,
     OnlineRasterPreflightError,
 )
 from .online_tile_export import (
     export_online_raster_source as export_online_tile_raster_source,
 )
 from .online_tile_export import (
+    export_online_raster_plan as export_online_tile_raster_plan,
+)
+from .online_tile_export import (
     online_export_failure_message as describe_online_export_failure,
+)
+from .online_tile_export import (
+    prepare_online_raster_export_plan,
 )
 from .plugin_settings import (
     clear_cache,
@@ -110,10 +117,16 @@ class PreparedRealtimeRasterQuery:
         Human-readable layer name used in cache metadata.
     source_fingerprint : str
         Stable fingerprint used to validate persistent cache entries.
+    layer_crs_text : str
+        Active realtime layer CRS captured on the main thread.
     cache_directory : Path
         Directory where realtime query caches are persisted.
+    online_raster_cache_directory : Path | None
+        Cache directory used for exported online raster snapshots.
     source_candidates : tuple[str, ...]
         Candidate raster sources that can be opened without touching QGIS APIs.
+    online_export_plan : OnlineTileExportPlan | None
+        Prepared online export plan for non-local raster sources.
     supports_feature_reuse : bool
         Whether the selected model supports reusable encoded features.
 
@@ -123,8 +136,11 @@ class PreparedRealtimeRasterQuery:
     layer_id: str
     layer_name: str
     source_fingerprint: str
+    layer_crs_text: str
     cache_directory: Path
+    online_raster_cache_directory: Path | None
     source_candidates: tuple[str, ...]
+    online_export_plan: OnlineTileExportPlan | None
     supports_feature_reuse: bool
 
 
@@ -647,6 +663,27 @@ def _layer_source_fingerprint(layer: QgsRasterLayer) -> str:
     return "|".join([layer.name(), provider_name, layer_source, provider_uri])
 
 
+def _query_to_crs_text(query, crs_text: str) -> Any:
+    """Normalize a GeoSAM query into a target CRS string.
+
+    Parameters
+    ----------
+    query : Any
+        GeoSAM query object.
+    crs_text : str
+        Destination CRS string.
+
+    Returns
+    -------
+    Any
+        Query expressed in ``crs_text`` when conversion is required.
+    """
+    query_crs = getattr(query, "crs", None)
+    if query_crs is None or not crs_text:
+        return query
+    return query if str(query_crs) == crs_text else query.to_crs(crs_text)
+
+
 def _rectangle_to_bbox(rectangle: QgsRectangle, *, crs_text: str):
     """Convert a QGIS rectangle into a GeoSAM bounding box."""
     from geosam import BoundingBox
@@ -866,6 +903,8 @@ def prepare_realtime_raster_query(
     """
     model_definition = get_model_definition(model_id)
     supports_feature_reuse = bool(model_definition.supports_feature_reuse)
+    layer_crs_text = layer.crs().authid() or layer.crs().toWkt()
+    source_fingerprint = _layer_source_fingerprint(layer)
 
     if cache is not None:
         cache_mismatch = cache.layer_id != layer.id() or cache.model_id != model_id
@@ -898,33 +937,33 @@ def prepare_realtime_raster_query(
         if cached_source_path.exists():
             return None
 
-    if supports_feature_reuse and cache is not None and cache.query_cache is None:
-        persistent_cache_hit = _load_persistent_query_cache(layer, model_id, query)
-        if persistent_cache_hit is not None:
-            cache.layer_id = layer.id()
-            cache.model_id = model_id
-            cache.source_candidate = persistent_cache_hit[0]
-            cache.engine = None
-            cache.query_cache = persistent_cache_hit[1]
-            return None
-
     source_candidates = [
         source_path
         for source_candidate in _raster_layer_source_candidates(layer)
         if (source_path := _normalize_local_raster_source(source_candidate)) is not None
     ]
+    online_export_plan: OnlineTileExportPlan | None = None
+    online_raster_cache_directory: Path | None = None
     if len(source_candidates) == 0:
-        source_candidates = [
-            _export_online_raster_source(layer, query, model_id=model_id)
-        ]
+        online_export_plan = prepare_online_raster_export_plan(
+            layer,
+            query,
+            model_id=model_id,
+            chip_size=create_model_spec(model_id).resolved_imgsz,
+            source_fingerprint=source_fingerprint,
+        )
+        online_raster_cache_directory = _online_layer_raster_cache_directory(layer)
 
     return PreparedRealtimeRasterQuery(
         model_id=model_id,
         layer_id=layer.id(),
         layer_name=layer.name(),
-        source_fingerprint=_layer_source_fingerprint(layer),
+        source_fingerprint=source_fingerprint,
+        layer_crs_text=layer_crs_text,
         cache_directory=_realtime_query_cache_directory(layer, model_id),
+        online_raster_cache_directory=online_raster_cache_directory,
         source_candidates=tuple(source_candidates),
+        online_export_plan=online_export_plan,
         supports_feature_reuse=supports_feature_reuse,
     )
 
@@ -985,8 +1024,71 @@ def run_prepared_realtime_raster_query(
     _require_query_crs(query)
     errors: list[str] = []
     model_spec = create_model_spec(prepared_query.model_id)
+    projected_query = _query_to_crs_text(query, prepared_query.layer_crs_text)
 
-    for source_candidate in prepared_query.source_candidates:
+    if prepared_query.supports_feature_reuse:
+        _ensure_not_canceled()
+        _report_progress("Checking cached encoding", 2.0)
+        persistent_cache_hit = _load_persistent_query_cache_for_request(
+            cache_directory=prepared_query.cache_directory,
+            source_fingerprint=prepared_query.source_fingerprint,
+            layer_crs_text=prepared_query.layer_crs_text,
+            query=projected_query,
+        )
+        if persistent_cache_hit is not None:
+            source_path, query_cache = persistent_cache_hit
+            engine = None
+            try:
+                _ensure_not_canceled()
+                _report_progress("Opening cached raster source", 15.0)
+                dataset = RasterDataset(source_path)
+                engine = OnlineQueryEngine(dataset, model_spec)
+                source_query = (
+                    projected_query
+                    if str(projected_query.crs) == str(dataset.crs)
+                    else projected_query.to_crs(dataset.crs)
+                )
+                _ensure_not_canceled()
+                _report_progress("Running prompt query", 75.0)
+                result = engine.query(source_query, cache=query_cache)
+                _ensure_not_canceled()
+                _report_progress("Finished realtime query", 100.0)
+                return PreparedRealtimeRasterQueryResult(
+                    source_path=source_path,
+                    result=result,
+                    query_cache=query_cache,
+                )
+            except _RealtimeQueryCanceledError:
+                raise
+            except Exception as exc:
+                errors.append(f"persistent-cache {source_path}: {exc}")
+            finally:
+                _close_runtime_engine(engine)
+
+    source_candidates = prepared_query.source_candidates
+    if len(source_candidates) == 0:
+        if (
+            prepared_query.online_export_plan is None
+            or prepared_query.online_raster_cache_directory is None
+        ):
+            msg = "Failed to prepare a local raster source for the realtime query."
+            logger.error(msg)
+            raise ValueError(msg)
+        _ensure_not_canceled()
+        try:
+            _report_progress("Exporting online raster", 10.0)
+            exported_source = export_online_tile_raster_plan(
+                prepared_query.online_export_plan,
+                cache_directory=prepared_query.online_raster_cache_directory,
+                layer_name=prepared_query.layer_name,
+            )
+        except (OnlineRasterPreflightError, OnlineRasterExportError) as exc:
+            msg = describe_online_export_failure(exc)
+            logger.warning("%s", msg)
+            raise ValueError(msg) from exc
+        source_candidates = (exported_source,)
+
+    for source_candidate in source_candidates:
         engine = None
         try:
             _ensure_not_canceled()
@@ -1062,12 +1164,14 @@ def run_prepared_realtime_raster_query(
     raise ValueError("\n".join([msg, *errors]))
 
 
-def _load_persistent_query_cache(
-    layer: QgsRasterLayer,
-    model_id: str,
+def _load_persistent_query_cache_for_request(
+    *,
+    cache_directory: Path,
+    source_fingerprint: str,
+    layer_crs_text: str,
     query,
 ) -> tuple[str, Any] | None:
-    """Load a reusable realtime-query cache entry when one matches the query."""
+    """Load a reusable realtime-query cache entry for a prepared request."""
     settings = load_plugin_settings()
     if not settings.get("cache_enabled", True):
         return None
@@ -1078,16 +1182,13 @@ def _load_persistent_query_cache(
     from geosam.query import BoundingBox, query_center
     from rasterio import Affine
 
-    cache_dir = _realtime_query_cache_directory(layer, model_id)
-    if not cache_dir.exists():
+    if not cache_directory.exists():
         return None
 
-    projected_query = _query_in_layer_crs(layer, query)
+    projected_query = _query_to_crs_text(query, layer_crs_text)
     center_x, center_y = query_center(projected_query)
-    expected_fingerprint = _layer_source_fingerprint(layer)
-
     best_match: tuple[float, str, Any] | None = None
-    for metadata_path in sorted(cache_dir.glob("*/metadata.json")):
+    for metadata_path in sorted(cache_directory.glob("*/metadata.json")):
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         except Exception as exc:
@@ -1096,7 +1197,7 @@ def _load_persistent_query_cache(
             )
             continue
 
-        if metadata.get("source_fingerprint") != expected_fingerprint:
+        if metadata.get("source_fingerprint") != source_fingerprint:
             continue
 
         source_path = str(metadata.get("source_path", "")).strip()
@@ -1149,6 +1250,20 @@ def _load_persistent_query_cache(
     if best_match is None:
         return None
     return best_match[1], best_match[2]
+
+
+def _load_persistent_query_cache(
+    layer: QgsRasterLayer,
+    model_id: str,
+    query,
+) -> tuple[str, Any] | None:
+    """Load a reusable realtime-query cache entry when one matches the query."""
+    return _load_persistent_query_cache_for_request(
+        cache_directory=_realtime_query_cache_directory(layer, model_id),
+        source_fingerprint=_layer_source_fingerprint(layer),
+        layer_crs_text=layer.crs().authid() or layer.crs().toWkt(),
+        query=query,
+    )
 
 
 def _export_online_raster_source(layer: QgsRasterLayer, query, *, model_id: str) -> str:

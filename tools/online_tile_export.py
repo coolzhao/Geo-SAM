@@ -132,16 +132,82 @@ def export_online_raster_source(
     cache_directory: Path,
 ) -> str:
     """Export supported online tiles into the cache as a local GeoTIFF."""
-    export_plan = _prepare_online_tile_export(
+    export_plan = prepare_online_raster_export_plan(
         layer,
         query,
         model_id=model_id,
         chip_size=chip_size,
         source_fingerprint=source_fingerprint,
     )
+    return export_online_raster_plan(
+        export_plan,
+        cache_directory=cache_directory,
+        layer_name=layer.name(),
+    )
+
+
+def prepare_online_raster_export_plan(
+    layer: QgsRasterLayer,
+    query: Any,
+    *,
+    model_id: str,
+    chip_size: tuple[int, int],
+    source_fingerprint: str,
+) -> OnlineTileExportPlan:
+    """Prepare an online raster export plan on the main thread.
+
+    Parameters
+    ----------
+    layer : QgsRasterLayer
+        Active online raster layer.
+    query : Any
+        GeoSAM query object.
+    model_id : str
+        Selected GeoSAM model identifier.
+    chip_size : tuple[int, int]
+        GeoSAM chip size for the selected model.
+    source_fingerprint : str
+        Stable fingerprint used to namespace exported caches.
+
+    Returns
+    -------
+    OnlineTileExportPlan
+        Prepared plan describing the online tile export.
+    """
+    return _prepare_online_tile_export(
+        layer,
+        query,
+        model_id=model_id,
+        chip_size=chip_size,
+        source_fingerprint=source_fingerprint,
+    )
+
+
+def export_online_raster_plan(
+    export_plan: OnlineTileExportPlan,
+    *,
+    cache_directory: Path,
+    layer_name: str,
+) -> str:
+    """Export a prepared online tile plan into the cache as a GeoTIFF.
+
+    Parameters
+    ----------
+    export_plan : OnlineTileExportPlan
+        Prepared export plan captured on the main thread.
+    cache_directory : Path
+        Cache directory used to store the exported GeoTIFF.
+    layer_name : str
+        Human-readable layer name used in log messages.
+
+    Returns
+    -------
+    str
+        Exported GeoTIFF path.
+    """
     file_stem = _sanitize_path_component(
         "_".join([
-            model_id,
+            export_plan.model_id,
             export_plan.source_fingerprint,
             export_plan.provider.provider_kind,
             f"z{export_plan.tile_zoom}",
@@ -154,7 +220,7 @@ def export_online_raster_source(
         return str(destination_path)
     return str(
         _export_online_tiles_to_geotiff(
-            layer,
+            layer_name,
             export_plan=export_plan,
             destination_path=destination_path,
         )
@@ -746,7 +812,7 @@ def _write_tile_mosaic_geotiff(
 
 
 def _export_online_tiles_to_geotiff(
-    layer: QgsRasterLayer,
+    layer_name: str,
     *,
     export_plan: OnlineTileExportPlan,
     destination_path: Path,
@@ -795,7 +861,7 @@ def _export_online_tiles_to_geotiff(
     )
     logger.info(
         "Exporting online tiles for layer '%s' kind=%s zoom=%s cols=%s rows=%s",
-        layer.name(),
+        layer_name,
         export_plan.provider.provider_kind,
         export_plan.tile_zoom,
         export_plan.tile_column_range,
