@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 ONLINE_QUERY_REFRESH_MARGIN_PIXELS = 128
 PerformanceMode = Literal["balanced", "fastest", "low_memory"]
-PreviewRenderMode = Literal["light", "exact"]
+PreviewRenderMode = Literal["pixel_level", "simplified"]
 
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 _FROZEN_DATACLASS_KWARGS = {"frozen": True, **_DATACLASS_SLOTS_KWARGS}
@@ -285,16 +285,20 @@ def get_performance_mode() -> PerformanceMode:
 
 def _normalize_preview_render_mode(value: Any) -> PreviewRenderMode:
     """Normalize a configured preview render mode."""
-    normalized_value = str(value or "light").strip().lower()
-    if normalized_value in {"light", "exact"}:
+    normalized_value = str(value or "simplified").strip().lower().replace("-", "_")
+    if normalized_value == "exact":
+        return "pixel_level"
+    if normalized_value == "light":
+        return "simplified"
+    if normalized_value in {"pixel_level", "simplified"}:
         return normalized_value  # type: ignore[return-value]
-    return "light"
+    return "simplified"
 
 
 def get_preview_render_mode() -> PreviewRenderMode:
     """Return the configured preview render mode."""
     return _normalize_preview_render_mode(
-        load_plugin_settings().get("preview_render_mode", "light")
+        load_plugin_settings().get("preview_render_mode", "simplified")
     )
 
 
@@ -1492,7 +1496,7 @@ def query_raster_layer(
 
 
 def _preview_simplify_tolerance(result: QueryResult) -> float:
-    """Return a light-preview simplification tolerance in source CRS units."""
+    """Return a simplified-preview tolerance in source CRS units."""
     transform = result.mask_transform
     return max(abs(float(transform.a)), abs(float(transform.e))) * 1.5
 
@@ -1512,7 +1516,7 @@ def query_result_to_render_payload(
     )
     simplify_tolerance = (
         _preview_simplify_tolerance(result)
-        if resolved_render_mode == "light"
+        if resolved_render_mode == "simplified"
         else None
     )
     properties = {

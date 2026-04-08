@@ -8,7 +8,7 @@ import weakref
 from numbers import Real
 from pathlib import Path
 from time import perf_counter
-from typing import Any, TYPE_CHECKING
+from typing import Any, Literal, TYPE_CHECKING
 
 import numpy as np
 from PyQt5.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
@@ -456,6 +456,23 @@ class Selector(QDockWidget):
             )
             self.wdg_sel.MapLayerComboBox.setAllowEmptyLayer(True)
             self.wdg_sel.MapLayerComboBox.setAdditionalLayers([None])
+            self.wdg_sel.VectorizationModeComboBox.clear()
+            self.wdg_sel.VectorizationModeComboBox.addItem(
+                "Pixel-Level",
+                "pixel_level",
+            )
+            self.wdg_sel.VectorizationModeComboBox.addItem(
+                "Simplified",
+                "simplified",
+            )
+            self.wdg_sel.VectorizationModeComboBox.setCurrentIndex(
+                max(
+                    0,
+                    self.wdg_sel.VectorizationModeComboBox.findData(
+                        get_preview_render_mode()
+                    ),
+                )
+            )
             self.wdg_sel.RealTimeLayerComboBox.setFilters(
                 QgsMapLayerProxyModel.RasterLayer
             )
@@ -494,6 +511,9 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_save.clicked.connect(self.save_shp_file)
 
             self.wdg_sel.MapLayerComboBox.layerChanged.connect(self.set_vector_layer)
+            self.wdg_sel.VectorizationModeComboBox.currentIndexChanged.connect(
+                self.save_vectorization_mode
+            )
             self.wdg_sel.pushButton_load_file.clicked.connect(self.load_vector_file)
 
             self.wdg_sel.pushButton_load_feature.clicked.connect(self.load_feature)
@@ -759,8 +779,18 @@ class Selector(QDockWidget):
             "cache_dir": str(load_plugin_settings()["cache_dir"]),
             "cache_max_size_mb": int(load_plugin_settings()["cache_max_size_mb"]),
             "performance_mode": "balanced",
-            "preview_render_mode": "light",
+            "preview_render_mode": "simplified",
         })
+        if hasattr(self, "wdg_sel") and hasattr(
+            self.wdg_sel,
+            "VectorizationModeComboBox",
+        ):
+            self.wdg_sel.VectorizationModeComboBox.setCurrentIndex(
+                max(
+                    0,
+                    self.wdg_sel.VectorizationModeComboBox.findData("simplified"),
+                )
+            )
 
         self.wdg_sel.radioButton_show_extent.setChecked(
             bool(DefaultSettings["show_boundary"])
@@ -787,6 +817,61 @@ class Selector(QDockWidget):
             item.disconnect()
         except (TypeError, RuntimeError):
             pass
+
+    def save_vectorization_mode(self) -> None:
+        """Persist the selected vectorization mode and redraw current overlays."""
+        mode_value = str(
+            self.wdg_sel.VectorizationModeComboBox.currentData() or "simplified"
+        ).strip()
+        if mode_value not in {"pixel_level", "simplified"}:
+            mode_value = "simplified"
+        save_plugin_settings({"preview_render_mode": mode_value})
+        self._refresh_vectorization_mode_rendering()
+
+    def _refresh_vectorization_mode_rendering(self) -> None:
+        """Re-render current prompt overlays using the selected mode."""
+        if not hasattr(self, "polygon"):
+            return
+        if (
+            self._latest_preview_query_result is None
+            and self._latest_prompt_query_result is None
+        ):
+            return
+
+        self.polygon.canvas_preview_polygon.clear()
+        self.polygon.canvas_prompt_polygon.clear()
+        if self.preview_mode and self._latest_preview_query_result is not None:
+            self._render_query_result_overlay(
+                self._latest_preview_query_result,
+                target="preview",
+            )
+        if self._latest_prompt_query_result is not None:
+            self._render_query_result_overlay(
+                self._latest_prompt_query_result,
+                target="prompt",
+            )
+        self.topping_polygon_sam_layer()
+
+    def _render_query_result_overlay(
+        self,
+        result: Any,
+        *,
+        target: Literal["preview", "prompt"],
+    ) -> None:
+        """Render one query result into the requested overlay target."""
+        render_payload = query_result_to_render_payload(
+            result,
+            render_mode=get_preview_render_mode(),
+        )
+        self.polygon.add_qgs_geometry_to_canvas(
+            render_payload.canvas_geometries,
+            self.t_area,
+            max_object_mode=self.max_object_mode,
+            target=target,
+            overwrite_geojson=True,
+            geojson=render_payload.geojson_features,
+            source_crs=self.runtime_crs,
+        )
 
     def reset_to_project_crs(self):
         if self.crs_project != self.project.crs():
@@ -2317,13 +2402,10 @@ class Selector(QDockWidget):
             if polygon_layer is None:
                 return False
             prompt_geojson = self.polygon.geojson_canvas_prompt
-            if (
-                get_preview_render_mode() == "light"
-                and self._latest_prompt_query_result is not None
-            ):
+            if self._latest_prompt_query_result is not None:
                 prompt_geojson = query_result_to_geojson_features(
                     self._latest_prompt_query_result,
-                    render_mode="exact",
+                    render_mode=get_preview_render_mode(),
                 )
             self.polygon.add_geojson_feature_to_layer(
                 prompt_geojson,

@@ -8,7 +8,6 @@
     "prompt_color": "#3bba00",
     "preview_color": "#00ff00",
     "show_boundary": true,
-    "default_minimum_pixels": 0,
     "max_polygon_only": true,
     "selected_model_id": "sam2.1_b",
     "clear_cache_on_plugin_close": true,

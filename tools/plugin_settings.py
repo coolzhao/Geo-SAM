@@ -38,13 +38,45 @@ DEPENDENCY_DISTRIBUTIONS: dict[str, str] = {
     "pyarrow": "pyarrow",
 }
 PerformanceMode = Literal["balanced", "fastest", "low_memory"]
-PreviewRenderMode = Literal["light", "exact"]
+PreviewRenderMode = Literal["pixel_level", "simplified"]
 PERFORMANCE_MODE_VALUES: tuple[PerformanceMode, ...] = (
     "balanced",
     "fastest",
     "low_memory",
 )
-PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = ("light", "exact")
+PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = (
+    "pixel_level",
+    "simplified",
+)
+
+
+def _normalize_preview_render_mode(value: Any) -> PreviewRenderMode:
+    """Normalize a configured vectorization mode.
+
+    Parameters
+    ----------
+    value : Any
+        Raw persisted value, including legacy preview-mode variants.
+
+    Returns
+    -------
+    PreviewRenderMode
+        Normalized vectorization mode.
+
+    Notes
+    -----
+    Legacy values are kept compatible so existing user settings continue to
+    work after the UI label and option names change.
+
+    """
+    normalized_value = str(value or "simplified").strip().lower().replace("-", "_")
+    legacy_value_mapping: dict[str, PreviewRenderMode] = {
+        "exact": "pixel_level",
+        "light": "simplified",
+        "pixel_level": "pixel_level",
+        "simplified": "simplified",
+    }
+    return legacy_value_mapping.get(normalized_value, "simplified")
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -79,8 +111,9 @@ def load_plugin_settings() -> dict[str, Any]:
     settings.update(_load_json(SETTINGS_USER_PATH))
     if settings.get("performance_mode") not in PERFORMANCE_MODE_VALUES:
         settings["performance_mode"] = "balanced"
-    if settings.get("preview_render_mode") not in PREVIEW_RENDER_MODE_VALUES:
-        settings["preview_render_mode"] = "light"
+    settings["preview_render_mode"] = _normalize_preview_render_mode(
+        settings.get("preview_render_mode")
+    )
     return settings
 
 
@@ -103,7 +136,9 @@ def _default_plugin_settings() -> dict[str, Any]:
     settings.setdefault("show_boundary", True)
     settings.setdefault("default_minimum_pixels", 0)
     settings.setdefault("performance_mode", "balanced")
-    settings.setdefault("preview_render_mode", "light")
+    settings["preview_render_mode"] = _normalize_preview_render_mode(
+        settings.get("preview_render_mode")
+    )
     return settings
 
 
@@ -123,6 +158,9 @@ def save_plugin_settings(updates: dict[str, Any]) -> dict[str, Any]:
     """
     settings = load_plugin_settings()
     settings.update(updates)
+    settings["preview_render_mode"] = _normalize_preview_render_mode(
+        settings.get("preview_render_mode")
+    )
     defaults = _default_plugin_settings()
     user_settings = {
         key: settings[key]
