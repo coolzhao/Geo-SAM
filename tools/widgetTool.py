@@ -303,8 +303,8 @@ class RealtimeQueryCacheSaveThread(QThread):
             self.failed.emit(str(exc))
 
 
-class PromptCanvasTabEventFilter(QObject):
-    """Filter Tab on the active map canvas while prompt tools are selected.
+class PromptTabEventFilter(QObject):
+    """Filter Tab on prompt-related widgets while prompt tools are selected.
 
     Parameters
     ----------
@@ -313,7 +313,7 @@ class PromptCanvasTabEventFilter(QObject):
     """
 
     def __init__(self, selector: "Selector") -> None:
-        """Initialize the canvas-only Tab event filter.
+        """Initialize the prompt-cycle Tab event filter.
 
         Parameters
         ----------
@@ -324,7 +324,7 @@ class PromptCanvasTabEventFilter(QObject):
         self._selector_ref: weakref.ReferenceType[Selector] = weakref.ref(selector)
 
     def eventFilter(self, watched: object, event: QEvent) -> bool:
-        """Consume prompt-cycle Tab presses routed through the map canvas.
+        """Consume prompt-cycle Tab presses routed through prompt widgets.
 
         Parameters
         ----------
@@ -342,7 +342,7 @@ class PromptCanvasTabEventFilter(QObject):
         if selector is None:
             return False
         try:
-            return selector.handle_prompt_canvas_tab_event(watched, event)
+            return selector.handle_prompt_tab_event(watched, event)
         except RuntimeError:
             return False
 
@@ -385,8 +385,8 @@ class Selector(QDockWidget):
         self._cache_save_threads: set[RealtimeQueryCacheSaveThread] = set()
         self._latest_prompt_query_result: Any | None = None
         self._latest_preview_query_result: Any | None = None
-        self._prompt_canvas_tab_filter = PromptCanvasTabEventFilter(self)
-        self._prompt_canvas_filter_installed: bool = False
+        self._prompt_tab_filter = PromptTabEventFilter(self)
+        self._prompt_tab_filter_installed: bool = False
         # colors
         self.style_preview_polygon: dict[str, Any] = {
             "line_color": Settings["preview_color"],
@@ -401,16 +401,16 @@ class Selector(QDockWidget):
 
     def _on_selector_closed(self) -> None:
         """Run selector cleanup when the dock widget closes."""
-        self._remove_prompt_canvas_tab_filter()
+        self._remove_prompt_tab_filter()
         self.destruct()
 
-    def _prompt_canvas_filter_targets(self) -> list[QObject]:
-        """Return the canvas widgets that may receive Tab during prompt input.
+    def _prompt_tab_filter_targets(self) -> list[QObject]:
+        """Return the widgets that may receive Tab during prompt input.
 
         Returns
         -------
         list[QObject]
-            Canvas-related QObject targets that should be filtered.
+            Prompt-related QObject targets that should be filtered.
         """
         targets: list[QObject] = [self.canvas]
         viewport_widget = getattr(self.canvas, "viewport", None)
@@ -418,26 +418,39 @@ class Selector(QDockWidget):
             viewport_object = viewport_widget()
             if viewport_object is not None:
                 targets.append(viewport_object)
+        selector_widget = getattr(self, "wdg_sel", None)
+        if selector_widget is None:
+            return targets
+        for widget_name in (
+            "pushButton_rect",
+            "pushButton_fg",
+            "pushButton_bg",
+            "addBBoxGroupBox",
+            "addPointsGroupBox",
+        ):
+            target = getattr(selector_widget, widget_name, None)
+            if target is not None:
+                targets.append(target)
         return targets
 
-    def _install_prompt_canvas_tab_filter(self) -> None:
-        """Install the canvas-only Tab filter after prompt tools are activated."""
-        if self._prompt_canvas_filter_installed:
+    def _install_prompt_tab_filter(self) -> None:
+        """Install the prompt-cycle Tab filter after prompt tools are activated."""
+        if self._prompt_tab_filter_installed:
             return
-        for target in self._prompt_canvas_filter_targets():
-            target.installEventFilter(self._prompt_canvas_tab_filter)
-        self._prompt_canvas_filter_installed = True
+        for target in self._prompt_tab_filter_targets():
+            target.installEventFilter(self._prompt_tab_filter)
+        self._prompt_tab_filter_installed = True
 
-    def _remove_prompt_canvas_tab_filter(self) -> None:
-        """Remove the canvas-only Tab filter safely."""
-        if not self._prompt_canvas_filter_installed:
+    def _remove_prompt_tab_filter(self) -> None:
+        """Remove the prompt-cycle Tab filter safely."""
+        if not self._prompt_tab_filter_installed:
             return
-        for target in self._prompt_canvas_filter_targets():
+        for target in self._prompt_tab_filter_targets():
             try:
-                target.removeEventFilter(self._prompt_canvas_tab_filter)
+                target.removeEventFilter(self._prompt_tab_filter)
             except RuntimeError:
                 pass
-        self._prompt_canvas_filter_installed = False
+        self._prompt_tab_filter_installed = False
 
     def open_widget(self):
         """Create widget selector"""
@@ -900,7 +913,7 @@ class Selector(QDockWidget):
             self.disconnect_safely(self.shortcut_save)
         if hasattr(self, "shortcut_hover_mode"):
             self.disconnect_safely(self.shortcut_hover_mode)
-        self._remove_prompt_canvas_tab_filter()
+        self._remove_prompt_tab_filter()
         if hasattr(self, "wdg_sel"):
             self.disconnect_safely(self.wdg_sel.MapLayerComboBox.layerChanged)
             self.iface.removeDockWidget(self.wdg_sel)
@@ -1360,13 +1373,13 @@ class Selector(QDockWidget):
         self.loop_prompt_type()
         return True
 
-    def handle_prompt_canvas_tab_event(self, watched: object, event: QEvent) -> bool:
-        """Intercept Tab presses delivered to the active map canvas widgets.
+    def handle_prompt_tab_event(self, watched: object, event: QEvent) -> bool:
+        """Intercept Tab presses delivered to prompt-related widgets.
 
         Parameters
         ----------
         watched : object
-            The canvas-related QObject currently receiving the event.
+            The prompt-related QObject currently receiving the event.
         event : QEvent
             The Qt event under inspection.
 
@@ -1375,7 +1388,7 @@ class Selector(QDockWidget):
         bool
             True when the prompt-cycle Tab press is consumed.
         """
-        if watched not in self._prompt_canvas_filter_targets():
+        if watched not in self._prompt_tab_filter_targets():
             return False
         if event.type() != QEvent.KeyPress:
             return False
@@ -1461,7 +1474,7 @@ class Selector(QDockWidget):
         radioButton = self.wdg_sel.radioButton_enable
         if not radioButton.isChecked():
             self.canvas.setMapTool(self.toolPan)
-            self._remove_prompt_canvas_tab_filter()
+            self._remove_prompt_tab_filter()
             self.wdg_sel.pushButton_fg.setEnabled(False)
             self.wdg_sel.pushButton_bg.setEnabled(False)
             self.wdg_sel.pushButton_rect.setEnabled(False)
@@ -2209,7 +2222,7 @@ class Selector(QDockWidget):
         if not hasattr(self, "tool_click_fg"):
             self._require_runtime_source()
             return
-        self._install_prompt_canvas_tab_filter()
+        self._install_prompt_tab_filter()
         self.canvas.setMapTool(self.tool_click_fg)
         button = self.wdg_sel.pushButton_fg
         if not button.isChecked():
@@ -2226,7 +2239,7 @@ class Selector(QDockWidget):
         if not hasattr(self, "tool_click_bg"):
             self._require_runtime_source()
             return
-        self._install_prompt_canvas_tab_filter()
+        self._install_prompt_tab_filter()
         self.canvas.setMapTool(self.tool_click_bg)
         button = self.wdg_sel.pushButton_bg
         if not button.isChecked():
@@ -2243,7 +2256,7 @@ class Selector(QDockWidget):
         if not hasattr(self, "tool_click_rect"):
             self._require_runtime_source()
             return
-        self._install_prompt_canvas_tab_filter()
+        self._install_prompt_tab_filter()
         self.canvas.setMapTool(self.tool_click_rect)
         button = self.wdg_sel.pushButton_rect  # self.sender()
         if not button.isChecked():
