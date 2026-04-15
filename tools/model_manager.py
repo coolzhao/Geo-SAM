@@ -20,12 +20,28 @@ logger = logging.getLogger(__name__)
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 _FROZEN_DATACLASS_KWARGS = {"frozen": True, **_DATACLASS_SLOTS_KWARGS}
 
+# download URLs from modelscope
+# This is used as a fallback when Ultralytics downloads are unavailable or fail.
 DIRECT_MODEL_DOWNLOAD_SOURCES: dict[str, str] = {
+    # SAM3
     "sam3": "https://modelscope.cn/models/facebook/sam3/resolve/master/sam3.pt",
     "sam3.1_multiplex": (
         "https://modelscope.cn/models/facebook/sam3.1/resolve/master/"
         "sam3.1_multiplex.pt"
     ),
+    # SAM2
+    "sam2_t": "https://modelscope.cn/models/facebook/sam2-hiera-tiny/resolve/master/sam2_hiera_tiny.pt",
+    "sam2_s": "https://modelscope.cn/models/facebook/sam2-hiera-small/resolve/master/sam2_hiera_small.pt",
+    "sam2_b": "https://modelscope.cn/models/facebook/sam2-hiera-base-plus/resolve/master/sam2_hiera_base_plus.pt",
+    "sam2_l": "https://modelscope.cn/models/facebook/sam2-hiera-large/resolve/master/sam2_hiera_large.pt",
+    # SAM2.1
+    "sam2.1_t": "https://modelscope.cn/models/facebook/sam2.1-hiera-tiny/resolve/master/sam2.1_hiera_tiny.pt",
+    "sam2.1_s": "https://modelscope.cn/models/facebook/sam2.1-hiera-small/resolve/master/sam2.1_hiera_small.pt",
+    "sam2.1_b": "https://modelscope.cn/models/facebook/sam2.1-hiera-base-plus/resolve/master/sam2.1_hiera_base_plus.pt",
+    "sam2.1_l": "https://modelscope.cn/models/facebook/sam2.1-hiera-large/resolve/master/sam2.1_hiera_large.pt",
+    # SAM (legacy) 
+    "sam_b": "https://modelscope.cn/models/yatengLG/ISAT_with_segment_anything_checkpoints/resolve/master/checkpoints/sam_vit_b_01ec64.pth",
+    "sam_l": "https://modelscope.cn/models/yatengLG/ISAT_with_segment_anything_checkpoints/resolve/master/checkpoints/sam_vit_l_0b3195.pth",
 }
 ULTRALYTICS_DOWNLOAD_MODEL_IDS = {
     "sam_b",
