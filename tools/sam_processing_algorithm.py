@@ -415,11 +415,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     @staticmethod
     def _select_device(*, use_gpu: bool, cuda_id: int) -> str | None:
         """Resolve the preferred inference device string."""
+        if not use_gpu:
+            return None
         try:
             import torch
-        except ModuleNotFoundError:
-            return None
-        if not use_gpu:
+        except (ImportError, OSError):
             return None
         if torch.cuda.is_available():
             if cuda_id + 1 > torch.cuda.device_count():

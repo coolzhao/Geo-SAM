@@ -95,6 +95,29 @@ class RealtimeQueryCache:
         self.query_cache = None
 
 
+@dataclass(**_FROZEN_DATACLASS_KWARGS)
+class PreparedPersistentQueryCacheHit:
+    """Persistent realtime-query cache metadata prepared on the main thread.
+
+    Parameters
+    ----------
+    source_path : str
+        Raster source path stored with the reusable encoded chip.
+    feature_path : Path
+        Path to the persisted encoded image features.
+    chip_bounds : Any
+        GeoSAM bounding box for the encoded chip.
+    chip_grid : Any
+        GeoSAM grid for the encoded chip.
+
+    """
+
+    source_path: str
+    feature_path: Path
+    chip_bounds: Any
+    chip_grid: Any
+
+
 RealtimeQueryProgressCallback = Callable[[str, float], None]
 RealtimeQueryCancelCallback = Callable[[], bool]
 
@@ -129,6 +152,9 @@ class PreparedRealtimeRasterQuery:
         Prepared online export plan for non-local raster sources.
     supports_feature_reuse : bool
         Whether the selected model supports reusable encoded features.
+    persistent_cache_hit : PreparedPersistentQueryCacheHit | None, optional
+        Metadata for a reusable persistent cache entry. CRS-heavy parsing is
+        done on the main thread; encoded features are loaded in the worker.
 
     """
 
@@ -142,6 +168,7 @@ class PreparedRealtimeRasterQuery:
     source_candidates: tuple[str, ...]
     online_export_plan: OnlineTileExportPlan | None
     supports_feature_reuse: bool
+    persistent_cache_hit: PreparedPersistentQueryCacheHit | None = None
 
 
 @dataclass(**_MUTABLE_DATACLASS_KWARGS)
@@ -350,7 +377,11 @@ def _flush_torch_memory() -> None:
     gc.collect()
     try:
         import torch
-    except ModuleNotFoundError:
+    except (ImportError, OSError) as exc:
+        logger.warning(
+            "Skipping PyTorch memory cleanup because torch failed to load: %s",
+            exc,
+        )
         return
 
     if torch.cuda.is_available():
@@ -941,16 +972,13 @@ def prepare_realtime_raster_query(
         if cached_source_path.exists():
             return None
 
-    if supports_feature_reuse and cache is not None and cache.query_cache is None:
-        persistent_cache_hit = _load_persistent_query_cache(layer, model_id, query)
-        if persistent_cache_hit is not None:
-            source_path, query_cache = persistent_cache_hit
-            cache.layer_id = layer.id()
-            cache.model_id = model_id
-            cache.source_candidate = source_path
-            cache.engine = None
-            cache.query_cache = query_cache
-            return None
+    persistent_cache_hit: PreparedPersistentQueryCacheHit | None = None
+    if supports_feature_reuse and (cache is None or cache.query_cache is None):
+        persistent_cache_hit = _find_persistent_query_cache(
+            layer,
+            model_id,
+            query,
+        )
 
     source_candidates = [
         source_path
@@ -980,6 +1008,7 @@ def prepare_realtime_raster_query(
         source_candidates=tuple(source_candidates),
         online_export_plan=online_export_plan,
         supports_feature_reuse=supports_feature_reuse,
+        persistent_cache_hit=persistent_cache_hit,
     )
 
 
@@ -1044,11 +1073,8 @@ def run_prepared_realtime_raster_query(
     if prepared_query.supports_feature_reuse:
         _ensure_not_canceled()
         _report_progress("Checking cached encoding", 2.0)
-        persistent_cache_hit = _load_persistent_query_cache_for_request(
-            cache_directory=prepared_query.cache_directory,
-            source_fingerprint=prepared_query.source_fingerprint,
-            layer_crs_text=prepared_query.layer_crs_text,
-            query=projected_query,
+        persistent_cache_hit = _load_prepared_persistent_query_cache(
+            prepared_query.persistent_cache_hit
         )
         if persistent_cache_hit is not None:
             source_path, query_cache = persistent_cache_hit
@@ -1187,13 +1213,28 @@ def _load_persistent_query_cache_for_request(
     query,
 ) -> tuple[str, Any] | None:
     """Load a reusable realtime-query cache entry for a prepared request."""
+    cache_hit = _find_persistent_query_cache_for_request(
+        cache_directory=cache_directory,
+        source_fingerprint=source_fingerprint,
+        layer_crs_text=layer_crs_text,
+        query=query,
+    )
+    return _load_prepared_persistent_query_cache(cache_hit)
+
+
+def _find_persistent_query_cache_for_request(
+    *,
+    cache_directory: Path,
+    source_fingerprint: str,
+    layer_crs_text: str,
+    query,
+) -> PreparedPersistentQueryCacheHit | None:
+    """Find reusable realtime-query cache metadata without loading features."""
     settings = load_plugin_settings()
     if not settings.get("cache_enabled", True):
         return None
 
     from geosam.datasets import GeoGrid
-    from geosam.engines import OnlineQueryCache
-    from geosam.models import EncodedImageFeatures
     from geosam.query import BoundingBox, query_center
     from rasterio import Affine
 
@@ -1202,7 +1243,7 @@ def _load_persistent_query_cache_for_request(
 
     projected_query = _query_to_crs_text(query, layer_crs_text)
     center_x, center_y = query_center(projected_query)
-    best_match: tuple[float, str, Any] | None = None
+    best_match: tuple[float, PreparedPersistentQueryCacheHit] | None = None
     for metadata_path in sorted(cache_directory.glob("*/metadata.json")):
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -1242,29 +1283,48 @@ def _load_persistent_query_cache_for_request(
         if not encoded_path.exists():
             continue
 
-        encoded = EncodedImageFeatures.load(encoded_path, map_location="cpu")
         distance = (chip_bounds.center[0] - center_x) ** 2 + (
             chip_bounds.center[1] - center_y
         ) ** 2
-        query_cache = OnlineQueryCache(
+        cache_hit = PreparedPersistentQueryCacheHit(
             source_path=source_path,
+            feature_path=encoded_path,
             chip_bounds=chip_bounds,
             chip_grid=chip_grid,
-            encoded=encoded,
         )
         best_match = (
-            (distance, source_path, query_cache)
+            (distance, cache_hit)
             if best_match is None
             else min(
                 best_match,
-                (distance, source_path, query_cache),
+                (distance, cache_hit),
                 key=lambda item: item[0],
             )
         )
 
     if best_match is None:
         return None
-    return best_match[1], best_match[2]
+    return best_match[1]
+
+
+def _load_prepared_persistent_query_cache(
+    cache_hit: PreparedPersistentQueryCacheHit | None,
+) -> tuple[str, Any] | None:
+    """Load encoded features for a prepared persistent query cache hit."""
+    if cache_hit is None:
+        return None
+
+    from geosam.engines import OnlineQueryCache
+    from geosam.models import EncodedImageFeatures
+
+    encoded = EncodedImageFeatures.load(cache_hit.feature_path, map_location="cpu")
+    query_cache = OnlineQueryCache(
+        source_path=cache_hit.source_path,
+        chip_bounds=cache_hit.chip_bounds,
+        chip_grid=cache_hit.chip_grid,
+        encoded=encoded,
+    )
+    return cache_hit.source_path, query_cache
 
 
 def _load_persistent_query_cache(
@@ -1274,6 +1334,20 @@ def _load_persistent_query_cache(
 ) -> tuple[str, Any] | None:
     """Load a reusable realtime-query cache entry when one matches the query."""
     return _load_persistent_query_cache_for_request(
+        cache_directory=_realtime_query_cache_directory(layer, model_id),
+        source_fingerprint=_layer_source_fingerprint(layer),
+        layer_crs_text=layer.crs().authid() or layer.crs().toWkt(),
+        query=query,
+    )
+
+
+def _find_persistent_query_cache(
+    layer: QgsRasterLayer,
+    model_id: str,
+    query,
+) -> PreparedPersistentQueryCacheHit | None:
+    """Find a reusable realtime-query cache entry without loading features."""
+    return _find_persistent_query_cache_for_request(
         cache_directory=_realtime_query_cache_directory(layer, model_id),
         source_fingerprint=_layer_source_fingerprint(layer),
         layer_crs_text=layer.crs().authid() or layer.crs().toWkt(),
