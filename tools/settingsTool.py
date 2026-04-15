@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt5.QtCore import QProcess, QThread, Qt, pyqtSignal
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -24,6 +26,8 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QSpinBox,
     QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -38,7 +42,7 @@ from .plugin_settings import (
     PLUGIN_ROOT,
     clear_cache,
     cleanup_cache,
-    dependency_status,
+    dependency_status_rows,
     get_cache_directory,
     get_cache_size_bytes,
     get_dependency_install_command,
@@ -81,6 +85,7 @@ class GeoSamSettingsDialog(QDialog):
         self.settings = load_plugin_settings()
         self._dependency_install_process: QProcess | None = None
         self._dependency_install_output_buffer = ""
+        self._missing_dependency_names: list[str] = []
         self._model_download_thread: ModelDownloadThread | None = None
 
         self.tab_widget = QTabWidget(self)
@@ -104,25 +109,36 @@ class GeoSamSettingsDialog(QDialog):
         tab = QWidget(self)
         layout = QVBoxLayout(tab)
 
-        self.dependency_form = QFormLayout()
-        self.dependency_labels: dict[str, QLabel] = {}
-        for module_name in dependency_status():
-            label = QLabel("", tab)
-            self.dependency_labels[module_name] = label
-            self.dependency_form.addRow(module_name, label)
+        self.dependency_summary_label = QLabel(tab)
+        self.dependency_summary_label.setWordWrap(True)
 
-        self.dependency_install_status_label = QLabel("Ready", tab)
-        self.dependency_form.addRow("Install Status", self.dependency_install_status_label)
+        self.dependency_table = QTableWidget(tab)
+        self.dependency_table.setColumnCount(3)
+        self.dependency_table.setHorizontalHeaderLabels(
+            ["Package", "Status", "Version"]
+        )
+        self.dependency_table.verticalHeader().setVisible(True)
+        self.dependency_table.setAlternatingRowColors(True)
+        self.dependency_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.dependency_table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.dependency_table.horizontalHeader().setStretchLastSection(True)
+        self.dependency_table.setMinimumHeight(220)
 
         button_row = QHBoxLayout()
-        self.refresh_dependencies_button = QPushButton("Refresh", tab)
+        self.refresh_dependencies_button = QPushButton("Refresh Status", tab)
         self.refresh_dependencies_button.clicked.connect(self.refresh_dependency_status)
-        self.install_dependencies_button = QPushButton("Install", tab)
-        self.install_dependencies_button.clicked.connect(self.install_dependencies_clicked)
+        self.install_dependencies_button = QPushButton("Install Missing", tab)
+        self.install_dependencies_button.clicked.connect(
+            self.install_dependencies_clicked
+        )
         button_row.addWidget(self.refresh_dependencies_button)
         button_row.addWidget(self.install_dependencies_button)
-        button_row.addStretch(1)
 
+        self.dependency_install_status_label = QLabel(
+            "Dependency installation output will appear here.",
+            tab,
+        )
+        self.dependency_install_status_label.setWordWrap(True)
         self.dependency_install_progress = QProgressBar(tab)
         self.dependency_install_progress.setRange(0, 0)
         self.dependency_install_progress.setVisible(False)
@@ -132,10 +148,12 @@ class GeoSamSettingsDialog(QDialog):
         self.dependency_install_log.setPlaceholderText(
             "Dependency installation output will appear here."
         )
-        self.dependency_install_log.setMinimumHeight(180)
+        self.dependency_install_log.setMinimumHeight(220)
 
-        layout.addLayout(self.dependency_form)
+        layout.addWidget(self.dependency_summary_label)
+        layout.addWidget(self.dependency_table)
         layout.addLayout(button_row)
+        layout.addWidget(self.dependency_install_status_label)
         layout.addWidget(self.dependency_install_progress)
         layout.addWidget(self.dependency_install_log)
         return tab
@@ -288,25 +306,58 @@ class GeoSamSettingsDialog(QDialog):
         return f"Geo-SAM Version: {version}"
 
     def refresh_dependency_status(self) -> None:
-        for module_name, installed in dependency_status().items():
-            self.dependency_labels[module_name].setText(
-                "Installed" if installed else "Missing"
-            )
+        rows = dependency_status_rows()
+        installed_count = sum(1 for row in rows if row["installed"])
+        missing_count = len(rows) - installed_count
+        self._missing_dependency_names = [
+            row["package"] for row in rows if not row["installed"]
+        ]
+        self.dependency_summary_label.setText(
+            "Dependencies: "
+            f"{installed_count} installed, {missing_count} missing. "
+            "Installation runs in the background."
+        )
+        self.dependency_table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            status_text = "Installed" if row["installed"] else "Missing"
+            version_text = row["version"] if row["installed"] else "-"
+            text_color = QColor("#008c4a") if row["installed"] else QColor("#b00020")
+            for column_index, value in enumerate(
+                (row["package"], status_text, version_text)
+            ):
+                item = QTableWidgetItem(value)
+                item.setForeground(text_color)
+                self.dependency_table.setItem(row_index, column_index, item)
+        self.dependency_table.resizeColumnsToContents()
+        self.dependency_table.horizontalHeader().setStretchLastSection(True)
+
+        is_installing = self._dependency_install_process is not None
+        self.install_dependencies_button.setEnabled(
+            missing_count > 0 and not is_installing
+        )
 
     def install_dependencies_clicked(self) -> None:
         if self._dependency_install_process is not None:
             return
+        if not self._missing_dependency_names:
+            self.refresh_dependency_status()
+            return
 
         self.dependency_install_log.clear()
-        self.dependency_install_status_label.setText("Installing...")
+        missing_dependencies = ", ".join(self._missing_dependency_names)
+        self.dependency_install_status_label.setText(
+            f"Installing missing dependencies: {missing_dependencies}"
+        )
         self.dependency_install_progress.setVisible(True)
         self.install_dependencies_button.setEnabled(False)
         self.refresh_dependencies_button.setEnabled(False)
         self.close_button.setEnabled(False)
         self._dependency_install_output_buffer = ""
-        self._append_dependency_install_log("Starting dependency installation...")
+        self._append_dependency_install_log(
+            f"Starting dependency installation: {missing_dependencies}"
+        )
         try:
-            command = get_dependency_install_command()
+            command = get_dependency_install_command(self._missing_dependency_names)
         except RuntimeError as exc:
             self._finish_dependency_install(False, str(exc))
             return
@@ -335,11 +386,25 @@ class GeoSamSettingsDialog(QDialog):
             return
 
         self._dependency_install_output_buffer += raw_output
-        while "\n" in self._dependency_install_output_buffer:
-            line, self._dependency_install_output_buffer = (
-                self._dependency_install_output_buffer.split("\n", maxsplit=1)
+        while True:
+            newline_index = self._dependency_install_output_buffer.find("\n")
+            carriage_index = self._dependency_install_output_buffer.find("\r")
+            separator_indexes = [
+                index for index in (newline_index, carriage_index) if index >= 0
+            ]
+            if not separator_indexes:
+                break
+
+            separator_index = min(separator_indexes)
+            separator = self._dependency_install_output_buffer[separator_index]
+            line = self._dependency_install_output_buffer[:separator_index]
+            self._dependency_install_output_buffer = (
+                self._dependency_install_output_buffer[separator_index + 1 :]
             )
-            self._append_dependency_install_log(line.rstrip("\r"))
+            clean_line = line.strip()
+            self._update_dependency_install_progress_text(clean_line)
+            if separator == "\n":
+                self._append_dependency_install_log(clean_line)
 
     def _dependency_install_finished(self, exit_code: int, _exit_status: int) -> None:
         """Handle completion of the asynchronous dependency install command."""
@@ -347,9 +412,9 @@ class GeoSamSettingsDialog(QDialog):
             return
 
         if self._dependency_install_output_buffer:
-            self._append_dependency_install_log(
-                self._dependency_install_output_buffer.rstrip("\r\n")
-            )
+            clean_line = self._dependency_install_output_buffer.strip()
+            self._append_dependency_install_log(clean_line)
+            self._update_dependency_install_progress_text(clean_line)
             self._dependency_install_output_buffer = ""
 
         output = self.dependency_install_log.toPlainText().strip()
@@ -379,7 +444,9 @@ class GeoSamSettingsDialog(QDialog):
         self.refresh_dependencies_button.setEnabled(True)
         self.close_button.setEnabled(True)
         self.dependency_install_status_label.setText(
-            "Installed" if ok else "Failed"
+            "Dependency installation completed."
+            if ok
+            else "Dependency installation failed."
         )
         self._dependency_install_process = None
 
@@ -388,6 +455,19 @@ class GeoSamSettingsDialog(QDialog):
         elif not ok and not output.strip():
             self._append_dependency_install_log("Dependency installation failed.")
         self.refresh_dependency_status()
+
+    def _update_dependency_install_progress_text(self, message: str) -> None:
+        """Update the visible dependency installation progress text.
+
+        Parameters
+        ----------
+        message : str
+            Latest installer output line.
+
+        """
+        if not message:
+            return
+        self.dependency_install_status_label.setText(message)
 
     def _append_dependency_install_log(self, message: str) -> None:
         """Append a dependency installation log line to the settings dialog."""

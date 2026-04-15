@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Iterable, Literal, TypedDict
 
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
@@ -31,11 +31,21 @@ HELP_LINKS = {
 }
 DEPENDENCY_DISTRIBUTIONS: dict[str, str] = {
     "torch": "torch",
+    "torchvision": "torchvision",
     "ultralytics": "ultralytics",
     "rasterio": "rasterio",
     "geopandas": "geopandas",
     "pyarrow": "pyarrow",
     "geosam": "geosam",
+}
+DEPENDENCY_INSTALL_REQUIREMENTS: dict[str, str] = {
+    "geosam": "geosam",
+    "torch": "torch",
+    "torchvision": "torchvision",
+    "ultralytics": "ultralytics",
+    "rasterio": "rasterio",
+    "geopandas": "geopandas",
+    "pyarrow": "pyarrow",
 }
 PerformanceMode = Literal["balanced", "fastest", "low_memory"]
 PreviewRenderMode = Literal["pixel_level", "simplified"]
@@ -48,6 +58,28 @@ PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = (
     "pixel_level",
     "simplified",
 )
+
+
+class DependencyStatusRow(TypedDict):
+    """Dependency status information shown in the settings dialog.
+
+    Attributes
+    ----------
+    package : str
+        Import or package name shown to users.
+    distribution : str
+        Installed Python distribution name.
+    installed : bool
+        Whether the distribution can be found in the active environment.
+    version : str
+        Installed distribution version, or an empty string when missing.
+
+    """
+
+    package: str
+    distribution: str
+    installed: bool
+    version: str
 
 
 def _normalize_preview_render_mode(value: Any) -> PreviewRenderMode:
@@ -231,6 +263,59 @@ def dependency_status() -> dict[str, bool]:
     return status
 
 
+def dependency_status_rows() -> list[DependencyStatusRow]:
+    """Return dependency status rows with installed versions.
+
+    Returns
+    -------
+    list[DependencyStatusRow]
+        Ordered dependency rows for the settings dialog table.
+
+    """
+    rows: list[DependencyStatusRow] = []
+    for module_name, distribution_name in DEPENDENCY_DISTRIBUTIONS.items():
+        try:
+            distribution = importlib.metadata.distribution(distribution_name)
+        except importlib.metadata.PackageNotFoundError:
+            rows.append(
+                {
+                    "package": module_name,
+                    "distribution": distribution_name,
+                    "installed": False,
+                    "version": "",
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "package": module_name,
+                    "distribution": distribution_name,
+                    "installed": True,
+                    "version": distribution.version,
+                }
+            )
+    return rows
+
+
+def _dependency_install_requirement(module_name: str) -> str:
+    """Return the pip requirement used to install a dependency.
+
+    Parameters
+    ----------
+    module_name : str
+        Dependency module name.
+
+    Returns
+    -------
+    str
+        Pip requirement name or path.
+
+    """
+    if module_name == "geosam" and LOCAL_GEOSAM_REPOSITORY.exists():
+        return str(LOCAL_GEOSAM_REPOSITORY)
+    return DEPENDENCY_INSTALL_REQUIREMENTS[module_name]
+
+
 def _is_relative_to(path: Path, base_path: Path) -> bool:
     """Return whether ``path`` is located inside ``base_path``.
 
@@ -346,8 +431,16 @@ def resolve_python_interpreter() -> Path:
     raise RuntimeError(msg)
 
 
-def get_dependency_install_command() -> list[str]:
+def get_dependency_install_command(
+    module_names: Iterable[str] | None = None,
+) -> list[str]:
     """Build the pip command used to install plugin dependencies.
+
+    Parameters
+    ----------
+    module_names : Iterable[str] | None, optional
+        Dependency package names to install. When omitted, all known plugin
+        dependencies are installed.
 
     Returns
     -------
@@ -361,22 +454,29 @@ def get_dependency_install_command() -> list[str]:
         resolved.
 
     """
-    geosam_requirement = (
-        str(LOCAL_GEOSAM_REPOSITORY) if LOCAL_GEOSAM_REPOSITORY.exists() else "geosam"
-    )
+    if module_names is None:
+        selected_module_names = list(DEPENDENCY_INSTALL_REQUIREMENTS)
+    else:
+        selected_module_names = [
+            module_name
+            for module_name in module_names
+            if module_name in DEPENDENCY_INSTALL_REQUIREMENTS
+        ]
+    if not selected_module_names:
+        msg = "No known dependencies were selected for installation."
+        logger.error(msg)
+        raise RuntimeError(msg)
+
     python_interpreter = resolve_python_interpreter()
     return [
         str(python_interpreter),
         "-m",
         "pip",
         "install",
-        geosam_requirement,
-        "torch",
-        "torchvision",
-        "ultralytics",
-        "rasterio",
-        "geopandas",
-        "pyarrow",
+        *[
+            _dependency_install_requirement(module_name)
+            for module_name in selected_module_names
+        ],
     ]
 
 
