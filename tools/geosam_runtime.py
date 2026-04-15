@@ -111,6 +111,12 @@ class PreparedPersistentQueryCacheHit:
         GeoSAM grid for the encoded chip.
     query : Any
         Query projected into the encoded chip CRS on the main thread.
+    query_bounds_value : Any
+        Query bounds prepared on the main thread for result metadata.
+    prompt_kwargs : dict[str, Any]
+        Model prompt arguments prepared on the main thread.
+    crs_text : str
+        Chip CRS text prepared on the main thread for cache metadata.
 
     """
 
@@ -119,6 +125,44 @@ class PreparedPersistentQueryCacheHit:
     chip_bounds: Any
     chip_grid: Any
     query: Any
+    query_bounds_value: Any
+    prompt_kwargs: dict[str, Any]
+    crs_text: str
+
+
+@dataclass(**_FROZEN_DATACLASS_KWARGS)
+class PreparedRealtimeRasterSample:
+    """Raster chip data prepared on the main thread for background encoding.
+
+    Parameters
+    ----------
+    source_path : str
+        Raster source used to read the prepared chip.
+    model_image : Any
+        Chip image converted to model-ready ``HWC`` uint8 format.
+    chip_bounds : Any
+        GeoSAM bounding box for the prepared chip.
+    chip_grid : Any
+        GeoSAM grid for the prepared chip.
+    query : Any
+        Query projected into the prepared chip CRS on the main thread.
+    query_bounds_value : Any
+        Query bounds prepared on the main thread for result metadata.
+    prompt_kwargs : dict[str, Any]
+        Model prompt arguments prepared on the main thread.
+    crs_text : str
+        Chip CRS text prepared on the main thread for cache metadata.
+
+    """
+
+    source_path: str
+    model_image: Any
+    chip_bounds: Any
+    chip_grid: Any
+    query: Any
+    query_bounds_value: Any
+    prompt_kwargs: dict[str, Any]
+    crs_text: str
 
 
 RealtimeQueryProgressCallback = Callable[[str, float], None]
@@ -151,6 +195,8 @@ class PreparedRealtimeRasterQuery:
         Cache directory used for exported online raster snapshots.
     source_candidates : tuple[str, ...]
         Candidate raster sources that can be opened without touching QGIS APIs.
+    prepared_source_samples : tuple[PreparedRealtimeRasterSample, ...]
+        Raster chips prepared on the main thread for local source candidates.
     online_export_plan : OnlineTileExportPlan | None
         Prepared online export plan for non-local raster sources.
     supports_feature_reuse : bool
@@ -169,6 +215,7 @@ class PreparedRealtimeRasterQuery:
     cache_directory: Path
     online_raster_cache_directory: Path | None
     source_candidates: tuple[str, ...]
+    prepared_source_samples: tuple[PreparedRealtimeRasterSample, ...]
     online_export_plan: OnlineTileExportPlan | None
     supports_feature_reuse: bool
     persistent_cache_hit: PreparedPersistentQueryCacheHit | None = None
@@ -771,6 +818,72 @@ def _query_is_far_from_chip_edge(query, *, chip_bounds, chip_grid) -> bool:
     )
 
 
+def _prepare_realtime_raster_source_sample(
+    *,
+    source_path: str,
+    query,
+    model_id: str,
+) -> PreparedRealtimeRasterSample:
+    """Read a realtime raster chip on the main thread for background encoding."""
+    from geosam.datasets import RasterDataset
+    from geosam.engines import _prompt_prediction_kwargs
+    from geosam.query import query_bounds, query_center, window_from_center
+
+    model_spec = create_model_spec(model_id)
+    dataset = RasterDataset(source_path)
+    projected_query = (
+        query if str(query.crs) == str(dataset.crs) else query.to_crs(dataset.crs)
+    )
+    chip_bounds = window_from_center(
+        query_center(projected_query),
+        model_spec.resolved_imgsz,
+        grid=dataset.grid,
+    )
+    sample = dataset[chip_bounds]
+    chip_grid = sample.grid
+    return PreparedRealtimeRasterSample(
+        source_path=sample.source_path,
+        model_image=sample.to_model_image(),
+        chip_bounds=chip_bounds,
+        chip_grid=chip_grid,
+        query=projected_query,
+        query_bounds_value=query_bounds(projected_query),
+        prompt_kwargs=_prompt_prediction_kwargs(projected_query, chip_grid),
+        crs_text=str(chip_grid.crs),
+    )
+
+
+def _prediction_to_prepared_query_result(
+    prediction: Any,
+    *,
+    chip_grid: Any,
+    chip_bounds: Any,
+    query_bounds_value: Any,
+    source_path: str,
+    model_type: str,
+) -> Any:
+    """Convert a prediction using bounds prepared outside the worker thread."""
+    import numpy as np
+    from geosam.engines import QueryResult
+
+    if prediction.masks is None:
+        mask_array = np.zeros((0, chip_grid.height, chip_grid.width), dtype=bool)
+    else:
+        mask_array = prediction.masks.detach().cpu().numpy().astype(bool)
+    scores = prediction.scores.detach().cpu().numpy()
+    return QueryResult(
+        mask_array=mask_array,
+        mask_transform=chip_grid.transform,
+        mask_crs=chip_grid.crs,
+        query_bounds=query_bounds_value,
+        chip_bounds=chip_bounds,
+        scores=scores,
+        source_path=source_path,
+        chip_id=None,
+        model_type=model_type,
+    )
+
+
 def _realtime_query_cache_directory(layer: QgsRasterLayer, model_id: str) -> Path:
     """Return the persistent realtime-query cache directory for a layer/model."""
     cache_dir = get_layer_cache_directory(layer.name()) / "realtime_query" / model_id
@@ -886,6 +999,14 @@ def _save_persistent_query_cache_entry(
     if query_cache.chip_bounds is None:
         return
 
+    crs_text = getattr(query_cache, "crs_text", None)
+    if crs_text is None:
+        logger.warning(
+            "Skipping realtime query cache save because chip CRS text was not "
+            "prepared on the main thread."
+        )
+        return
+
     encoded_path, metadata_path = _persistent_cache_entry_paths_for_directory(
         cache_directory,
         chip_bounds=query_cache.chip_bounds,
@@ -904,7 +1025,7 @@ def _save_persistent_query_cache_entry(
         ],
         "transform": list(query_cache.chip_grid.transform)[:6],
         "shape": list(query_cache.chip_grid.shape),
-        "crs": query_cache.chip_grid.crs.to_string(),
+        "crs": str(crs_text),
         "feature_path": str(encoded_path),
     }
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -988,6 +1109,23 @@ def prepare_realtime_raster_query(
         for source_candidate in _raster_layer_source_candidates(layer)
         if (source_path := _normalize_local_raster_source(source_candidate)) is not None
     ]
+    prepared_source_samples: list[PreparedRealtimeRasterSample] = []
+    for source_candidate in source_candidates:
+        try:
+            prepared_source_samples.append(
+                _prepare_realtime_raster_source_sample(
+                    source_path=source_candidate,
+                    query=query,
+                    model_id=model_id,
+                )
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to prepare realtime raster chip for %s: %s",
+                source_candidate,
+                exc,
+            )
+
     online_export_plan: OnlineTileExportPlan | None = None
     online_raster_cache_directory: Path | None = None
     if len(source_candidates) == 0:
@@ -999,6 +1137,28 @@ def prepare_realtime_raster_query(
             source_fingerprint=source_fingerprint,
         )
         online_raster_cache_directory = _online_layer_raster_cache_directory(layer)
+        try:
+            exported_source = export_online_tile_raster_plan(
+                online_export_plan,
+                cache_directory=online_raster_cache_directory,
+                layer_name=layer.name(),
+            )
+            source_candidates.append(exported_source)
+            prepared_source_samples.append(
+                _prepare_realtime_raster_source_sample(
+                    source_path=exported_source,
+                    query=query,
+                    model_id=model_id,
+                )
+            )
+        except (OnlineRasterPreflightError, OnlineRasterExportError) as exc:
+            msg = describe_online_export_failure(exc)
+            logger.warning("%s", msg)
+            raise ValueError(msg) from exc
+        except Exception as exc:
+            msg = "Failed to prepare exported online raster for realtime query."
+            logger.error("%s Details: %s", msg, exc)
+            raise ValueError(msg) from exc
 
     return PreparedRealtimeRasterQuery(
         model_id=model_id,
@@ -1009,6 +1169,7 @@ def prepare_realtime_raster_query(
         cache_directory=_realtime_query_cache_directory(layer, model_id),
         online_raster_cache_directory=online_raster_cache_directory,
         source_candidates=tuple(source_candidates),
+        prepared_source_samples=tuple(prepared_source_samples),
         online_export_plan=online_export_plan,
         supports_feature_reuse=supports_feature_reuse,
         persistent_cache_hit=persistent_cache_hit,
@@ -1048,15 +1209,11 @@ def run_prepared_realtime_raster_query(
         If all raster source candidates fail.
 
     """
-    from geosam.datasets import RasterDataset
     from geosam.engines import (
         OnlineQueryCache,
-        OnlineQueryEngine,
-        _prediction_to_result,
-        _prompt_prediction_kwargs,
         _require_query_crs,
     )
-    from geosam.query import query_bounds, query_center, window_from_center
+    from geosam.models import build_model_adapter
 
     def _report_progress(stage_text: str, progress_value: float) -> None:
         if progress_callback is not None:
@@ -1082,25 +1239,21 @@ def run_prepared_realtime_raster_query(
             engine = None
             try:
                 _ensure_not_canceled()
-                _report_progress("Opening cached raster source", 15.0)
-                dataset = RasterDataset(source_path)
-                engine = OnlineQueryEngine(dataset, model_spec)
+                _report_progress("Loading segmentation model", 15.0)
+                engine = build_model_adapter(model_spec)
                 _ensure_not_canceled()
                 _report_progress("Running prompt query", 75.0)
-                prediction = engine.adapter.predict_features(
+                prediction = engine.predict_features(
                     query_cache.encoded,
                     multimask_output=False,
-                    **_prompt_prediction_kwargs(
-                        prepared_cache_hit.query,
-                        query_cache.chip_grid,
-                    ),
+                    **prepared_cache_hit.prompt_kwargs,
                 )
-                result = _prediction_to_result(
+                result = _prediction_to_prepared_query_result(
                     prediction,
-                    sample_grid=query_cache.chip_grid,
-                    query_bounds_value=query_bounds(prepared_cache_hit.query),
+                    chip_grid=query_cache.chip_grid,
+                    chip_bounds=query_cache.chip_bounds,
+                    query_bounds_value=prepared_cache_hit.query_bounds_value,
                     source_path=query_cache.source_path,
-                    chip_id=None,
                     model_type=model_spec.model_type,
                 )
                 _ensure_not_canceled()
@@ -1117,99 +1270,70 @@ def run_prepared_realtime_raster_query(
             finally:
                 _close_runtime_engine(engine)
 
-    source_candidates = prepared_query.source_candidates
-    if len(source_candidates) == 0:
-        if (
-            prepared_query.online_export_plan is None
-            or prepared_query.online_raster_cache_directory is None
-        ):
-            msg = "Failed to prepare a local raster source for the realtime query."
-            logger.error(msg)
-            raise ValueError(msg)
-        _ensure_not_canceled()
-        try:
-            _report_progress("Exporting online raster", 10.0)
-            exported_source = export_online_tile_raster_plan(
-                prepared_query.online_export_plan,
-                cache_directory=prepared_query.online_raster_cache_directory,
-                layer_name=prepared_query.layer_name,
-            )
-        except (OnlineRasterPreflightError, OnlineRasterExportError) as exc:
-            msg = describe_online_export_failure(exc)
-            logger.warning("%s", msg)
-            raise ValueError(msg) from exc
-        source_candidates = (exported_source,)
+    if len(prepared_query.prepared_source_samples) == 0:
+        msg = "Failed to prepare a local raster chip for the realtime query."
+        logger.error(msg)
+        raise ValueError(msg)
 
-    for source_candidate in source_candidates:
+    for prepared_sample in prepared_query.prepared_source_samples:
         engine = None
         try:
             _ensure_not_canceled()
-            _report_progress("Opening raster source", 5.0)
-            dataset = RasterDataset(source_candidate)
-            engine = OnlineQueryEngine(dataset, model_spec)
-
-            if not prepared_query.supports_feature_reuse:
-                _report_progress("Running realtime query", 35.0)
-                result = engine.query(query)
-                _report_progress("Finished realtime query", 100.0)
-                return PreparedRealtimeRasterQueryResult(
-                    source_path=source_candidate,
-                    result=result,
-                    query_cache=None,
+            _report_progress("Encoding image", 30.0)
+            engine = build_model_adapter(model_spec)
+            query_cache = None
+            if prepared_query.supports_feature_reuse:
+                encoded = engine.encode_image(prepared_sample.model_image)
+                _ensure_not_canceled()
+                _report_progress("Running prompt query", 75.0)
+                prediction = engine.predict_features(
+                    encoded,
+                    multimask_output=False,
+                    **prepared_sample.prompt_kwargs,
+                )
+                query_cache = OnlineQueryCache(
+                    source_path=prepared_sample.source_path,
+                    chip_bounds=prepared_sample.chip_bounds,
+                    chip_grid=prepared_sample.chip_grid,
+                    encoded=encoded,
+                )
+                query_cache.crs_text = prepared_sample.crs_text
+            else:
+                _ensure_not_canceled()
+                _report_progress("Running prompt query", 75.0)
+                prediction = engine.predict_image(
+                    prepared_sample.model_image,
+                    multimask_output=False,
+                    **prepared_sample.prompt_kwargs,
                 )
 
-            projected_query = (
-                query if query.crs == dataset.crs else query.to_crs(dataset.crs)
-            )
-            chip_bounds = window_from_center(
-                query_center(projected_query),
-                model_spec.resolved_imgsz,
-                grid=dataset.grid,
-            )
-            sample = dataset[chip_bounds]
-            chip_grid = sample.grid
-
-            _ensure_not_canceled()
-            _report_progress("Encoding image", 30.0)
-            encoded = engine.adapter.encode_image(sample.to_model_image())
-
-            _ensure_not_canceled()
-            _report_progress("Running prompt query", 75.0)
-            prediction = engine.adapter.predict_features(
-                encoded,
-                multimask_output=False,
-                **_prompt_prediction_kwargs(query, chip_grid),
-            )
-
-            query_cache = OnlineQueryCache(
-                source_path=sample.source_path,
-                chip_bounds=chip_bounds,
-                chip_grid=chip_grid,
-                encoded=encoded,
-            )
-
-            result = _prediction_to_result(
+            result = _prediction_to_prepared_query_result(
                 prediction,
-                sample_grid=chip_grid,
-                query_bounds_value=query_bounds(projected_query),
-                source_path=sample.source_path,
-                chip_id=None,
+                chip_grid=prepared_sample.chip_grid,
+                chip_bounds=prepared_sample.chip_bounds,
+                query_bounds_value=prepared_sample.query_bounds_value,
+                source_path=prepared_sample.source_path,
                 model_type=model_spec.model_type,
             )
             _ensure_not_canceled()
             _report_progress("Finished realtime query", 100.0)
             return PreparedRealtimeRasterQueryResult(
-                source_path=sample.source_path,
+                source_path=prepared_sample.source_path,
                 result=result,
                 query_cache=query_cache,
             )
         except _RealtimeQueryCanceledError:
             raise
         except Exception as exc:
-            errors.append(f"{source_candidate}: {exc}")
+            errors.append(f"prepared-sample {prepared_sample.source_path}: {exc}")
             continue
         finally:
             _close_runtime_engine(engine)
+
+    if len(prepared_query.source_candidates) > 0:
+        msg = "Failed to encode a prepared realtime raster chip for the current prompt."
+        logger.error("%s Details: %s", msg, errors)
+        raise ValueError("\n".join([msg, *errors]))
 
     msg = "Failed to encode a realtime raster chip for the current prompt."
     logger.error("%s Details: %s", msg, errors)
@@ -1246,7 +1370,8 @@ def _find_persistent_query_cache_for_request(
         return None
 
     from geosam.datasets import GeoGrid
-    from geosam.query import BoundingBox, query_center
+    from geosam.engines import _prompt_prediction_kwargs
+    from geosam.query import BoundingBox, query_bounds, query_center
     from rasterio import Affine
 
     if not cache_directory.exists():
@@ -1308,6 +1433,9 @@ def _find_persistent_query_cache_for_request(
             chip_bounds=chip_bounds,
             chip_grid=chip_grid,
             query=cache_query,
+            query_bounds_value=query_bounds(cache_query),
+            prompt_kwargs=_prompt_prediction_kwargs(cache_query, chip_grid),
+            crs_text=str(metadata["crs"]),
         )
         best_match = (
             (distance, cache_hit)
@@ -1341,6 +1469,7 @@ def _load_prepared_persistent_query_cache(
         chip_grid=cache_hit.chip_grid,
         encoded=encoded,
     )
+    query_cache.crs_text = cache_hit.crs_text
     return cache_hit.source_path, query_cache
 
 

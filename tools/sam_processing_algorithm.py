@@ -67,6 +67,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     BATCH_SIZE = "BATCH_SIZE"
     CUDA_ID = "CUDA_ID"
 
+    def flags(self) -> Any:
+        """Return processing flags for the algorithm."""
+        return super().flags() | QgsProcessingAlgorithm.FlagNoThreading
+
     def initAlgorithm(self, config: dict[str, Any] | None = None) -> None:
         """Define processing inputs."""
         del config
