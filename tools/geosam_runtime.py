@@ -1110,25 +1110,26 @@ def prepare_realtime_raster_query(
         if (source_path := _normalize_local_raster_source(source_candidate)) is not None
     ]
     prepared_source_samples: list[PreparedRealtimeRasterSample] = []
-    for source_candidate in source_candidates:
-        try:
-            prepared_source_samples.append(
-                _prepare_realtime_raster_source_sample(
-                    source_path=source_candidate,
-                    query=query,
-                    model_id=model_id,
+    if persistent_cache_hit is None:
+        for source_candidate in source_candidates:
+            try:
+                prepared_source_samples.append(
+                    _prepare_realtime_raster_source_sample(
+                        source_path=source_candidate,
+                        query=query,
+                        model_id=model_id,
+                    )
                 )
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to prepare realtime raster chip for %s: %s",
-                source_candidate,
-                exc,
-            )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to prepare realtime raster chip for %s: %s",
+                    source_candidate,
+                    exc,
+                )
 
     online_export_plan: OnlineTileExportPlan | None = None
     online_raster_cache_directory: Path | None = None
-    if len(source_candidates) == 0:
+    if persistent_cache_hit is None and len(source_candidates) == 0:
         online_export_plan = prepare_online_raster_export_plan(
             layer,
             query,
