@@ -30,12 +30,12 @@ HELP_LINKS = {
     "Discussions": "https://github.com/coolzhao/Geo-SAM/discussions",
 }
 DEPENDENCY_DISTRIBUTIONS: dict[str, str] = {
-    "geosam": "geosam",
     "torch": "torch",
     "ultralytics": "ultralytics",
     "rasterio": "rasterio",
     "geopandas": "geopandas",
     "pyarrow": "pyarrow",
+    "geosam": "geosam",
 }
 PerformanceMode = Literal["balanced", "fastest", "low_memory"]
 PreviewRenderMode = Literal["pixel_level", "simplified"]
@@ -90,10 +90,13 @@ def _load_json(path: Path) -> dict[str, Any]:
     Returns
     -------
     dict[str, Any]
-        Parsed JSON object, or an empty dictionary when the file is missing.
+        Parsed JSON object, or an empty dictionary when the user settings file
+        is missing.
 
     """
     if not path.exists():
+        if path == SETTINGS_USER_PATH:
+            path.write_text("{}\n", encoding="utf-8")
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -163,9 +166,7 @@ def save_plugin_settings(updates: dict[str, Any]) -> dict[str, Any]:
     )
     defaults = _default_plugin_settings()
     user_settings = {
-        key: settings[key]
-        for key in defaults
-        if settings.get(key) != defaults[key]
+        key: settings[key] for key in defaults if settings.get(key) != defaults[key]
     }
     SETTINGS_USER_PATH.write_text(
         json.dumps(user_settings, indent=4),
