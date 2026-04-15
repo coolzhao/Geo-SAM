@@ -109,6 +109,8 @@ class PreparedPersistentQueryCacheHit:
         GeoSAM bounding box for the encoded chip.
     chip_grid : Any
         GeoSAM grid for the encoded chip.
+    query : Any
+        Query projected into the encoded chip CRS on the main thread.
 
     """
 
@@ -116,6 +118,7 @@ class PreparedPersistentQueryCacheHit:
     feature_path: Path
     chip_bounds: Any
     chip_grid: Any
+    query: Any
 
 
 RealtimeQueryProgressCallback = Callable[[str, float], None]
@@ -1068,14 +1071,12 @@ def run_prepared_realtime_raster_query(
     _require_query_crs(query)
     errors: list[str] = []
     model_spec = create_model_spec(prepared_query.model_id)
-    projected_query = _query_to_crs_text(query, prepared_query.layer_crs_text)
 
     if prepared_query.supports_feature_reuse:
         _ensure_not_canceled()
         _report_progress("Checking cached encoding", 2.0)
-        persistent_cache_hit = _load_prepared_persistent_query_cache(
-            prepared_query.persistent_cache_hit
-        )
+        prepared_cache_hit = prepared_query.persistent_cache_hit
+        persistent_cache_hit = _load_prepared_persistent_query_cache(prepared_cache_hit)
         if persistent_cache_hit is not None:
             source_path, query_cache = persistent_cache_hit
             engine = None
@@ -1084,14 +1085,24 @@ def run_prepared_realtime_raster_query(
                 _report_progress("Opening cached raster source", 15.0)
                 dataset = RasterDataset(source_path)
                 engine = OnlineQueryEngine(dataset, model_spec)
-                source_query = (
-                    projected_query
-                    if str(projected_query.crs) == str(dataset.crs)
-                    else projected_query.to_crs(dataset.crs)
-                )
                 _ensure_not_canceled()
                 _report_progress("Running prompt query", 75.0)
-                result = engine.query(source_query, cache=query_cache)
+                prediction = engine.adapter.predict_features(
+                    query_cache.encoded,
+                    multimask_output=False,
+                    **_prompt_prediction_kwargs(
+                        prepared_cache_hit.query,
+                        query_cache.chip_grid,
+                    ),
+                )
+                result = _prediction_to_result(
+                    prediction,
+                    sample_grid=query_cache.chip_grid,
+                    query_bounds_value=query_bounds(prepared_cache_hit.query),
+                    source_path=query_cache.source_path,
+                    chip_id=None,
+                    model_type=model_spec.model_type,
+                )
                 _ensure_not_canceled()
                 _report_progress("Finished realtime query", 100.0)
                 return PreparedRealtimeRasterQueryResult(
@@ -1272,8 +1283,13 @@ def _find_persistent_query_cache_for_request(
             tuple(metadata["shape"]),
             metadata["crs"],
         )
+        cache_query = (
+            projected_query
+            if str(projected_query.crs) == str(chip_grid.crs)
+            else projected_query.to_crs(chip_grid.crs)
+        )
         if not _query_is_far_from_chip_edge(
-            projected_query,
+            cache_query,
             chip_bounds=chip_bounds,
             chip_grid=chip_grid,
         ):
@@ -1291,6 +1307,7 @@ def _find_persistent_query_cache_for_request(
             feature_path=encoded_path,
             chip_bounds=chip_bounds,
             chip_grid=chip_grid,
+            query=cache_query,
         )
         best_match = (
             (distance, cache_hit)
