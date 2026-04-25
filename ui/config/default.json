@@ -12,5 +12,6 @@
     "selected_model_id": "sam2.1_b",
     "clear_cache_on_plugin_close": true,
     "performance_mode": "balanced",
-    "preview_render_mode": "light"
+    "preview_render_mode": "pixel_level",
+    "preview_mode": true
 }

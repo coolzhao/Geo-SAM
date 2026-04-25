@@ -366,20 +366,16 @@ def get_performance_mode() -> PerformanceMode:
 
 def _normalize_preview_render_mode(value: Any) -> PreviewRenderMode:
     """Normalize a configured preview render mode."""
-    normalized_value = str(value or "simplified").strip().lower().replace("-", "_")
-    if normalized_value == "exact":
-        return "pixel_level"
-    if normalized_value == "light":
-        return "simplified"
+    normalized_value = str(value or "pixel_level").strip().lower().replace("-", "_")
     if normalized_value in {"pixel_level", "simplified"}:
         return normalized_value  # type: ignore[return-value]
-    return "simplified"
+    return "pixel_level"
 
 
 def get_preview_render_mode() -> PreviewRenderMode:
     """Return the configured preview render mode."""
     return _normalize_preview_render_mode(
-        load_plugin_settings().get("preview_render_mode", "simplified")
+        load_plugin_settings().get("preview_render_mode", "pixel_level")
     )
 
 

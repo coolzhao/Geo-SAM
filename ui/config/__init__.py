@@ -62,6 +62,52 @@ for color in color_list:
     DefaultSettings[color] = QColor(DefaultSettings[color])
 
 
+def _values_match_default(setting_name: str, value: Any) -> bool:
+    """Return whether a user setting value matches the default value.
+
+    Parameters
+    ----------
+    setting_name : str
+        Name of the setting to compare.
+    value : Any
+        Candidate user setting value.
+
+    Returns
+    -------
+    bool
+        True when ``value`` matches the default setting value.
+
+    """
+    if setting_name not in DefaultSettings:
+        return False
+    default_value = DefaultSettings[setting_name]
+    if setting_name in color_list:
+        value_name = value.name() if hasattr(value, "name") else str(value)
+        return value_name == default_value.name()
+    return value == default_value
+
+
+def _settings_runtime_value(setting_name: str, value: Any) -> Any:
+    """Return the in-memory representation for a setting value.
+
+    Parameters
+    ----------
+    setting_name : str
+        Name of the setting to convert.
+    value : Any
+        Persisted setting value.
+
+    Returns
+    -------
+    Any
+        Runtime value, using :class:`QColor` for color settings.
+
+    """
+    if setting_name in color_list:
+        return QColor(value)
+    return value
+
+
 def save_user_settings(
     settings: dict[str, Any],
     mode: Literal["update", "overwrite"] = "update",
@@ -90,15 +136,12 @@ def save_user_settings(
         logger.error("%s: %s", msg, mode)
         raise ValueError(msg)
 
-    user_st = {}
-    for st in settings:
-        if settings[st] != Settings[st]:
-            # skip for same color case
-            if st in color_list:
-                if settings[st] == Settings[st].name():
-                    continue
-            user_st[st] = settings[st]
-    _new_settings.update(user_st)
+    for st, value in settings.items():
+        if _values_match_default(st, value):
+            _new_settings.pop(st, None)
+        else:
+            _new_settings[st] = value
+        Settings[st] = _settings_runtime_value(st, value)
     setting_user_file.write_text(
         json.dumps(_new_settings, indent=4),
         encoding="utf-8",

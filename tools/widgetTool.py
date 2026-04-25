@@ -553,7 +553,9 @@ class Selector(QDockWidget):
             self.wdg_sel.radioButton_enable.setChecked(True)
             self.wdg_sel.radioButton_enable.toggled.connect(self.toggle_edit_mode)
 
-            self.wdg_sel.radioButton_exe_hover.setChecked(False)
+            self.wdg_sel.radioButton_exe_hover.setChecked(
+                bool(Settings.get("preview_mode", True))
+            )
             self.wdg_sel.radioButton_exe_hover.toggled.connect(
                 self.toggle_sam_hover_mode
             )
@@ -752,6 +754,10 @@ class Selector(QDockWidget):
             )
 
     def set_user_settings(self):
+        self.preview_mode = bool(Settings.get("preview_mode", True))
+        self.wdg_sel.radioButton_exe_hover.blockSignals(True)
+        self.wdg_sel.radioButton_exe_hover.setChecked(self.preview_mode)
+        self.wdg_sel.radioButton_exe_hover.blockSignals(False)
         self.wdg_sel.radioButton_show_extent.setChecked(bool(Settings["show_boundary"]))
         enabled = bool(Settings.get("max_polygon_only", False))
         self.wdg_sel.radioButton_max_object_mode.setChecked(enabled)
@@ -802,7 +808,7 @@ class Selector(QDockWidget):
             "cache_dir": str(load_plugin_settings()["cache_dir"]),
             "cache_max_size_mb": int(load_plugin_settings()["cache_max_size_mb"]),
             "performance_mode": "balanced",
-            "preview_render_mode": "simplified",
+            "preview_render_mode": "pixel_level",
         })
         if hasattr(self, "wdg_sel") and hasattr(
             self.wdg_sel,
@@ -811,7 +817,7 @@ class Selector(QDockWidget):
             self.wdg_sel.VectorizationModeComboBox.setCurrentIndex(
                 max(
                     0,
-                    self.wdg_sel.VectorizationModeComboBox.findData("simplified"),
+                    self.wdg_sel.VectorizationModeComboBox.findData("pixel_level"),
                 )
             )
 
@@ -822,6 +828,7 @@ class Selector(QDockWidget):
             bool(DefaultSettings.get("max_polygon_only", False))
         )
         self.max_object_mode = bool(DefaultSettings.get("max_polygon_only", False))
+        self._set_preview_mode_enabled(bool(DefaultSettings.get("preview_mode", True)))
 
         # set default color
         self.wdg_sel.ColorButton_bgpt.setColor(DefaultSettings["bg_color"])
@@ -1065,6 +1072,7 @@ class Selector(QDockWidget):
             self.execute_SAM,
             self.img_crs_manager,
         )
+        self._set_preview_mode_enabled(self.preview_mode)
         self._apply_point_style_to_canvas()
 
         self._ensure_feature_crs()
@@ -1529,6 +1537,7 @@ class Selector(QDockWidget):
         """Toggle move mode in sam model"""
         if not hasattr(self, "tool_click_fg"):
             self.preview_mode = self.wdg_sel.radioButton_exe_hover.isChecked()
+            save_user_settings({"preview_mode": self.preview_mode}, mode="update")
             return
         if self.wdg_sel.radioButton_exe_hover.isChecked():
             self.preview_mode = True
@@ -1545,6 +1554,7 @@ class Selector(QDockWidget):
             self.tool_click_bg.clear_hover_prompt()
             self.tool_click_rect.clear_hover_prompt()
 
+        save_user_settings({"preview_mode": self.preview_mode}, mode="update")
         if self.need_execute_sam_toggle_mode:
             self.execute_SAM.emit()
 

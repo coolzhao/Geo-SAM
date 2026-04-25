@@ -234,27 +234,18 @@ def _normalize_preview_render_mode(value: Any) -> PreviewRenderMode:
     Parameters
     ----------
     value : Any
-        Raw persisted value, including legacy preview-mode variants.
+        Raw persisted value.
 
     Returns
     -------
     PreviewRenderMode
         Normalized vectorization mode.
 
-    Notes
-    -----
-    Legacy values are kept compatible so existing user settings continue to
-    work after the UI label and option names change.
-
     """
-    normalized_value = str(value or "simplified").strip().lower().replace("-", "_")
-    legacy_value_mapping: dict[str, PreviewRenderMode] = {
-        "exact": "pixel_level",
-        "light": "simplified",
-        "pixel_level": "pixel_level",
-        "simplified": "simplified",
-    }
-    return legacy_value_mapping.get(normalized_value, "simplified")
+    normalized_value = str(value or "pixel_level").strip().lower().replace("-", "_")
+    if normalized_value in PREVIEW_RENDER_MODE_VALUES:
+        return normalized_value  # type: ignore[return-value]
+    return "pixel_level"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -317,6 +308,7 @@ def _default_plugin_settings() -> dict[str, Any]:
     settings.setdefault("show_boundary", True)
     settings.setdefault("default_minimum_pixels", 0)
     settings.setdefault("performance_mode", "balanced")
+    settings.setdefault("preview_mode", True)
     settings["preview_render_mode"] = _normalize_preview_render_mode(
         settings.get("preview_render_mode")
     )
