@@ -1,25 +1,26 @@
 from __future__ import annotations
 
+import logging
+
 import processing
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import (
     QAction,
+    QMessageBox,
     QToolBar,
 )
 from qgis.core import QgsApplication
 from qgis.gui import QgisInterface
 
-from .geo_sam_provider import GeoSamProvider
 from .tools.geosam_backend import configure_geosam_qgis_runtime
-from .tools.geosam_runtime import cleanup_on_plugin_unload
-from .tools.settingsTool import GeoSamSettingsDialog
-from .tools.widgetTool import EncoderCopilot, Selector
 from .ui.icons import (
     QIcon_EncoderCopilot,
     QIcon_EncoderTool,
     QIcon_GeoSAMSettings,
     QIcon_GeoSAMTool,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Geo_SAM(QObject):
@@ -35,6 +36,9 @@ class Geo_SAM(QObject):
         self.feature_dir = feature_dir
 
     def initProcessing(self):
+        """Register the Geo-SAM processing provider lazily."""
+        from .geo_sam_provider import GeoSamProvider
+
         self.provider = GeoSamProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
 
@@ -106,22 +110,55 @@ class Geo_SAM(QObject):
 
     def create_widget_selector(self):
         """Create widget for selecting landform by prompts"""
+        try:
+            from .tools.widgetTool import Selector
+        except ModuleNotFoundError as exc:
+            self._show_missing_runtime_dependency(exc)
+            return
+
         if not hasattr(self, "wdg_select"):
             self.wdg_select = Selector(self, self.iface, self.cwd)
         self.wdg_select.open_widget()
 
     def create_widget_encoder_copilot(self):
         """Create widget for co-piloting encoder settings"""
+        try:
+            from .tools.widgetTool import EncoderCopilot
+        except ModuleNotFoundError as exc:
+            self._show_missing_runtime_dependency(exc)
+            return
+
         if not hasattr(self, "wdg_copilot"):
             self.wdg_copilot = EncoderCopilot(self, self.iface, self.cwd)
         self.wdg_copilot.open_widget()
 
     def open_settings_dialog(self):
         """Open the standalone settings dialog."""
+        from .tools.settingsTool import GeoSamSettingsDialog
+
         dialog = GeoSamSettingsDialog(self.iface.mainWindow())
         dialog.exec()
         if hasattr(self, "wdg_select"):
             self.wdg_select.refresh_runtime_controls()
+
+    def _show_missing_runtime_dependency(self, error: ModuleNotFoundError) -> None:
+        """Show dependency installation guidance for lazy runtime imports.
+
+        Parameters
+        ----------
+        error : ModuleNotFoundError
+            Import error raised while opening a runtime-only plugin feature.
+        """
+        missing_name = getattr(error, "name", None) or "a required package"
+        logger.warning("Geo-SAM runtime dependency is missing: %s", missing_name)
+        QMessageBox.warning(
+            self.iface.mainWindow(),
+            "Geo-SAM Dependencies Missing",
+            (
+                f"Geo-SAM needs {missing_name} for this action.\n\n"
+                "Open Geo-SAM Settings and install dependencies first."
+            ),
+        )
 
     def unload(self):
         """Unload actions when plugin is closed"""
@@ -149,6 +186,8 @@ class Geo_SAM(QObject):
         del self.actionSamSettings
         del self.toolbar
         QgsApplication.processingRegistry().removeProvider(self.provider)
+        from .tools.geosam_runtime import cleanup_on_plugin_unload
+
         cleanup_on_plugin_unload()
 
     def encodeImage(self):

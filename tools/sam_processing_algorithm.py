@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
@@ -285,7 +285,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         layer_units = (
             "degrees" if raster_layer.crs().mapUnits() == UNIT_DEGREES else "meters"
         )
-        if np.isnan(resolution) or resolution == 0:
+        if math.isnan(resolution) or resolution == 0:
             resolution = raster_layer.rasterUnitsPerPixelX()
             target_units = layer_units
         else:
@@ -492,8 +492,8 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         """Resolve a fixed value range when one is requested."""
         if (
             len(range_value) >= 2
-            and not np.isnan(range_value[0])
-            and not np.isnan(range_value[1])
+            and not math.isnan(range_value[0])
+            and not math.isnan(range_value[1])
         ):
             if range_value[0] >= range_value[1]:
                 raise QgsProcessingException(

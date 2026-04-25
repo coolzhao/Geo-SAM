@@ -1,14 +1,41 @@
+"""QGIS processing provider for Geo-SAM algorithms."""
+
+from __future__ import annotations
+
+import logging
+
 from qgis.core import QgsProcessingProvider
 # from qgis.PyQt.QtGui import QIcon
 
 from .ui.icons import QIcon_EncoderTool
 # from processing_provider.example_processing_algorithm import ExampleProcessingAlgorithm
-from .tools.sam_processing_algorithm import SamProcessingAlgorithm
+
+logger = logging.getLogger(__name__)
 
 
 class GeoSamProvider(QgsProcessingProvider):
 
     def loadAlgorithms(self, *args, **kwargs):
+        """Load processing algorithms when QGIS initializes the provider.
+
+        Parameters
+        ----------
+        *args : Any
+            Positional arguments forwarded by QGIS.
+        **kwargs : Any
+            Keyword arguments forwarded by QGIS.
+        """
+        del args, kwargs
+        try:
+            from .tools.sam_processing_algorithm import SamProcessingAlgorithm
+        except ModuleNotFoundError as exc:
+            logger.warning(
+                "Geo-SAM processing algorithm was not loaded because dependency "
+                "is missing: %s",
+                getattr(exc, "name", exc),
+            )
+            return
+
         self.addAlgorithm(SamProcessingAlgorithm())
         # add additional algorithms here
         # self.addAlgorithm(MyOtherAlgorithm())
