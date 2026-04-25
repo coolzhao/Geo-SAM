@@ -47,6 +47,7 @@ from .canvasTool import (
     RectangleMapTool,
     SAM_PolygonFeature,
 )
+from .geosam_backend import configure_geosam_qgis_runtime
 from .geosam_runtime import (
     RealtimeQueryCache,
     _RealtimeQueryCanceledError,
@@ -72,7 +73,12 @@ from .model_manager import (
     get_model_display_items,
     infer_model_id_from_checkpoint_path,
 )
-from .plugin_settings import load_plugin_settings, save_plugin_settings
+from .plugin_settings import (
+    initialize_rasterio_proj_data,
+    load_plugin_settings,
+    rasterio_proj_data_environment,
+    save_plugin_settings,
+)
 
 if TYPE_CHECKING:
     from rasterio.io import DatasetReader
@@ -84,18 +90,21 @@ _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 def _open_raster_dataset(raster_path: str) -> DatasetReader:
     """Open a raster dataset lazily so the plugin can load without rasterio."""
     try:
-        import rasterio
+        with rasterio_proj_data_environment():
+            import rasterio
+
+            return rasterio.open(raster_path)
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
             "rasterio is required to read raster ranges. "
             "Open Geo-SAM Settings and install dependencies first."
         ) from exc
-    return rasterio.open(raster_path)
 
 
 def _window_from_bounds(*bounds: float, transform: Any) -> Any:
     """Build a rasterio window lazily from bounds."""
     try:
+        initialize_rasterio_proj_data()
         from rasterio.windows import from_bounds
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
@@ -250,6 +259,7 @@ class RealtimePreparedQueryTask(QgsTask):
                 self.query,
                 progress_callback=self._report_progress,
                 is_canceled=self.isCanceled,
+                qgis_task=self,
             )
         except _RealtimeQueryCanceledError as exc:
             self.was_canceled = True
@@ -1169,6 +1179,7 @@ class Selector(QDockWidget):
 
     def _build_geosam_query(self):
         """Build a GeoSAM query object from the current canvas prompts."""
+        configure_geosam_qgis_runtime()
         from geosam import BoundingBox as GeoBoundingBox
         from geosam import Points as GeoPoints
         from geosam import PromptSet

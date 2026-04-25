@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from .geosam_backend import configure_geosam_qgis_runtime
 from .plugin_settings import get_model_directory
 
 if TYPE_CHECKING:
@@ -260,6 +261,7 @@ def create_model_spec(model_id: str) -> ModelSpec:
         Raised when the checkpoint is missing locally.
 
     """
+    configure_geosam_qgis_runtime()
     from geosam.runtime import create_model_spec as create_runtime_model_spec
 
     checkpoint_path = get_model_checkpoint_path(model_id)
@@ -292,6 +294,7 @@ def create_model_spec_from_checkpoint(
         Runtime model specification.
 
     """
+    configure_geosam_qgis_runtime()
     from geosam.runtime import create_model_spec_from_checkpoint as create_runtime_spec
 
     return create_runtime_spec(

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import processing
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import (
@@ -8,6 +10,7 @@ from qgis.core import QgsApplication
 from qgis.gui import QgisInterface
 
 from .geo_sam_provider import GeoSamProvider
+from .tools.geosam_backend import configure_geosam_qgis_runtime
 from .tools.geosam_runtime import cleanup_on_plugin_unload
 from .tools.settingsTool import GeoSamSettingsDialog
 from .tools.widgetTool import EncoderCopilot, Selector
@@ -36,6 +39,8 @@ class Geo_SAM(QObject):
         QgsApplication.processingRegistry().addProvider(self.provider)
 
     def initGui(self):
+        """Initialize plugin actions and configure the GeoSAM QGIS backend."""
+        configure_geosam_qgis_runtime()
         self.initProcessing()
 
         self.toolbar: QToolBar = self.iface.addToolBar("Geo SAM Toolbar")

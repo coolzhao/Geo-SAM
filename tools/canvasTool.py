@@ -45,6 +45,7 @@ from ..ui.cursors import (
 )
 from .geoTool import ImageCRSManager, LayerExtent
 from .messageTool import MessageTool
+from .plugin_settings import initialize_rasterio_proj_data
 from .ulid import GroupId
 
 if TYPE_CHECKING:
@@ -56,6 +57,7 @@ logger = logging.getLogger(__name__)
 def _rowcol(transform: Affine, x_value: float, y_value: float) -> tuple[int, int]:
     """Resolve raster row and column lazily so plugin import stays lightweight."""
     try:
+        initialize_rasterio_proj_data()
         from rasterio.transform import rowcol
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(

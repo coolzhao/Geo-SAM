@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import importlib
 import importlib.metadata
+import importlib.util
 import json
 import logging
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, TypedDict
 
@@ -58,6 +62,7 @@ PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = (
     "pixel_level",
     "simplified",
 )
+PROJ_DATA_ENV_KEYS = ("PROJ_DATA", "PROJ_LIB")
 
 
 class DependencyStatusRow(TypedDict):
@@ -80,6 +85,147 @@ class DependencyStatusRow(TypedDict):
     distribution: str
     installed: bool
     version: str
+
+
+def initialize_rasterio_proj_data() -> None:
+    """Point rasterio at its bundled PROJ database when available.
+
+    Rasterio wheels can bundle a newer PROJ database than the active QGIS
+    process exposes through ``PROJ_LIB``. Importing rasterio while ``PROJ_LIB``
+    points at an older database can make valid EPSG codes fail to resolve.
+    This helper resolves rasterio's bundled ``proj_data`` directory, imports
+    rasterio with that path during initialization when needed, and explicitly
+    updates rasterio's PROJ search path. The explicit search-path update also
+    fixes sessions where rasterio was imported before this helper ran.
+
+    Returns
+    -------
+    None
+        The function mutates only import state and temporarily mutates
+        ``os.environ``.
+
+    Notes
+    -----
+    The helper is intentionally a no-op when rasterio is unavailable. Call it
+    immediately before rasterio operations in lazy rasterio code paths.
+
+    """
+    rasterio_module = sys.modules.get("rasterio")
+    if rasterio_module is not None:
+        rasterio_file = getattr(rasterio_module, "__file__", None)
+        if rasterio_file is None:
+            return
+        rasterio_package_path = Path(rasterio_file).resolve().parent
+    else:
+        rasterio_spec = importlib.util.find_spec("rasterio")
+        if rasterio_spec is None or rasterio_spec.submodule_search_locations is None:
+            return
+        rasterio_package_path = Path(rasterio_spec.submodule_search_locations[0])
+
+    rasterio_proj_data_path = rasterio_package_path / "proj_data"
+    if not (rasterio_proj_data_path / "proj.db").is_file():
+        return
+
+    original_environment = {
+        env_key: os.environ.get(env_key) for env_key in PROJ_DATA_ENV_KEYS
+    }
+    rasterio_proj_data_text = str(rasterio_proj_data_path)
+    try:
+        for env_key in PROJ_DATA_ENV_KEYS:
+            os.environ[env_key] = rasterio_proj_data_text
+        rasterio_module = importlib.import_module("rasterio")
+        rasterio_env_module = importlib.import_module("rasterio.env")
+        set_proj_data_search_path = getattr(
+            rasterio_env_module,
+            "set_proj_data_search_path",
+            None,
+        )
+        if set_proj_data_search_path is None:
+            logger.warning(
+                "Rasterio does not expose set_proj_data_search_path; "
+                "cannot override PROJ data path."
+            )
+            return
+        set_proj_data_search_path(rasterio_proj_data_text)
+        logger.debug(
+            "Initialized rasterio PROJ data path for %s from %s.",
+            getattr(rasterio_module, "__file__", "rasterio"),
+            rasterio_proj_data_path,
+        )
+    finally:
+        for env_key, env_value in original_environment.items():
+            if env_value is None:
+                os.environ.pop(env_key, None)
+            else:
+                os.environ[env_key] = env_value
+
+
+def _resolve_rasterio_proj_data_path() -> Path | None:
+    """Resolve rasterio's bundled PROJ data directory.
+
+    Returns
+    -------
+    Path | None
+        Path to rasterio's bundled ``proj_data`` directory, or ``None`` when
+        rasterio is unavailable or does not bundle ``proj.db``.
+
+    """
+    rasterio_module = sys.modules.get("rasterio")
+    if rasterio_module is not None:
+        rasterio_file = getattr(rasterio_module, "__file__", None)
+        if rasterio_file is None:
+            return None
+        rasterio_package_path = Path(rasterio_file).resolve().parent
+    else:
+        rasterio_spec = importlib.util.find_spec("rasterio")
+        if rasterio_spec is None or rasterio_spec.submodule_search_locations is None:
+            return None
+        rasterio_package_path = Path(rasterio_spec.submodule_search_locations[0])
+
+    rasterio_proj_data_path = rasterio_package_path / "proj_data"
+    if not (rasterio_proj_data_path / "proj.db").is_file():
+        return None
+    return rasterio_proj_data_path
+
+
+@contextmanager
+def rasterio_proj_data_environment() -> Iterator[None]:
+    """Temporarily expose rasterio's bundled PROJ database to rasterio.
+
+    Yields
+    ------
+    None
+        Control returns to the caller while ``PROJ_DATA`` and ``PROJ_LIB`` point
+        at rasterio's matching ``proj_data`` directory.
+
+    Notes
+    -----
+    Rasterio's ``Env`` wrapper can re-read ``os.environ`` during operations such
+    as :func:`rasterio.open`. Keeping the environment override active for the
+    full operation prevents it from falling back to an incompatible QGIS or
+    conda ``proj.db``.
+
+    """
+    rasterio_proj_data_path = _resolve_rasterio_proj_data_path()
+    if rasterio_proj_data_path is None:
+        yield
+        return
+
+    original_environment = {
+        env_key: os.environ.get(env_key) for env_key in PROJ_DATA_ENV_KEYS
+    }
+    rasterio_proj_data_text = str(rasterio_proj_data_path)
+    try:
+        for env_key in PROJ_DATA_ENV_KEYS:
+            os.environ[env_key] = rasterio_proj_data_text
+        initialize_rasterio_proj_data()
+        yield
+    finally:
+        for env_key, env_value in original_environment.items():
+            if env_value is None:
+                os.environ.pop(env_key, None)
+            else:
+                os.environ[env_key] = env_value
 
 
 def _normalize_preview_render_mode(value: Any) -> PreviewRenderMode:

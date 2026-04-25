@@ -38,6 +38,7 @@ from qgis.utils import iface
 
 from ..docs import encoder_help
 from ..ui.icons import QIcon_EncoderTool
+from .geosam_backend import configure_geosam_qgis_runtime
 from .geosam_runtime import (
     chip_extent_rectangles_for_source,
     sanitize_path_component,
@@ -205,6 +206,10 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback: QgsProcessingFeedback,
     ) -> dict[str, Any]:
         """Run the cache-building workflow."""
+        configure_geosam_qgis_runtime(
+            feedback=feedback,
+            transform_context=context.transformContext(),
+        )
         try:
             from geosam import BoundingBox, RasterDataset, build_model_adapter
         except ModuleNotFoundError as exc:

@@ -9,7 +9,7 @@ import sys
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 from PyQt5.QtGui import QImage
@@ -22,7 +22,13 @@ from qgis.core import (
     QgsRectangle,
 )
 
+from .geosam_backend import configure_geosam_qgis_runtime
+from .plugin_settings import rasterio_proj_data_environment
+
 logger = logging.getLogger(__name__)
+
+OnlineTileExportProgressCallback = Callable[[str, float], None]
+OnlineTileExportCancelCallback = Callable[[], bool]
 
 WEB_MERCATOR_CRS_TEXT = "EPSG:3857"
 WEB_MERCATOR_HALF_WORLD = 20037508.342789244
@@ -188,6 +194,8 @@ def export_online_raster_plan(
     *,
     cache_directory: Path,
     layer_name: str,
+    progress_callback: OnlineTileExportProgressCallback | None = None,
+    is_canceled: OnlineTileExportCancelCallback | None = None,
 ) -> str:
     """Export a prepared online tile plan into the cache as a GeoTIFF.
 
@@ -199,6 +207,10 @@ def export_online_raster_plan(
         Cache directory used to store the exported GeoTIFF.
     layer_name : str
         Human-readable layer name used in log messages.
+    progress_callback : OnlineTileExportProgressCallback | None, optional
+        Callback receiving ``(stage_text, progress_percent)`` updates.
+    is_canceled : OnlineTileExportCancelCallback | None, optional
+        Callback returning ``True`` when export should stop.
 
     Returns
     -------
@@ -223,6 +235,8 @@ def export_online_raster_plan(
             layer_name,
             export_plan=export_plan,
             destination_path=destination_path,
+            progress_callback=progress_callback,
+            is_canceled=is_canceled,
         )
     )
 
@@ -360,6 +374,7 @@ def _transform_rectangle(
 
 def _query_in_layer_crs(layer: QgsRasterLayer, query: Any) -> Any:
     """Normalize a query into the layer CRS."""
+    configure_geosam_qgis_runtime()
     crs_text = layer.crs().authid() or layer.crs().toWkt()
     if query.crs == QgsCoordinateReferenceSystem(crs_text):
         return query
@@ -370,6 +385,7 @@ def _query_in_layer_crs(layer: QgsRasterLayer, query: Any) -> Any:
 
 def _rectangle_for_query_bounds(layer: QgsRasterLayer, query: Any) -> QgsRectangle:
     """Return query bounds as a rectangle in the layer CRS."""
+    configure_geosam_qgis_runtime()
     from geosam.query import query_bounds
 
     projected_query = _query_in_layer_crs(layer, query)
@@ -790,24 +806,25 @@ def _write_tile_mosaic_geotiff(
     destination_path: Path,
 ) -> Path:
     """Write an RGB tile mosaic to a georeferenced GeoTIFF."""
-    import rasterio
-    from rasterio.transform import from_bounds
+    with rasterio_proj_data_environment():
+        import rasterio
+        from rasterio.transform import from_bounds
 
-    destination_path.parent.mkdir(parents=True, exist_ok=True)
-    height, width, _ = mosaic_array.shape
-    transform = from_bounds(*bounds, width=width, height=height)
-    with rasterio.open(
-        destination_path,
-        "w",
-        driver="GTiff",
-        width=width,
-        height=height,
-        count=3,
-        dtype=mosaic_array.dtype,
-        crs=crs_text,
-        transform=transform,
-    ) as dataset:
-        dataset.write(mosaic_array.transpose(2, 0, 1))
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        height, width, _ = mosaic_array.shape
+        transform = from_bounds(*bounds, width=width, height=height)
+        with rasterio.open(
+            destination_path,
+            "w",
+            driver="GTiff",
+            width=width,
+            height=height,
+            count=3,
+            dtype=mosaic_array.dtype,
+            crs=crs_text,
+            transform=transform,
+        ) as dataset:
+            dataset.write(mosaic_array.transpose(2, 0, 1))
     return destination_path
 
 
@@ -816,23 +833,31 @@ def _export_online_tiles_to_geotiff(
     *,
     export_plan: OnlineTileExportPlan,
     destination_path: Path,
+    progress_callback: OnlineTileExportProgressCallback | None = None,
+    is_canceled: OnlineTileExportCancelCallback | None = None,
 ) -> Path:
     """Download and mosaic online tiles into a GeoTIFF cache entry."""
     import numpy as np
 
     tile_count_x = export_plan.tile_column_range[1] - export_plan.tile_column_range[0] + 1
     tile_count_y = export_plan.tile_row_range[1] - export_plan.tile_row_range[0] + 1
+    total_tile_count = tile_count_x * tile_count_y
     tile_size = export_plan.provider.tile_size
     mosaic_array = np.zeros(
         (tile_count_y * tile_size, tile_count_x * tile_size, 3),
         dtype=np.uint8,
     )
+    downloaded_tile_count = 0
     for row_index, tile_row in enumerate(
         range(export_plan.tile_row_range[0], export_plan.tile_row_range[1] + 1)
     ):
         for column_index, tile_column in enumerate(
             range(export_plan.tile_column_range[0], export_plan.tile_column_range[1] + 1)
         ):
+            if is_canceled is not None and is_canceled():
+                msg = "Online raster export task was canceled."
+                logger.info(msg)
+                raise OnlineRasterExportError(msg)
             tile_array = _download_tile_array(
                 export_plan.provider,
                 zoom=export_plan.tile_zoom,
@@ -846,6 +871,12 @@ def _export_online_tiles_to_geotiff(
                 column_offset : column_offset + tile_size,
                 :,
             ] = tile_array
+            downloaded_tile_count += 1
+            if progress_callback is not None:
+                progress_callback(
+                    "Downloading online tiles",
+                    float(downloaded_tile_count / total_tile_count * 20.0),
+                )
 
     left, _, _, top = _web_mercator_tile_bounds(
         export_plan.tile_column_range[0],

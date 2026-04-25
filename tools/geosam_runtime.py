@@ -18,6 +18,7 @@ from qgis.core import (
     QgsRectangle,
 )
 
+from .geosam_backend import configure_geosam_qgis_runtime
 from .messageTool import MessageTool
 from .model_manager import (
     create_model_spec,
@@ -45,6 +46,7 @@ from .plugin_settings import (
     clear_cache,
     cleanup_cache,
     get_cache_directory,
+    initialize_rasterio_proj_data,
     load_plugin_settings,
 )
 
@@ -263,6 +265,7 @@ class _ModelSessionRegistry:
 
     def get_online_engine(self, *, source_path: str, model_id: str) -> Any:
         """Return a cached online engine or create a new one."""
+        configure_geosam_qgis_runtime()
         from geosam import RasterDataset
         from geosam.engines import OnlineQueryEngine
 
@@ -317,6 +320,7 @@ class _ModelSessionRegistry:
 
     def get_feature_engine(self, *, feature_dir: str | Path, model_id: str) -> Any:
         """Return a cached feature-query engine or create a new one."""
+        configure_geosam_qgis_runtime()
         from geosam.engines import FeatureQueryEngine
 
         manifest_path = resolve_feature_manifest_path(feature_dir)
@@ -413,6 +417,7 @@ def create_model_spec_from_checkpoint(
     device: str | None = None,
 ) -> ModelSpec:
     """Create a model spec from an arbitrary checkpoint path."""
+    configure_geosam_qgis_runtime()
     from geosam.runtime import create_model_spec_from_checkpoint as create_runtime_spec
 
     return create_runtime_spec(
@@ -552,6 +557,7 @@ def cleanup_on_plugin_unload() -> dict[str, int]:
 
 def resolve_feature_manifest_path(feature_dir: str | Path) -> Path:
     """Resolve the manifest file path inside a feature folder."""
+    configure_geosam_qgis_runtime()
     from geosam.runtime import resolve_feature_manifest_path as resolve_runtime_manifest
 
     return resolve_runtime_manifest(feature_dir)
@@ -559,6 +565,7 @@ def resolve_feature_manifest_path(feature_dir: str | Path) -> Path:
 
 def describe_feature_source(feature_dir: str | Path) -> FeatureSourceSummary:
     """Load summary metadata for a GeoSAM feature folder."""
+    configure_geosam_qgis_runtime()
     import geopandas as gpd
     import pandas as pd
 
@@ -660,6 +667,7 @@ def chip_extent_rectangles_for_source(
     stride: int = 512,
 ) -> list[tuple[float, float, float, float]]:
     """Return chip extents for a raster source using GeoSAM sampling rules."""
+    configure_geosam_qgis_runtime()
     from geosam.runtime import chip_extent_rectangles_for_source as runtime_chip_extents
 
     return runtime_chip_extents(
@@ -763,6 +771,7 @@ def _query_to_crs_text(query, crs_text: str) -> Any:
     Any
         Query expressed in ``crs_text`` when conversion is required.
     """
+    configure_geosam_qgis_runtime()
     query_crs = getattr(query, "crs", None)
     if query_crs is None or not crs_text:
         return query
@@ -771,6 +780,7 @@ def _query_to_crs_text(query, crs_text: str) -> Any:
 
 def _rectangle_to_bbox(rectangle: QgsRectangle, *, crs_text: str):
     """Convert a QGIS rectangle into a GeoSAM bounding box."""
+    configure_geosam_qgis_runtime()
     from geosam import BoundingBox
 
     return BoundingBox(
@@ -784,6 +794,7 @@ def _rectangle_to_bbox(rectangle: QgsRectangle, *, crs_text: str):
 
 def _query_in_layer_crs(layer: QgsRasterLayer, query):
     """Normalize a query into the layer CRS."""
+    configure_geosam_qgis_runtime()
     crs_text = layer.crs().authid() or layer.crs().toWkt()
     if query.crs == QgsCoordinateReferenceSystem(crs_text):
         return query
@@ -794,6 +805,7 @@ def _query_in_layer_crs(layer: QgsRasterLayer, query):
 
 def _query_is_far_from_chip_edge(query, *, chip_bounds, chip_grid) -> bool:
     """Return whether a query center is inside the safe inner chip region."""
+    configure_geosam_qgis_runtime()
     from geosam.query import query_bounds, query_center
 
     if not chip_bounds.contains(query_bounds(query)):
@@ -825,6 +837,7 @@ def _prepare_realtime_raster_source_sample(
     model_id: str,
 ) -> PreparedRealtimeRasterSample:
     """Read a realtime raster chip on the main thread for background encoding."""
+    configure_geosam_qgis_runtime()
     from geosam.datasets import RasterDataset
     from geosam.engines import _prompt_prediction_kwargs
     from geosam.query import query_bounds, query_center, window_from_center
@@ -863,6 +876,7 @@ def _prediction_to_prepared_query_result(
     model_type: str,
 ) -> Any:
     """Convert a prediction using bounds prepared outside the worker thread."""
+    configure_geosam_qgis_runtime()
     import numpy as np
     from geosam.engines import QueryResult
 
@@ -1060,6 +1074,7 @@ def prepare_realtime_raster_query(
         must be encoded in a background task.
 
     """
+    configure_geosam_qgis_runtime()
     model_definition = get_model_definition(model_id)
     supports_feature_reuse = bool(model_definition.supports_feature_reuse)
     layer_crs_text = layer.crs().authid() or layer.crs().toWkt()
@@ -1138,28 +1153,6 @@ def prepare_realtime_raster_query(
             source_fingerprint=source_fingerprint,
         )
         online_raster_cache_directory = _online_layer_raster_cache_directory(layer)
-        try:
-            exported_source = export_online_tile_raster_plan(
-                online_export_plan,
-                cache_directory=online_raster_cache_directory,
-                layer_name=layer.name(),
-            )
-            source_candidates.append(exported_source)
-            prepared_source_samples.append(
-                _prepare_realtime_raster_source_sample(
-                    source_path=exported_source,
-                    query=query,
-                    model_id=model_id,
-                )
-            )
-        except (OnlineRasterPreflightError, OnlineRasterExportError) as exc:
-            msg = describe_online_export_failure(exc)
-            logger.warning("%s", msg)
-            raise ValueError(msg) from exc
-        except Exception as exc:
-            msg = "Failed to prepare exported online raster for realtime query."
-            logger.error("%s Details: %s", msg, exc)
-            raise ValueError(msg) from exc
 
     return PreparedRealtimeRasterQuery(
         model_id=model_id,
@@ -1183,6 +1176,7 @@ def run_prepared_realtime_raster_query(
     *,
     progress_callback: RealtimeQueryProgressCallback | None = None,
     is_canceled: RealtimeQueryCancelCallback | None = None,
+    qgis_task: Any | None = None,
 ) -> PreparedRealtimeRasterQueryResult:
     """Execute a prepared realtime raster query without using QGIS layer APIs.
 
@@ -1196,6 +1190,9 @@ def run_prepared_realtime_raster_query(
         Callback receiving ``(stage_text, progress_percent)`` updates.
     is_canceled : RealtimeQueryCancelCallback | None, optional
         Callback that returns ``True`` when the background task should stop.
+    qgis_task : Any | None, optional
+        QGIS task object used by GeoSAM for progress, cancellation, logging,
+        and QGIS CRS operations inside the worker.
 
     Returns
     -------
@@ -1210,6 +1207,7 @@ def run_prepared_realtime_raster_query(
         If all raster source candidates fail.
 
     """
+    configure_geosam_qgis_runtime(task=qgis_task)
     from geosam.engines import (
         OnlineQueryCache,
         _require_query_crs,
@@ -1271,12 +1269,50 @@ def run_prepared_realtime_raster_query(
             finally:
                 _close_runtime_engine(engine)
 
-    if len(prepared_query.prepared_source_samples) == 0:
+    prepared_source_samples = list(prepared_query.prepared_source_samples)
+    source_candidates = list(prepared_query.source_candidates)
+    if (
+        len(prepared_source_samples) == 0
+        and prepared_query.online_export_plan is not None
+        and prepared_query.online_raster_cache_directory is not None
+    ):
+        try:
+            _ensure_not_canceled()
+            _report_progress("Preparing online raster export", 3.0)
+            exported_source = export_online_tile_raster_plan(
+                prepared_query.online_export_plan,
+                cache_directory=prepared_query.online_raster_cache_directory,
+                layer_name=prepared_query.layer_name,
+                progress_callback=_report_progress,
+                is_canceled=is_canceled,
+            )
+            source_candidates.append(exported_source)
+            _ensure_not_canceled()
+            _report_progress("Preparing exported raster chip", 25.0)
+            prepared_source_samples.append(
+                _prepare_realtime_raster_source_sample(
+                    source_path=exported_source,
+                    query=query,
+                    model_id=prepared_query.model_id,
+                )
+            )
+        except _RealtimeQueryCanceledError:
+            raise
+        except (OnlineRasterPreflightError, OnlineRasterExportError) as exc:
+            msg = describe_online_export_failure(exc)
+            logger.warning("%s", msg)
+            raise ValueError(msg) from exc
+        except Exception as exc:
+            msg = "Failed to prepare exported online raster for realtime query."
+            logger.error("%s Details: %s", msg, exc)
+            raise ValueError(msg) from exc
+
+    if len(prepared_source_samples) == 0:
         msg = "Failed to prepare a local raster chip for the realtime query."
         logger.error(msg)
         raise ValueError(msg)
 
-    for prepared_sample in prepared_query.prepared_source_samples:
+    for prepared_sample in prepared_source_samples:
         engine = None
         try:
             _ensure_not_canceled()
@@ -1331,7 +1367,7 @@ def run_prepared_realtime_raster_query(
         finally:
             _close_runtime_engine(engine)
 
-    if len(prepared_query.source_candidates) > 0:
+    if len(source_candidates) > 0:
         msg = "Failed to encode a prepared realtime raster chip for the current prompt."
         logger.error("%s Details: %s", msg, errors)
         raise ValueError("\n".join([msg, *errors]))
@@ -1366,10 +1402,12 @@ def _find_persistent_query_cache_for_request(
     query,
 ) -> PreparedPersistentQueryCacheHit | None:
     """Find reusable realtime-query cache metadata without loading features."""
+    configure_geosam_qgis_runtime()
     settings = load_plugin_settings()
     if not settings.get("cache_enabled", True):
         return None
 
+    initialize_rasterio_proj_data()
     from geosam.datasets import GeoGrid
     from geosam.engines import _prompt_prediction_kwargs
     from geosam.query import BoundingBox, query_bounds, query_center
@@ -1457,6 +1495,7 @@ def _load_prepared_persistent_query_cache(
     cache_hit: PreparedPersistentQueryCacheHit | None,
 ) -> tuple[str, Any] | None:
     """Load encoded features for a prepared persistent query cache hit."""
+    configure_geosam_qgis_runtime()
     if cache_hit is None:
         return None
 
@@ -1520,6 +1559,7 @@ def query_feature_source(
     query: BoundingBox | Points | PromptSet,
 ) -> QueryResult:
     """Run a query against a GeoSAM feature folder."""
+    configure_geosam_qgis_runtime()
     resolved_model_id = model_id
     if resolved_model_id is None:
         resolved_model_id = describe_feature_source(feature_dir).model_id
@@ -1546,6 +1586,7 @@ def query_raster_layer(
     cache: RealtimeQueryCache | None = None,
 ) -> QueryResult:
     """Run a query against a QGIS raster layer."""
+    configure_geosam_qgis_runtime()
     from geosam.engines import OnlineQueryCache
 
     model_definition = get_model_definition(model_id)
@@ -1728,6 +1769,7 @@ def query_result_to_render_payload(
     render_mode: PreviewRenderMode | None = None,
 ) -> QueryResultRenderPayload:
     """Convert a GeoSAM query result into canvas and GeoJSON render payloads."""
+    configure_geosam_qgis_runtime()
     from shapely.geometry import mapping
 
     from geosam import MaskVectorizer
