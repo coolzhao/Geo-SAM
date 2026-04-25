@@ -217,19 +217,18 @@ def export_online_raster_plan(
     str
         Exported GeoTIFF path.
     """
-    file_stem = _sanitize_path_component(
-        "_".join([
-            export_plan.model_id,
-            export_plan.source_fingerprint,
-            export_plan.provider.provider_kind,
-            f"z{export_plan.tile_zoom}",
-            f"c{export_plan.tile_column_range[0]}-{export_plan.tile_column_range[1]}",
-            f"r{export_plan.tile_row_range[0]}-{export_plan.tile_row_range[1]}",
-        ])
-    )
+    file_stem = _online_raster_cache_stem(export_plan)
     destination_path = cache_directory / f"{file_stem}.tif"
     if destination_path.exists():
         return str(destination_path)
+
+    legacy_destination_path = _find_legacy_model_scoped_online_raster_cache(
+        export_plan,
+        cache_directory=cache_directory,
+    )
+    if legacy_destination_path is not None:
+        return str(legacy_destination_path)
+
     return str(
         _export_online_tiles_to_geotiff(
             layer_name,
@@ -239,6 +238,67 @@ def export_online_raster_plan(
             is_canceled=is_canceled,
         )
     )
+
+
+def _online_raster_cache_stem(export_plan: OnlineTileExportPlan) -> str:
+    """Return the model-independent online raster cache stem.
+
+    Parameters
+    ----------
+    export_plan : OnlineTileExportPlan
+        Prepared export plan that identifies the source tile coverage.
+
+    Returns
+    -------
+    str
+        Filesystem-safe cache stem for the exported GeoTIFF.
+
+    Notes
+    -----
+    Online raster GeoTIFFs store source imagery, not model features. They can
+    be reused across GeoSAM models when the tile source, zoom, and tile range
+    are identical. Encoded feature caches remain model-scoped elsewhere.
+    """
+    return _sanitize_path_component(
+        "_".join([
+            export_plan.source_fingerprint,
+            export_plan.provider.provider_kind,
+            f"z{export_plan.tile_zoom}",
+            f"c{export_plan.tile_column_range[0]}-{export_plan.tile_column_range[1]}",
+            f"r{export_plan.tile_row_range[0]}-{export_plan.tile_row_range[1]}",
+        ])
+    )
+
+
+def _find_legacy_model_scoped_online_raster_cache(
+    export_plan: OnlineTileExportPlan,
+    *,
+    cache_directory: Path,
+) -> Path | None:
+    """Return an existing pre-migration online raster cache path.
+
+    Parameters
+    ----------
+    export_plan : OnlineTileExportPlan
+        Prepared export plan that identifies the source tile coverage.
+    cache_directory : Path
+        Directory containing exported online raster GeoTIFFs.
+
+    Returns
+    -------
+    Path | None
+        Existing model-scoped cache file when one matches the same source tile
+        coverage, otherwise ``None``.
+    """
+    if not cache_directory.exists():
+        return None
+
+    legacy_stem_suffix = _online_raster_cache_stem(export_plan)
+    legacy_pattern = f"*_{legacy_stem_suffix}.tif"
+    for legacy_path in sorted(cache_directory.glob(legacy_pattern)):
+        if legacy_path.is_file():
+            return legacy_path
+    return None
 
 
 def _sanitize_path_component(value: str) -> str:
