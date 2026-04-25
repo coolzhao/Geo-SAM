@@ -495,6 +495,7 @@ def _iter_python_interpreter_candidates() -> list[Path]:
 
     """
     prefix_path = Path(sys.prefix).expanduser().resolve()
+    executable_path = Path(sys.executable).expanduser().resolve()
     candidate_paths: list[Path] = []
 
     for relative_path in (
@@ -504,8 +505,12 @@ def _iter_python_interpreter_candidates() -> list[Path]:
         "python",
         "python3",
         "python3.11",
+        "python.exe",
+        "python3.exe",
     ):
         candidate_paths.append(prefix_path / relative_path)
+
+    candidate_paths.extend(_iter_qgis_app_python_candidates(executable_path))
 
     for raw_path in sys.path:
         if not raw_path:
@@ -539,6 +544,75 @@ def _iter_python_interpreter_candidates() -> list[Path]:
     return unique_candidates
 
 
+def _iter_qgis_app_python_candidates(executable_path: Path) -> list[Path]:
+    """Return Python executables bundled beside Windows QGIS launchers.
+
+    Parameters
+    ----------
+    executable_path : Path
+        Active QGIS process executable path.
+
+    Returns
+    -------
+    list[Path]
+        Candidate Python executable paths under the detected QGIS root.
+
+    Notes
+    -----
+    Windows QGIS exposes ``sys.executable`` as launchers such as
+    ``qgis-ltr-bin.exe``. The matching interpreter lives under
+    ``apps/Python*/python.exe`` within the same QGIS installation root.
+
+    """
+    if executable_path.name.lower().startswith("python"):
+        return []
+
+    candidate_roots: list[Path] = []
+    for parent_path in executable_path.parents:
+        if parent_path.name.lower() != "bin":
+            continue
+        candidate_roots.append(parent_path.parent)
+        break
+
+    candidate_paths: list[Path] = []
+    for root_path in candidate_roots:
+        python_apps_path = root_path / "apps"
+        for python_dir in sorted(python_apps_path.glob("Python*")):
+            candidate_paths.extend(
+                [
+                    python_dir / "python.exe",
+                    python_dir / "python3.exe",
+                    python_dir / "python",
+                    python_dir / "python3",
+                ]
+            )
+    return candidate_paths
+
+
+def _is_python_interpreter_candidate(candidate_path: Path) -> bool:
+    """Return whether a path is an executable Python interpreter candidate.
+
+    Parameters
+    ----------
+    candidate_path : Path
+        Candidate executable path.
+
+    Returns
+    -------
+    bool
+        ``True`` when the path looks runnable as Python.
+
+    """
+    candidate_name = candidate_path.name.lower()
+    if not candidate_name.startswith("python"):
+        return False
+    if not candidate_path.is_file():
+        return False
+    if os.name == "nt":
+        return True
+    return os.access(candidate_path, os.X_OK)
+
+
 def resolve_python_interpreter() -> Path:
     """Resolve the Python interpreter for the active QGIS runtime environment.
 
@@ -553,19 +627,12 @@ def resolve_python_interpreter() -> Path:
         Raised when no suitable Python interpreter can be found.
 
     """
-    prefix_path = Path(sys.prefix).expanduser().resolve()
     executable_path = Path(sys.executable).expanduser().resolve()
-    if executable_path.is_file() and executable_path.name.startswith("python"):
+    if _is_python_interpreter_candidate(executable_path):
         return executable_path
 
     for candidate_path in _iter_python_interpreter_candidates():
-        if not candidate_path.is_file():
-            continue
-        if not os.access(candidate_path, os.X_OK):
-            continue
-        if not candidate_path.name.startswith("python"):
-            continue
-        if not _is_relative_to(candidate_path, prefix_path):
+        if not _is_python_interpreter_candidate(candidate_path):
             continue
         return candidate_path
 
@@ -624,6 +691,23 @@ def get_dependency_install_command(
             for module_name in selected_module_names
         ],
     ]
+
+
+def format_dependency_install_command(command: Iterable[str]) -> str:
+    """Return a readable dependency installation command.
+
+    Parameters
+    ----------
+    command : Iterable[str]
+        Command arguments produced by :func:`get_dependency_install_command`.
+
+    Returns
+    -------
+    str
+        Shell-readable command text for logs.
+
+    """
+    return subprocess.list2cmdline(list(command))
 
 
 def install_dependencies(

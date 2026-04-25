@@ -43,6 +43,7 @@ from .plugin_settings import (
     clear_cache,
     cleanup_cache,
     dependency_status_rows,
+    format_dependency_install_command,
     get_cache_directory,
     get_cache_size_bytes,
     get_dependency_install_command,
@@ -361,6 +362,9 @@ class GeoSamSettingsDialog(QDialog):
         except RuntimeError as exc:
             self._finish_dependency_install(False, str(exc))
             return
+        self._append_dependency_install_log(
+            f"Command: {format_dependency_install_command(command)}"
+        )
 
         process = QProcess(self)
         process.setProgram(command[0])
