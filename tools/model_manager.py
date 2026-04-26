@@ -6,7 +6,7 @@ import gc
 import logging
 import sys
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 _FROZEN_DATACLASS_KWARGS = {"frozen": True, **_DATACLASS_SLOTS_KWARGS}
+SAM3_EFFECTIVE_IMGSZ = (1008, 1008)
 
 # download URLs from modelscope
 # This is used as a fallback when Ultralytics downloads are unavailable or fail.
@@ -40,7 +41,7 @@ DIRECT_MODEL_DOWNLOAD_SOURCES: dict[str, str] = {
     "sam2.1_s": "https://modelscope.cn/models/facebook/sam2.1-hiera-small/resolve/master/sam2.1_hiera_small.pt",
     "sam2.1_b": "https://modelscope.cn/models/facebook/sam2.1-hiera-base-plus/resolve/master/sam2.1_hiera_base_plus.pt",
     "sam2.1_l": "https://modelscope.cn/models/facebook/sam2.1-hiera-large/resolve/master/sam2.1_hiera_large.pt",
-    # SAM (legacy) 
+    # SAM (legacy)
     "sam_b": "https://modelscope.cn/models/yatengLG/ISAT_with_segment_anything_checkpoints/resolve/master/checkpoints/sam_vit_b_01ec64.pth",
     "sam_l": "https://modelscope.cn/models/yatengLG/ISAT_with_segment_anything_checkpoints/resolve/master/checkpoints/sam_vit_l_0b3195.pth",
 }
@@ -100,14 +101,14 @@ MODEL_DEFINITIONS: tuple[ModelDefinition, ...] = (
         "SAM3",
         "sam3",
         "sam3.pt",
-        supports_feature_reuse=False,
+        # supports_feature_reuse=False,
     ),
     ModelDefinition(
         "sam3.1_multiplex",
         "SAM3.1 Multiplex",
         "sam3",
         "sam3.1_multiplex.pt",
-        supports_feature_reuse=False,
+        # supports_feature_reuse=False,
     ),
 )
 
@@ -154,6 +155,26 @@ def get_model_checkpoint_path(model_id: str) -> Path:
     """
     definition = get_model_definition(model_id)
     return get_model_directory() / definition.filename
+
+
+def effective_model_imgsz(model_id: str) -> tuple[int, int]:
+    """Return the plugin-normalized model image size.
+
+    Parameters
+    ----------
+    model_id : str
+        Registered model identifier.
+
+    Returns
+    -------
+    tuple[int, int]
+        Height and width used for model-ready chips.
+
+    """
+    definition = get_model_definition(model_id)
+    if definition.model_type == "sam3":
+        return SAM3_EFFECTIVE_IMGSZ
+    return (1024, 1024)
 
 
 def get_model_display_items() -> list[tuple[str, str]]:
@@ -268,7 +289,11 @@ def create_model_spec(model_id: str) -> ModelSpec:
     if not checkpoint_path.exists():
         logger.error("Model checkpoint is missing: %s", checkpoint_path)
         raise FileNotFoundError(checkpoint_path)
-    return create_runtime_model_spec(model_id, checkpoint_path)
+    model_spec = create_runtime_model_spec(model_id, checkpoint_path)
+    definition = get_model_definition(model_id)
+    if definition.model_type == "sam3":
+        return replace(model_spec, imgsz=SAM3_EFFECTIVE_IMGSZ)
+    return model_spec
 
 
 def create_model_spec_from_checkpoint(
@@ -297,11 +322,14 @@ def create_model_spec_from_checkpoint(
     configure_geosam_qgis_runtime()
     from geosam.runtime import create_model_spec_from_checkpoint as create_runtime_spec
 
-    return create_runtime_spec(
+    model_spec = create_runtime_spec(
         checkpoint_path,
         model_id=model_id,
         device=device,
     )
+    if model_spec.model_type == "sam3":
+        return replace(model_spec, imgsz=SAM3_EFFECTIVE_IMGSZ)
+    return model_spec
 
 
 def _download_model_with_ultralytics(model_id: str, target_path: Path) -> bool:

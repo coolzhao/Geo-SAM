@@ -22,6 +22,7 @@ from .geosam_backend import configure_geosam_qgis_runtime
 from .messageTool import MessageTool
 from .model_manager import (
     create_model_spec,
+    effective_model_imgsz,
     get_model_definition,
     infer_model_id_from_checkpoint_path,
 )
@@ -941,6 +942,33 @@ def _persistent_cache_entry_paths_for_directory(
     return entry_dir / "encoded.pt", entry_dir / "metadata.json"
 
 
+def _query_cache_shape_matches_model(model_id: str, query_cache: Any) -> bool:
+    """Return whether an in-memory query cache matches the model image size.
+
+    Parameters
+    ----------
+    model_id : str
+        Registered model identifier.
+    query_cache : Any
+        GeoSAM online query cache payload.
+
+    Returns
+    -------
+    bool
+        ``True`` when the cache chip grid shape matches the effective model
+        image size.
+
+    """
+    chip_grid = getattr(query_cache, "chip_grid", None)
+    if chip_grid is None:
+        return False
+    try:
+        cache_shape = tuple(int(value) for value in chip_grid.shape)
+    except Exception:
+        return False
+    return cache_shape == effective_model_imgsz(model_id)
+
+
 def _save_persistent_query_cache(
     *,
     layer: QgsRasterLayer,
@@ -1086,7 +1114,10 @@ def prepare_realtime_raster_query(
                 if cache.source_candidate is not None
                 else None
             )
-            if cached_source_path is None or not cached_source_path.exists():
+            if not _query_cache_shape_matches_model(model_id, cache.query_cache):
+                cache.query_cache = None
+                cache.engine = None
+            elif cached_source_path is None or not cached_source_path.exists():
                 cache.query_cache = None
                 cache.engine = None
             elif not _query_is_far_from_chip_edge(
@@ -1375,6 +1406,7 @@ def run_prepared_realtime_raster_query(
 
 def _load_persistent_query_cache_for_request(
     *,
+    model_id: str,
     cache_directory: Path,
     source_fingerprint: str,
     layer_crs_text: str,
@@ -1382,6 +1414,7 @@ def _load_persistent_query_cache_for_request(
 ) -> tuple[str, Any] | None:
     """Load a reusable realtime-query cache entry for a prepared request."""
     cache_hit = _find_persistent_query_cache_for_request(
+        model_id=model_id,
         cache_directory=cache_directory,
         source_fingerprint=source_fingerprint,
         layer_crs_text=layer_crs_text,
@@ -1392,6 +1425,7 @@ def _load_persistent_query_cache_for_request(
 
 def _find_persistent_query_cache_for_request(
     *,
+    model_id: str,
     cache_directory: Path,
     source_fingerprint: str,
     layer_crs_text: str,
@@ -1415,6 +1449,7 @@ def _find_persistent_query_cache_for_request(
     projected_query = _query_to_crs_text(query, layer_crs_text)
     center_x, center_y = query_center(projected_query)
     best_match: tuple[float, PreparedPersistentQueryCacheHit] | None = None
+    expected_shape = effective_model_imgsz(model_id)
     for metadata_path in sorted(cache_directory.glob("*/metadata.json")):
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -1424,7 +1459,29 @@ def _find_persistent_query_cache_for_request(
             )
             continue
 
+        metadata_model_id = str(metadata.get("model_id", "")).strip()
+        if metadata_model_id and metadata_model_id != model_id:
+            continue
+
         if metadata.get("source_fingerprint") != source_fingerprint:
+            continue
+
+        try:
+            metadata_shape = tuple(int(value) for value in metadata["shape"])
+        except Exception as exc:
+            logger.warning(
+                "Skipping realtime query cache with invalid shape metadata %s: %s",
+                metadata_path,
+                exc,
+            )
+            continue
+        if metadata_shape != expected_shape:
+            logger.info(
+                "Skipping stale realtime query cache %s with shape %s; expected %s.",
+                metadata_path,
+                metadata_shape,
+                expected_shape,
+            )
             continue
 
         source_path = str(metadata.get("source_path", "")).strip()
@@ -1440,7 +1497,7 @@ def _find_persistent_query_cache_for_request(
         )
         chip_grid = GeoGrid(
             Affine(*metadata["transform"]),
-            tuple(metadata["shape"]),
+            metadata_shape,
             metadata["crs"],
         )
         cache_query = (
@@ -1516,6 +1573,7 @@ def _load_persistent_query_cache(
 ) -> tuple[str, Any] | None:
     """Load a reusable realtime-query cache entry when one matches the query."""
     return _load_persistent_query_cache_for_request(
+        model_id=model_id,
         cache_directory=_realtime_query_cache_directory(layer, model_id),
         source_fingerprint=_layer_source_fingerprint(layer),
         layer_crs_text=layer.crs().authid() or layer.crs().toWkt(),
@@ -1530,6 +1588,7 @@ def _find_persistent_query_cache(
 ) -> PreparedPersistentQueryCacheHit | None:
     """Find a reusable realtime-query cache entry without loading features."""
     return _find_persistent_query_cache_for_request(
+        model_id=model_id,
         cache_directory=_realtime_query_cache_directory(layer, model_id),
         source_fingerprint=_layer_source_fingerprint(layer),
         layer_crs_text=layer.crs().authid() or layer.crs().toWkt(),
@@ -1592,16 +1651,16 @@ def query_raster_layer(
         cache_mismatch = cache.layer_id != layer.id() or cache.model_id != model_id
         if cache_mismatch:
             cache.clear()
-        elif (
-            supports_feature_reuse
-            and cache.query_cache is not None
-            and not _query_is_far_from_chip_edge(
+        elif supports_feature_reuse and cache.query_cache is not None:
+            if not _query_cache_shape_matches_model(model_id, cache.query_cache):
+                cache.query_cache = None
+                cache.engine = None
+            elif not _query_is_far_from_chip_edge(
                 _query_in_layer_crs(layer, query),
                 chip_bounds=cache.query_cache.chip_bounds,
                 chip_grid=cache.query_cache.chip_grid,
-            )
-        ):
-            cache.query_cache = None
+            ):
+                cache.query_cache = None
 
     if (
         supports_feature_reuse
