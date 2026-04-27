@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
@@ -23,7 +24,6 @@ from qgis.core import (
     QgsProcessingParameterDefinition,
     QgsProcessingParameterEnum,
     QgsProcessingParameterExtent,
-    QgsProcessingParameterFile,
     QgsProcessingParameterFolderDestination,
     QgsProcessingParameterNumber,
     QgsProcessingParameterRange,
@@ -40,22 +40,36 @@ from ..docs import encoder_help
 from ..ui.icons import QIcon_EncoderTool
 from .geosam_backend import configure_geosam_qgis_runtime
 from .geosam_runtime import (
+    _flush_torch_memory,
     chip_extent_rectangles_for_source,
     sanitize_path_component,
 )
-from .model_manager import create_model_spec_from_checkpoint, get_model_display_items
+from .model_manager import (
+    create_model_spec_from_checkpoint,
+    get_model_checkpoint_path,
+    get_model_display_items,
+    get_model_status_rows,
+)
 
 # 0 for meters, 6 for degrees, 9 for unknown
 UNIT_METERS = 0
 UNIT_DEGREES = 6
+EncodingMemoryStrategy = Literal["balanced", "low_memory"]
+ENCODING_MEMORY_STRATEGIES: tuple[tuple[EncodingMemoryStrategy, str], ...] = (
+    ("balanced", "Balanced"),
+    ("low_memory", "Low memory"),
+)
+BALANCED_MEMORY_FLUSH_INTERVAL = 16
+
+logger = logging.getLogger(__name__)
 
 
 class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     """Build a GeoSAM-compatible feature cache from a raster layer."""
 
     INPUT = "INPUT"
-    CKPT = "CKPT"
     MODEL_TYPE = "MODEL_TYPE"
+    MEMORY_STRATEGY = "MEMORY_STRATEGY"
     BANDS = "BANDS"
     STRIDE = "STRIDE"
     EXTENT = "EXTENT"
@@ -143,10 +157,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             )
         )
         self.addParameter(
-            QgsProcessingParameterFile(
-                name=self.CKPT,
-                description=self.tr("GeoSAM checkpoint path"),
-                extension="pt",
+            QgsProcessingParameterEnum(
+                name=self.MEMORY_STRATEGY,
+                description=self.tr("Encoding memory strategy"),
+                options=[label for _strategy, label in ENCODING_MEMORY_STRATEGIES],
+                defaultValue=0,
             )
         )
 
@@ -156,7 +171,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 name=self.MODEL_TYPE,
                 description=self.tr("GeoSAM model"),
                 options=[label for _model_id, label in self.model_options],
-                defaultValue=0,
+                defaultValue=8,
             )
         )
         self.addParameter(
@@ -193,11 +208,19 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             )
         )
 
-        for param in (crs_param, res_param, range_param, cuda_id_param):
+        memory_strategy_param = self.parameterDefinition(self.MEMORY_STRATEGY)
+        for param in (
+            crs_param,
+            res_param,
+            range_param,
+            cuda_id_param,
+            memory_strategy_param,
+        ):
             param.setFlags(
                 param.flags() | QgsProcessingParameterDefinition.FlagAdvanced
             )
-            self.addParameter(param)
+            if param is not memory_strategy_param:
+                self.addParameter(param)
 
     def processAlgorithm(
         self,
@@ -242,8 +265,12 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 self.tr("The chosen bands exceed the largest band number.")
             )
 
-        checkpoint_path = self.parameterAsFile(parameters, self.CKPT, context)
         model_index = self.parameterAsEnum(parameters, self.MODEL_TYPE, context)
+        memory_strategy_index = self.parameterAsEnum(
+            parameters,
+            self.MEMORY_STRATEGY,
+            context,
+        )
         stride = self.parameterAsInt(parameters, self.STRIDE, context)
         resolution = self.parameterAsDouble(parameters, self.RESOLUTION, context)
         target_crs = self.parameterAsCrs(parameters, self.CRS, context)
@@ -263,10 +290,12 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 )
             )
 
-        if not checkpoint_path:
-            raise QgsProcessingException(self.tr("Checkpoint path is required."))
-
         model_id = self.model_options[model_index][0]
+        memory_strategy = self._memory_strategy_from_index(memory_strategy_index)
+        checkpoint_path = get_model_checkpoint_path(model_id)
+        if not checkpoint_path.exists():
+            self._raise_missing_model_error(model_id=model_id)
+
         device = self._select_device(use_gpu=use_gpu, cuda_id=cuda_id)
         model_spec = create_model_spec_from_checkpoint(
             checkpoint_path,
@@ -275,9 +304,12 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         )
         adapter = build_model_adapter(model_spec)
         if not model_spec.resolved_supports_feature_reuse:
-            raise QgsProcessingException(
-                self.tr("The selected model does not support reusable features.")
-            )
+            close_method = getattr(adapter, "close", None)
+            if callable(close_method):
+                close_method()
+            msg = self.tr("The selected model does not support reusable features.")
+            logger.error(msg)
+            raise QgsProcessingException(msg)
 
         if target_crs is None or not target_crs.isValid():
             target_crs = raster_layer.crs()
@@ -353,41 +385,55 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(f"Target CRS: {target_crs.authid() or target_crs.toWkt()}")
         feedback.pushInfo(f"Target resolution: {resolution} {target_units}")
         feedback.pushInfo(f"Device type: {device or 'cpu'}")
+        feedback.pushInfo(f"GeoSAM model: {self.model_options[model_index][1]}")
+        feedback.pushInfo(f"Checkpoint path: {checkpoint_path}")
+        feedback.pushInfo(f"Memory strategy: {memory_strategy}")
         feedback.pushInfo(f"Patch size: {model_spec.resolved_imgsz}")
         feedback.pushInfo(f"Patch sample num: {len(chip_rectangles)}")
 
         rows: list[dict[str, Any]] = []
         total = 100 / len(chip_rectangles)
         start_time = time.time()
-        for index, rectangle in enumerate(chip_rectangles):
-            if feedback.isCanceled():
-                self.load_feature = False
-                feedback.pushWarning(self.tr("Processing canceled by user."))
-                break
+        try:
+            for index, rectangle in enumerate(chip_rectangles):
+                if feedback.isCanceled():
+                    self.load_feature = False
+                    feedback.pushWarning(self.tr("Processing canceled by user."))
+                    break
 
-            chip_bounds = BoundingBox(
-                rectangle[0],
-                rectangle[1],
-                rectangle[2],
-                rectangle[3],
-                crs=dataset.crs,
-            )
-            sample = dataset[chip_bounds]
-            model_image = sample.to_model_image(value_range=value_range)
-            encoded = adapter.encode_image(model_image)
-            chip_id = f"chip_{index:06d}"
-            feature_path = features_dir / f"{chip_id}.pt"
-            encoded.save(feature_path)
-            rows.append(
-                self._manifest_row(
-                    sample=sample,
-                    encoded=encoded,
-                    chip_id=chip_id,
-                    feature_path=feature_path,
+                chip_bounds = BoundingBox(
+                    rectangle[0],
+                    rectangle[1],
+                    rectangle[2],
+                    rectangle[3],
+                    crs=dataset.crs,
                 )
-            )
-            self.iPatch += 1
-            feedback.setProgress(int((index + 1) * total))
+                sample = dataset[chip_bounds]
+                model_image = sample.to_model_image(value_range=value_range)
+                encoded = adapter.encode_image(model_image)
+                chip_id = f"chip_{index:06d}"
+                feature_path = features_dir / f"{chip_id}.pt"
+                encoded.save(feature_path)
+                rows.append(
+                    self._manifest_row(
+                        sample=sample,
+                        encoded=encoded,
+                        chip_id=chip_id,
+                        feature_path=feature_path,
+                    )
+                )
+                del encoded, model_image, sample
+                self._release_encoding_memory(
+                    memory_strategy=memory_strategy,
+                    chip_index=index,
+                )
+                self.iPatch += 1
+                feedback.setProgress(int((index + 1) * total))
+        finally:
+            close_method = getattr(adapter, "close", None)
+            if callable(close_method):
+                close_method()
+            _flush_torch_memory()
 
         if len(rows) == 0:
             raise QgsProcessingException(self.tr("No feature cache was written."))
@@ -437,6 +483,75 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         if torch.backends.mps.is_available():
             return "mps"
         return None
+
+    @staticmethod
+    def _memory_strategy_from_index(index: int) -> EncodingMemoryStrategy:
+        """Return the memory strategy selected by a processing enum index.
+
+        Parameters
+        ----------
+        index : int
+            Processing enum index selected by the user.
+
+        Returns
+        -------
+        EncodingMemoryStrategy
+            Normalized memory strategy value.
+        """
+        if 0 <= index < len(ENCODING_MEMORY_STRATEGIES):
+            return ENCODING_MEMORY_STRATEGIES[index][0]
+        return "balanced"
+
+    def _raise_missing_model_error(self, *, model_id: str) -> None:
+        """Raise a user-facing error when the selected model is not downloaded.
+
+        Parameters
+        ----------
+        model_id : str
+            Selected GeoSAM model identifier.
+
+        Raises
+        ------
+        QgsProcessingException
+            Always raised with the missing model guidance.
+        """
+        downloaded_labels = [
+            f"{row['label']} ({row['model_id']})"
+            for row in get_model_status_rows()
+            if row["downloaded"]
+        ]
+        downloaded_text = (
+            ", ".join(downloaded_labels) if downloaded_labels else self.tr("none")
+        )
+        msg = self.tr(
+            "The selected GeoSAM model is not downloaded yet. "
+            "Choose one of the downloaded models, or open Geo-SAM Settings, "
+            "download the selected model, and retry. "
+            f"Selected model: {model_id}. Downloaded models: {downloaded_text}."
+        )
+        logger.error(msg)
+        raise QgsProcessingException(msg)
+
+    @staticmethod
+    def _release_encoding_memory(
+        *,
+        memory_strategy: EncodingMemoryStrategy,
+        chip_index: int,
+    ) -> None:
+        """Release temporary memory according to the selected encoding strategy.
+
+        Parameters
+        ----------
+        memory_strategy : {"balanced", "low_memory"}
+            Memory cleanup policy selected for the encoder run.
+        chip_index : int
+            Zero-based encoded chip index.
+        """
+        if memory_strategy == "balanced":
+            if (chip_index + 1) % BALANCED_MEMORY_FLUSH_INTERVAL == 0:
+                _flush_torch_memory()
+            return
+        _flush_torch_memory()
 
     def _resolve_processing_extent(
         self,

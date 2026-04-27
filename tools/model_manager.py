@@ -103,13 +103,16 @@ MODEL_DEFINITIONS: tuple[ModelDefinition, ...] = (
         "sam3.pt",
         # supports_feature_reuse=False,
     ),
-    ModelDefinition(
-        "sam3.1_multiplex",
-        "SAM3.1 Multiplex",
-        "sam3",
-        "sam3.1_multiplex.pt",
-        # supports_feature_reuse=False,
-    ),
+    # The SAM3.1 Multiplex is currently not supported by Ultralytics and yeilds 
+    # wrong segmentation results when used with the SAM3 inference code.
+    
+    # ModelDefinition(
+    #     "sam3.1_multiplex",
+    #     "SAM3.1 Multiplex",
+    #     "sam3",
+    #     "sam3.1_multiplex.pt",
+    #     # supports_feature_reuse=False,
+    # ),
 )
 
 

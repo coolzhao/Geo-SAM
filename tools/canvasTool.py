@@ -944,14 +944,7 @@ class SAM_PolygonFeature:
         '''
         geometries: list[QgsGeometry] = []
         for geom in geojson:
-            points = []
-            coordinates = geom['geometry']['coordinates'][0]
-            for coord in coordinates:
-                point = QgsPointXY(*coord)
-                point = self.img_crs_manager.img_point_to_crs(
-                    point, self.layer.crs())
-                points.append(point)
-            geometries.append(QgsGeometry.fromPolygonXY([points]))
+            geometries.append(self._geojson_feature_to_qgs_geometry(geom))
         self.add_qgs_geometry_to_canvas(
             geometries,
             t_area,
@@ -1036,6 +1029,110 @@ class SAM_PolygonFeature:
                 continue
             process_geometry(geometry)
 
+    def _geojson_ring_to_qgs_points(
+            self,
+            coordinates: list[Any],
+    ) -> list[QgsPointXY]:
+        """Convert a GeoJSON linear ring to QGIS points.
+
+        Parameters
+        ----------
+        coordinates : list[Any]
+            GeoJSON coordinate pairs in image CRS.
+
+        Returns
+        -------
+        list[QgsPointXY]
+            Ring points transformed to the current polygon layer CRS.
+
+        Raises
+        ------
+        ValueError
+            If a coordinate does not contain x and y values.
+
+        """
+        points: list[QgsPointXY] = []
+        for coord in coordinates:
+            if len(coord) < 2:
+                logger.error("Invalid GeoJSON coordinate without x/y values: %s", coord)
+                raise ValueError("Invalid GeoJSON coordinate without x/y values.")
+            point = QgsPointXY(float(coord[0]), float(coord[1]))
+            point = self.img_crs_manager.img_point_to_crs(point, self.layer.crs())
+            points.append(point)
+        return points
+
+    def _geojson_polygon_to_qgs_rings(
+            self,
+            coordinates: list[Any],
+    ) -> list[list[QgsPointXY]]:
+        """Convert GeoJSON polygon coordinates to QGIS polygon rings.
+
+        Parameters
+        ----------
+        coordinates : list[Any]
+            GeoJSON polygon coordinates. The first ring is the exterior ring and
+            following rings are holes.
+
+        Returns
+        -------
+        list[list[QgsPointXY]]
+            QGIS polygon rings transformed to the current polygon layer CRS.
+
+        """
+        rings: list[list[QgsPointXY]] = []
+        for ring_coordinates in coordinates:
+            ring = self._geojson_ring_to_qgs_points(ring_coordinates)
+            if len(ring) > 0:
+                rings.append(ring)
+        return rings
+
+    def _geojson_feature_to_qgs_geometry(self, feature: dict[str, Any]) -> QgsGeometry:
+        """Convert a GeoJSON polygon feature to a QGIS geometry.
+
+        Parameters
+        ----------
+        feature : dict[str, Any]
+            GeoJSON feature with ``Polygon`` or ``MultiPolygon`` geometry.
+
+        Returns
+        -------
+        QgsGeometry
+            QGIS geometry preserving exterior and interior rings.
+
+        Raises
+        ------
+        ValueError
+            If the feature has an unsupported or malformed geometry.
+
+        """
+        geometry = feature.get("geometry", {})
+        geometry_type = geometry.get("type")
+        coordinates = geometry.get("coordinates")
+        if coordinates is None:
+            logger.error("GeoJSON feature is missing coordinates: %s", feature)
+            raise ValueError("GeoJSON feature is missing coordinates.")
+
+        if geometry_type == "Polygon":
+            rings = self._geojson_polygon_to_qgs_rings(coordinates)
+            if len(rings) == 0:
+                logger.error("GeoJSON polygon has no rings: %s", feature)
+                raise ValueError("GeoJSON polygon has no rings.")
+            return QgsGeometry.fromPolygonXY(rings)
+
+        if geometry_type == "MultiPolygon":
+            polygons = [
+                self._geojson_polygon_to_qgs_rings(polygon_coordinates)
+                for polygon_coordinates in coordinates
+            ]
+            polygons = [polygon for polygon in polygons if len(polygon) > 0]
+            if len(polygons) == 0:
+                logger.error("GeoJSON multipolygon has no polygon rings: %s", feature)
+                raise ValueError("GeoJSON multipolygon has no polygon rings.")
+            return QgsGeometry.fromMultiPolygonXY(polygons)
+
+        logger.error("Unsupported GeoJSON geometry type: %s", geometry_type)
+        raise ValueError(f"Unsupported GeoJSON geometry type: {geometry_type}")
+
     def add_geojson_feature_to_layer(
             self,
             geojson: dict,
@@ -1067,16 +1164,7 @@ class SAM_PolygonFeature:
 
         group_ulid = GroupId().ulid
         for idx, geom in enumerate(geojson):
-            points = []
-            coordinates = geom['geometry']['coordinates'][0]
-            for coord in coordinates:
-                # transform pointXY from img_crs to polygon layer crs, if not match
-                point = QgsPointXY(*coord)
-                point = self.img_crs_manager.img_point_to_crs(
-                    point, self.layer.crs())
-                points.append(point)
-
-            geometry = QgsGeometry.fromPolygonXY([points])
+            geometry = self._geojson_feature_to_qgs_geometry(geom)
             geometry_area = geometry.area()
             entries.append((geometry, geometry_area, idx))
 

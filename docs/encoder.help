@@ -6,8 +6,8 @@ Since SAM only supports input images with size of (1024, 1204), small images wil
 
 The values of the image input to the SAM should range from 0 to 255, and you may need to specify the value range to be rescaled to [0, 255]. By default, the tool will help you to find the min and max values of the image data and rescale the value range of [min, max] to [0, 255].
 
-SAM model checkpoints should be downloaded in advance, and three versions (huge, large, base) are available. The large version "vit_l" is recommended to try first. You need to specify the model type that matches the checkpoint version.
+GeoSAM model checkpoints should be downloaded in advance from Geo-SAM Settings. Select the GeoSAM model in this encoder; the tool resolves the checkpoint from the configured GeoSAM model directory. If the selected model has not been downloaded, choose another downloaded model or download it in Settings and retry.
 
 Tips for making encoding process faster:
 
-1. Choose smaller processing extent; 2. Reduce target resolution; 3. Increase stride to minimize overlap; 4. Choose a smaller version of sam model; 5. Use GPU; 6. Increase batch_size when using a GPU with sufficient gpu memory;
+1. Choose smaller processing extent; 2. Reduce target resolution; 3. Increase stride to minimize overlap; 4. Choose a smaller GeoSAM model; 5. Use GPU when enough accelerator memory is available; 6. Use the Low memory strategy when peak memory matters more than speed;

@@ -3,13 +3,9 @@
 
 If you want to try your own images, you can use the `Geo-SAM Image Encoder` tool. This tool helps to preprocess geospatial images and generate image features using the SAM image encoder. The generated image features can then be used in our `Geo-SAM Segmentation` tool to label the landforms by adding points and bounding box prompts.
 
-## Download SAM Checkpoints
+## Download GeoSAM Models
 
-SAM model checkpoints should be downloaded in advance, and three versions (huge, large, and base) are available. The large version "vit_l" is recommended to try first. You need to specify the model type that matches the checkpoint version. Using the following links to download the checkpoints.
-
-- `vit_h`: [ViT-H SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth)
-- `vit_l`: [ViT-L SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth)
-- `vit_b`: [ViT-B SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth)
+GeoSAM model checkpoints should be downloaded in advance from Geo-SAM Settings. Select the GeoSAM model in the encoder; the tool resolves the checkpoint from the configured GeoSAM model directory. If the selected model has not been downloaded, choose another downloaded model or download it in Settings and retry.
 
 ## Select Bands and Value Range for Processing
 
@@ -38,6 +34,6 @@ After processing the image, by default, the generated features will automaticall
 - Choose a smaller processing extent
 - Reduce target resolution (in `Advanced Parameters`)
 - Increase stride to minimize overlap
-- Choose a smaller version of SAM model
-- Use GPU
-- Increase batch_size when using a GPU with sufficient GPU memory
+- Choose a smaller GeoSAM model
+- Use GPU when enough accelerator memory is available
+- Use the Low memory strategy when peak memory matters more than speed
