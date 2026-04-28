@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import logging
 import os
 import sys
 import weakref
@@ -74,8 +75,10 @@ from .model_manager import (
     infer_model_id_from_checkpoint_path,
 )
 from .plugin_settings import (
+    format_missing_dependencies_message,
     initialize_rasterio_proj_data,
     load_plugin_settings,
+    missing_segmentation_runtime_dependencies,
     rasterio_proj_data_environment,
     save_plugin_settings,
 )
@@ -85,6 +88,7 @@ if TYPE_CHECKING:
 
 
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
+logger = logging.getLogger(__name__)
 
 
 def _open_raster_dataset(raster_path: str) -> DatasetReader:
@@ -2112,6 +2116,20 @@ class Selector(QDockWidget):
             return False
         model_id = self._require_selected_model()
         if model_id is None:
+            return False
+        missing_dependency_names = missing_segmentation_runtime_dependencies()
+        if missing_dependency_names:
+            logger.warning(
+                "Geo-SAM segmentation dependencies are missing: %s",
+                ", ".join(missing_dependency_names),
+            )
+            MessageTool.MessageBoxOK(
+                format_missing_dependencies_message(
+                    missing_dependency_names,
+                    action_label="segmentation",
+                ),
+                title="Geo-SAM Dependencies Missing",
+            )
             return False
         had_pressed_prompt = self.is_pressed_prompt()
 

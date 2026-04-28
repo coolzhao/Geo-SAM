@@ -40,6 +40,8 @@ DEPENDENCY_DISTRIBUTIONS: dict[str, str] = {
     "ultralytics": "ultralytics",
     "rasterio": "rasterio",
     "geopandas": "geopandas",
+    "shapely": "shapely",
+    "pyproj": "pyproj",
     "geosam": "geosam",
 }
 DEPENDENCY_INSTALL_REQUIREMENTS: dict[str, str] = {
@@ -47,10 +49,19 @@ DEPENDENCY_INSTALL_REQUIREMENTS: dict[str, str] = {
     "torch": "torch",
     "torchvision": "torchvision",
     "ultralytics": "ultralytics>=8.4.33",
+    "shapely": "shapely>=2.0.7",
+    "pyproj": "pyproj>=3.6.1",
 }
-QGIS_RUNTIME_DEPENDENCY_NAMES: tuple[str, ...] = (
+RUNTIME_PROVIDED_DEPENDENCY_NAMES: tuple[str, ...] = (
     "rasterio",
     "geopandas",
+    "shapely",
+    "pyproj",
+)
+SEGMENTATION_RUNTIME_DEPENDENCY_NAMES: tuple[str, ...] = (
+    "geosam",
+    "shapely",
+    "pyproj",
 )
 QGIS_RUNTIME_CONSTRAINT_DISTRIBUTIONS: tuple[str, ...] = (
     "numpy",
@@ -97,6 +108,12 @@ PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = (
 PROJ_DATA_ENV_KEYS = ("PROJ_DATA", "PROJ_LIB")
 DependencyInstallCommand: TypeAlias = list[str]
 DependencyInstallPlan: TypeAlias = list[DependencyInstallCommand]
+DependencyState = Literal[
+    "installed_qgis_runtime",
+    "installed_plugin_managed",
+    "missing_installable",
+    "missing_required",
+]
 
 
 class DependencyStatusRow(TypedDict):
@@ -112,10 +129,12 @@ class DependencyStatusRow(TypedDict):
         Whether the distribution can be found in the active environment.
     version : str
         Installed distribution version, or an empty string when missing.
+    state : DependencyState
+        Resolved dependency source and availability state.
     installable : bool
         Whether the plugin installer should attempt to install this dependency.
-    note : str
-        Short source or action note for the settings dialog.
+    source : str
+        Short source or install-provider note for the settings dialog.
 
     """
 
@@ -123,8 +142,79 @@ class DependencyStatusRow(TypedDict):
     distribution: str
     installed: bool
     version: str
+    state: DependencyState
     installable: bool
-    note: str
+    source: str
+
+
+def dependency_state(module_name: str, installed: bool) -> DependencyState:
+    """Return the resolved dependency state for a module.
+
+    Parameters
+    ----------
+    module_name : str
+        Dependency module name.
+    installed : bool
+        Whether the dependency is installed in the active environment.
+
+    Returns
+    -------
+    DependencyState
+        Normalized dependency state used by the settings dialog and runtime
+        preflight checks.
+
+    """
+    if installed:
+        if module_name in RUNTIME_PROVIDED_DEPENDENCY_NAMES:
+            return "installed_qgis_runtime"
+        return "installed_plugin_managed"
+    if module_name in DEPENDENCY_INSTALL_REQUIREMENTS:
+        return "missing_installable"
+    return "missing_required"
+
+
+def dependency_source_text(module_name: str, state: DependencyState) -> str:
+    """Return the settings source label for a dependency state.
+
+    Parameters
+    ----------
+    module_name : str
+        Dependency module name.
+    state : DependencyState
+        Resolved dependency state.
+
+    Returns
+    -------
+    str
+        Source text shown in the settings dependency table.
+
+    """
+    if state == "installed_plugin_managed":
+        return "Geo-SAM managed"
+    if module_name in RUNTIME_PROVIDED_DEPENDENCY_NAMES:
+        if module_name in DEPENDENCY_INSTALL_REQUIREMENTS:
+            return "QGIS runtime or Geo-SAM"
+        return "QGIS runtime"
+    return "Geo-SAM managed"
+
+
+def dependency_status_text(state: DependencyState) -> str:
+    """Return the display status text for a dependency state.
+
+    Parameters
+    ----------
+    state : DependencyState
+        Resolved dependency state.
+
+    Returns
+    -------
+    str
+        Human-readable status text for the settings dependency table.
+
+    """
+    if state in {"installed_qgis_runtime", "installed_plugin_managed"}:
+        return "Installed"
+    return "Missing"
 
 
 def initialize_rasterio_proj_data() -> None:
@@ -452,36 +542,133 @@ def dependency_status_rows() -> list[DependencyStatusRow]:
     """
     rows: list[DependencyStatusRow] = []
     for module_name, distribution_name in DEPENDENCY_DISTRIBUTIONS.items():
-        runtime_dependency = module_name in QGIS_RUNTIME_DEPENDENCY_NAMES
-        installable = (
-            module_name in DEPENDENCY_INSTALL_REQUIREMENTS and not runtime_dependency
-        )
-        note = "QGIS runtime" if runtime_dependency else "Installable"
         try:
             distribution = importlib.metadata.distribution(distribution_name)
         except importlib.metadata.PackageNotFoundError:
+            state = dependency_state(module_name, installed=False)
             rows.append(
                 {
                     "package": module_name,
                     "distribution": distribution_name,
                     "installed": False,
                     "version": "",
-                    "installable": installable,
-                    "note": note,
+                    "state": state,
+                    "installable": state == "missing_installable",
+                    "source": dependency_source_text(module_name, state),
                 }
             )
         else:
+            state = dependency_state(module_name, installed=True)
             rows.append(
                 {
                     "package": module_name,
                     "distribution": distribution_name,
                     "installed": True,
                     "version": distribution.version,
-                    "installable": installable,
-                    "note": note,
+                    "state": state,
+                    "installable": False,
+                    "source": dependency_source_text(module_name, state),
                 }
             )
     return rows
+
+
+def missing_runtime_dependencies(module_names: Iterable[str]) -> list[str]:
+    """Return missing runtime dependency module names in input order.
+
+    Parameters
+    ----------
+    module_names : Iterable[str]
+        Dependency module names to validate.
+
+    Returns
+    -------
+    list[str]
+        Missing dependency module names without duplicates.
+
+    Notes
+    -----
+    The check uses distribution metadata so the result reflects the active
+    QGIS Python environment after in-session installs.
+
+    """
+    known_status = dependency_status()
+    missing_module_names: list[str] = []
+    seen_module_names: set[str] = set()
+    for module_name in module_names:
+        if module_name in seen_module_names:
+            continue
+        seen_module_names.add(module_name)
+
+        installed = known_status.get(module_name)
+        if installed is None:
+            distribution_name = DEPENDENCY_DISTRIBUTIONS.get(module_name, module_name)
+            try:
+                importlib.metadata.distribution(distribution_name)
+            except importlib.metadata.PackageNotFoundError:
+                installed = False
+            else:
+                installed = True
+        if not installed:
+            missing_module_names.append(module_name)
+    return missing_module_names
+
+
+def missing_segmentation_runtime_dependencies() -> list[str]:
+    """Return missing dependencies required for segmentation queries.
+
+    Returns
+    -------
+    list[str]
+        Missing dependency module names required before GeoSAM query creation.
+
+    """
+    return missing_runtime_dependencies(SEGMENTATION_RUNTIME_DEPENDENCY_NAMES)
+
+
+def format_missing_dependencies_message(
+    module_names: Iterable[str],
+    *,
+    action_label: str = "this action",
+) -> str:
+    """Return a user-facing message for missing runtime dependencies.
+
+    Parameters
+    ----------
+    module_names : Iterable[str]
+        Missing dependency module names.
+    action_label : str, optional
+        Action name inserted into the message body.
+
+    Returns
+    -------
+    str
+        Formatted QMessageBox-friendly message text.
+
+    Raises
+    ------
+    ValueError
+        Raised when no dependency names were provided.
+
+    """
+    unique_module_names = list(dict.fromkeys(module_names))
+    if not unique_module_names:
+        msg = "Cannot format a dependency message without dependency names."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    if len(unique_module_names) == 1:
+        dependency_text = unique_module_names[0]
+    elif len(unique_module_names) == 2:
+        dependency_text = " and ".join(unique_module_names)
+    else:
+        dependency_text = ", ".join(unique_module_names[:-1])
+        dependency_text = f"{dependency_text}, and {unique_module_names[-1]}"
+
+    return (
+        f"Geo-SAM needs {dependency_text} for {action_label}.\n\n"
+        "Open Geo-SAM Settings and install the missing dependencies first."
+    )
 
 
 def _dependency_install_requirement(module_name: str) -> str:

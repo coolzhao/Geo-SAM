@@ -42,6 +42,7 @@ from .plugin_settings import (
     PLUGIN_ROOT,
     clear_cache,
     cleanup_cache,
+    dependency_status_text,
     dependency_status_rows,
     format_dependency_install_command,
     format_dependency_install_commands,
@@ -316,29 +317,22 @@ class GeoSamSettingsDialog(QDialog):
         installable_missing_rows = [
             row for row in rows if not row["installed"] and row["installable"]
         ]
-        runtime_missing_count = missing_count - len(installable_missing_rows)
         self._missing_dependency_names = [
             row["package"] for row in installable_missing_rows
         ]
         self.dependency_summary_label.setText(
             "Dependencies: "
             f"{installed_count} installed, {missing_count} missing. "
-            f"{len(installable_missing_rows)} installable, "
-            f"{runtime_missing_count} QGIS runtime missing. "
+            f"{len(installable_missing_rows)} installable. "
             "Installation runs in the background."
         )
         self.dependency_table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
-            if row["installed"]:
-                status_text = "Installed"
-            elif row["installable"]:
-                status_text = "Missing"
-            else:
-                status_text = "Missing QGIS runtime"
+            status_text = dependency_status_text(row["state"])
             version_text = row["version"] if row["installed"] else "-"
             text_color = QColor("#008c4a") if row["installed"] else QColor("#b00020")
             for column_index, value in enumerate(
-                (row["package"], status_text, version_text, row["note"])
+                (row["package"], status_text, version_text, row["source"])
             ):
                 item = QTableWidgetItem(value)
                 item.setForeground(text_color)
@@ -357,8 +351,7 @@ class GeoSamSettingsDialog(QDialog):
         if not self._missing_dependency_names:
             self.refresh_dependency_status()
             self.dependency_install_status_label.setText(
-                "No installable dependencies are missing. Missing QGIS runtime "
-                "packages must be provided by the active QGIS Python environment."
+                "No installable dependencies are missing."
             )
             return
 
