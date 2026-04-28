@@ -49,6 +49,7 @@ DEPENDENCY_INSTALL_REQUIREMENTS: dict[str, str] = {
     "torch": "torch",
     "torchvision": "torchvision",
     "ultralytics": "ultralytics>=8.4.33",
+    "geopandas": "geopandas>=1.0.1",
     "shapely": "shapely>=2.0.7",
     "pyproj": "pyproj>=3.6.1",
 }
@@ -60,6 +61,7 @@ RUNTIME_PROVIDED_DEPENDENCY_NAMES: tuple[str, ...] = (
 )
 SEGMENTATION_RUNTIME_DEPENDENCY_NAMES: tuple[str, ...] = (
     "geosam",
+    "geopandas",
     "shapely",
     "pyproj",
 )
