@@ -14,10 +14,12 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterable, Literal, TypeAlias, TypedDict
+from typing import Any, Callable, Iterable, Literal, TypedDict
 
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
+
+from .dependency_path import register_plugin_managed_dependency_path
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,12 @@ QGIS_RUNTIME_CONSTRAINT_DISTRIBUTIONS: tuple[str, ...] = (
 PIP_RESOLVER_CONSTRAINT_REQUIREMENTS: tuple[str, ...] = (
     "contourpy>=1.2.0",
     "matplotlib>=3.8.0",
+)
+TORCH_RESOLVER_CONSTRAINT_REQUIREMENTS_PY39: tuple[str, ...] = (
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+)
+TORCH_RESOLVER_CONSTRAINT_REQUIREMENTS_PY310_PLUS: tuple[str, ...] = (
     "torch==2.11.0",
     "torchvision==0.26.0",
 )
@@ -110,8 +118,8 @@ PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = (
     "simplified",
 )
 PROJ_DATA_ENV_KEYS = ("PROJ_DATA", "PROJ_LIB")
-DependencyInstallCommand: TypeAlias = list[str]
-DependencyInstallPlan: TypeAlias = list[DependencyInstallCommand]
+DependencyInstallCommand = list[str]
+DependencyInstallPlan = list[DependencyInstallCommand]
 DependencyState = Literal[
     "installed_qgis_runtime",
     "installed_plugin_managed",
@@ -524,6 +532,7 @@ def dependency_status() -> dict[str, bool]:
     after install or uninstall operations in the same QGIS session.
 
     """
+    register_plugin_managed_dependency_path()
     status: dict[str, bool] = {}
     for module_name, distribution_name in DEPENDENCY_DISTRIBUTIONS.items():
         try:
@@ -544,6 +553,7 @@ def dependency_status_rows() -> list[DependencyStatusRow]:
         Ordered dependency rows for the settings dialog table.
 
     """
+    register_plugin_managed_dependency_path()
     rows: list[DependencyStatusRow] = []
     for module_name, distribution_name in DEPENDENCY_DISTRIBUTIONS.items():
         try:
@@ -804,11 +814,32 @@ def _qgis_runtime_resolver_constraints(installed_versions: dict[str, str]) -> li
 
     """
     constraints = list(PIP_RESOLVER_CONSTRAINT_REQUIREMENTS)
+    constraints.extend(_torch_resolver_constraints())
     numpy_major_version = _distribution_major_version(installed_versions.get("numpy"))
     if numpy_major_version is not None and numpy_major_version < 2:
         constraints.append("opencv-python==4.11.0.86")
     constraints.extend(_setuptools_resolver_constraints())
     return constraints
+
+
+def _torch_resolver_constraints() -> list[str]:
+    """Return PyTorch constraints compatible with the active Python runtime.
+
+    Returns
+    -------
+    list[str]
+        Torch and torchvision constraints for pip resolution.
+
+    Notes
+    -----
+    PyTorch 2.11 does not publish Python 3.9 wheels. QGIS environments based
+    on Python 3.9 therefore need the latest known PyTorch pair with cp39
+    wheels.
+
+    """
+    if sys.version_info < (3, 10):
+        return list(TORCH_RESOLVER_CONSTRAINT_REQUIREMENTS_PY39)
+    return list(TORCH_RESOLVER_CONSTRAINT_REQUIREMENTS_PY310_PLUS)
 
 
 def _distribution_major_version(version_text: str | None) -> int | None:
@@ -894,7 +925,7 @@ def _runtime_constraint_version(distribution_name: str) -> str | None:
 
 
 def _setuptools_resolver_constraints() -> list[str]:
-    """Return setuptools constraints compatible with the selected torch build.
+    """Return setuptools constraints compatible with recent torch builds.
 
     Returns
     -------
@@ -903,7 +934,7 @@ def _setuptools_resolver_constraints() -> list[str]:
 
     Notes
     -----
-    ``torch==2.11.0`` requires ``setuptools<82``. Some QGIS Python runtimes
+    Recent torch releases require ``setuptools<82``. Some QGIS Python runtimes
     currently bundle ``setuptools==82.0.0`` or newer, which would make a
     generated exact runtime pin impossible to satisfy. The plugin does not rely
     on the QGIS-bundled setuptools version at runtime, so dependency installs
@@ -1333,6 +1364,7 @@ def get_dependency_install_commands(
 
     """
     selected_module_names = _selected_dependency_module_names(module_names)
+    dependency_target_path = register_plugin_managed_dependency_path(create=True)
     python_interpreter = resolve_python_interpreter()
     constraints_path = _create_qgis_runtime_constraints_file()
     commands: DependencyInstallPlan = []
@@ -1344,6 +1376,7 @@ def get_dependency_install_commands(
         command = _dependency_install_command_base(
             python_interpreter,
             constraints_path,
+            dependency_target_path,
         )
         command.extend(
             [
@@ -1360,6 +1393,9 @@ def get_dependency_install_commands(
                 "-m",
                 "pip",
                 "install",
+                "--target",
+                str(dependency_target_path),
+                "--upgrade",
                 "--no-deps",
                 _dependency_install_requirement("geosam"),
             ]
@@ -1390,6 +1426,7 @@ def format_dependency_install_commands(commands: Iterable[Iterable[str]]) -> str
 def _dependency_install_command_base(
     python_interpreter: Path,
     constraints_path: Path | None,
+    dependency_target_path: Path,
 ) -> DependencyInstallCommand:
     """Build the shared pip install command prefix.
 
@@ -1399,6 +1436,8 @@ def _dependency_install_command_base(
         Python interpreter used by the active QGIS runtime.
     constraints_path : Path | None
         Runtime constraints file path, or ``None`` when no constraints exist.
+    dependency_target_path : Path
+        Plugin-managed dependency directory used as the pip ``--target`` path.
 
     Returns
     -------
@@ -1411,6 +1450,9 @@ def _dependency_install_command_base(
         "-m",
         "pip",
         "install",
+        "--target",
+        str(dependency_target_path),
+        "--upgrade",
         "--upgrade-strategy",
         "only-if-needed",
         "--only-binary",
@@ -1486,6 +1528,7 @@ def install_dependencies(
             return False, output
 
     output = "\n".join(line for line in output_lines if line.strip())
+    register_plugin_managed_dependency_path()
     return True, output
 
 

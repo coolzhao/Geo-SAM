@@ -6,4 +6,5 @@ rasters/**/*.aux.xml
 docs/build
 models
 .cache
+.deps
 **/user.json

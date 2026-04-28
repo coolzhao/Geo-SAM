@@ -33,6 +33,13 @@ from PyQt5.QtWidgets import (
 )
 
 from .messageTool import MessageTool
+from .dependency_path import (
+    clear_all_plugin_managed_site_packages,
+    clear_current_plugin_managed_site_packages,
+    get_plugin_managed_dependency_stats,
+    get_plugin_managed_site_packages,
+    iter_all_plugin_managed_site_packages,
+)
 from .model_manager import delete_model, download_model, get_model_status_rows
 from .plugin_settings import (
     DEFAULT_CACHE_DIR,
@@ -116,6 +123,9 @@ class GeoSamSettingsDialog(QDialog):
 
         self.dependency_summary_label = QLabel(tab)
         self.dependency_summary_label.setWordWrap(True)
+        self.dependency_storage_label = QLabel(tab)
+        self.dependency_storage_label.setWordWrap(True)
+        self.dependency_storage_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
         self.dependency_table = QTableWidget(tab)
         self.dependency_table.setColumnCount(4)
@@ -136,8 +146,26 @@ class GeoSamSettingsDialog(QDialog):
         self.install_dependencies_button.clicked.connect(
             self.install_dependencies_clicked
         )
+        self.open_dependency_folder_button = QPushButton("Open Folder", tab)
+        self.open_dependency_folder_button.clicked.connect(
+            self.open_dependency_folder_clicked
+        )
+        self.clear_current_dependencies_button = QPushButton(
+            "Clear Current Runtime",
+            tab,
+        )
+        self.clear_current_dependencies_button.clicked.connect(
+            self.clear_current_dependencies_clicked
+        )
+        self.clear_all_dependencies_button = QPushButton("Clear All Runtimes", tab)
+        self.clear_all_dependencies_button.clicked.connect(
+            self.clear_all_dependencies_clicked
+        )
         button_row.addWidget(self.refresh_dependencies_button)
         button_row.addWidget(self.install_dependencies_button)
+        button_row.addWidget(self.open_dependency_folder_button)
+        button_row.addWidget(self.clear_current_dependencies_button)
+        button_row.addWidget(self.clear_all_dependencies_button)
 
         self.dependency_install_status_label = QLabel(
             "Installable dependency status will appear here.",
@@ -156,6 +184,7 @@ class GeoSamSettingsDialog(QDialog):
         self.dependency_install_log.setMinimumHeight(220)
 
         layout.addWidget(self.dependency_summary_label)
+        layout.addWidget(self.dependency_storage_label)
         layout.addWidget(self.dependency_table)
         layout.addLayout(button_row)
         layout.addWidget(self.dependency_install_status_label)
@@ -326,6 +355,23 @@ class GeoSamSettingsDialog(QDialog):
             f"{len(installable_missing_rows)} installable. "
             "Installation runs in the background."
         )
+        current_dependency_path = get_plugin_managed_site_packages()
+        current_stats = get_plugin_managed_dependency_stats(current_dependency_path)
+        all_dependency_paths = iter_all_plugin_managed_site_packages(
+            include_legacy=True,
+        )
+        all_stats = [
+            get_plugin_managed_dependency_stats(dependency_path)
+            for dependency_path in all_dependency_paths
+        ]
+        total_size_bytes = sum(row["size_bytes"] for row in all_stats)
+        self.dependency_storage_label.setText(
+            "Plugin-managed install: "
+            f"{self._format_bytes(current_stats['size_bytes'])} in current runtime, "
+            f"{self._format_bytes(total_size_bytes)} across "
+            f"{len(all_dependency_paths)} runtime folder(s). "
+            f"Current path: {current_dependency_path}"
+        )
         self.dependency_table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             status_text = dependency_status_text(row["state"])
@@ -343,6 +389,14 @@ class GeoSamSettingsDialog(QDialog):
         is_installing = self._dependency_install_process is not None
         self.install_dependencies_button.setEnabled(
             bool(self._missing_dependency_names) and not is_installing
+        )
+        self.refresh_dependencies_button.setEnabled(not is_installing)
+        self.open_dependency_folder_button.setEnabled(not is_installing)
+        self.clear_current_dependencies_button.setEnabled(
+            current_stats["exists"] and not is_installing
+        )
+        self.clear_all_dependencies_button.setEnabled(
+            bool(all_dependency_paths) and not is_installing
         )
 
     def install_dependencies_clicked(self) -> None:
@@ -363,6 +417,9 @@ class GeoSamSettingsDialog(QDialog):
         self.dependency_install_progress.setVisible(True)
         self.install_dependencies_button.setEnabled(False)
         self.refresh_dependencies_button.setEnabled(False)
+        self.open_dependency_folder_button.setEnabled(False)
+        self.clear_current_dependencies_button.setEnabled(False)
+        self.clear_all_dependencies_button.setEnabled(False)
         self.close_button.setEnabled(False)
         self._dependency_install_output_buffer = ""
         self._append_dependency_install_log(
@@ -503,6 +560,84 @@ class GeoSamSettingsDialog(QDialog):
         self.dependency_install_log.appendPlainText(message)
         scrollbar = self.dependency_install_log.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
+
+    def open_dependency_folder_clicked(self) -> None:
+        """Open the active runtime dependency folder."""
+        open_path(get_plugin_managed_site_packages(create=True))
+
+    def clear_current_dependencies_clicked(self) -> None:
+        """Delete plugin-managed dependencies for the active runtime."""
+        dependency_path = get_plugin_managed_site_packages()
+        answer = QMessageBox.question(
+            self,
+            "Clear Current Runtime Dependencies",
+            "Delete plugin-managed dependencies for the current QGIS runtime?\n\n"
+            f"Path:\n{dependency_path}\n\n"
+            "Restart QGIS after clearing if any dependency was already imported.",
+        )
+        if answer != QMessageBox.Yes:
+            return
+        try:
+            removed_count = clear_current_plugin_managed_site_packages()
+        except OSError as exc:
+            MessageTool.MessageBoxOK(
+                str(exc),
+                title="Dependency Cleanup Failed",
+            )
+            return
+        self._append_dependency_install_log(
+            f"Cleared {removed_count} file(s) from current runtime dependencies."
+        )
+        self.refresh_dependency_status()
+
+    def clear_all_dependencies_clicked(self) -> None:
+        """Delete all plugin-managed dependency installs."""
+        dependency_paths = iter_all_plugin_managed_site_packages(include_legacy=True)
+        path_text = "\n".join(str(path) for path in dependency_paths)
+        answer = QMessageBox.question(
+            self,
+            "Clear All Runtime Dependencies",
+            "Delete all plugin-managed dependency installs for Geo-SAM?\n\n"
+            f"Paths:\n{path_text}\n\n"
+            "This does not remove QGIS, conda, or global Python packages. "
+            "Restart QGIS after clearing if any dependency was already imported.",
+        )
+        if answer != QMessageBox.Yes:
+            return
+        try:
+            removed_count = clear_all_plugin_managed_site_packages()
+        except OSError as exc:
+            MessageTool.MessageBoxOK(
+                str(exc),
+                title="Dependency Cleanup Failed",
+            )
+            return
+        self._append_dependency_install_log(
+            f"Cleared {removed_count} file(s) from all runtime dependencies."
+        )
+        self.refresh_dependency_status()
+
+    @staticmethod
+    def _format_bytes(size_bytes: int) -> str:
+        """Return a compact human-readable byte count.
+
+        Parameters
+        ----------
+        size_bytes : int
+            Size in bytes.
+
+        Returns
+        -------
+        str
+            Human-readable size text.
+
+        """
+        size_value = float(size_bytes)
+        for unit in ("B", "KB", "MB", "GB"):
+            if size_value < 1024 or unit == "GB":
+                return f"{size_value:.1f} {unit}" if unit != "B" else f"{size_bytes} B"
+            size_value /= 1024
+        return f"{size_value:.1f} GB"
 
     def save_model_directory(self) -> None:
         value = self.model_dir_edit.text().strip()
