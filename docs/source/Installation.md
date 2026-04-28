@@ -17,7 +17,7 @@ Open the **OSGeo4W Shell** ![OsGeo4WShell](img/OsGeo4WShell.png) application fro
 
 ```bash
 pip3 install torch torchvision
-pip3 install geosam rasterio geopandas pyarrow ultralytics
+pip3 install geosam rasterio geopandas ultralytics
 ```
 
 `Geo-SAM Encoder Tool` now supports using CUDA GPU to accelerate the encoding process. If your PC has dedicated CUDA GPUs, you can install the CUDA library first and then install the gpu-version pytorch using the following command (using CUDA version 11.7 as an example):
@@ -51,7 +51,7 @@ Then install the libraries.
 ```bash
 # !important, add ./ to avoid using your default Python in the system
 ./pip3 install torch torchvision
-./pip3 install geosam rasterio geopandas pyarrow ultralytics
+./pip3 install geosam rasterio geopandas ultralytics
 ```
 
 For Linux users, if `pip3` is not found in `/usr/bin`, try the following commands:

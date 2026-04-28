@@ -10,10 +10,11 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterable, Literal, TypedDict
+from typing import Any, Callable, Iterable, Literal, TypeAlias, TypedDict
 
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
@@ -39,18 +40,49 @@ DEPENDENCY_DISTRIBUTIONS: dict[str, str] = {
     "ultralytics": "ultralytics",
     "rasterio": "rasterio",
     "geopandas": "geopandas",
-    "pyarrow": "pyarrow",
     "geosam": "geosam",
 }
 DEPENDENCY_INSTALL_REQUIREMENTS: dict[str, str] = {
     "geosam": "geosam",
     "torch": "torch",
     "torchvision": "torchvision",
-    "ultralytics": "ultralytics",
-    "rasterio": "rasterio",
-    "geopandas": "geopandas",
-    "pyarrow": "pyarrow",
+    "ultralytics": "ultralytics>=8.4.33",
 }
+QGIS_RUNTIME_DEPENDENCY_NAMES: tuple[str, ...] = (
+    "rasterio",
+    "geopandas",
+)
+QGIS_RUNTIME_CONSTRAINT_DISTRIBUTIONS: tuple[str, ...] = (
+    "numpy",
+    "scipy",
+    "pandas",
+    "geopandas",
+    "rasterio",
+    "shapely",
+    "pyproj",
+    "pyogrio",
+    "python-dateutil",
+    "networkx",
+    "requests",
+    "pyyaml",
+    "packaging",
+)
+PIP_RESOLVER_CONSTRAINT_REQUIREMENTS: tuple[str, ...] = (
+    "contourpy>=1.2.0",
+    "matplotlib>=3.8.0",
+    "torch==2.11.0",
+    "torchvision==0.26.0",
+)
+PIP_ONLY_BINARY_DISTRIBUTIONS: tuple[str, ...] = (
+    "contourpy",
+    "kiwisolver",
+    "matplotlib",
+    "numpy",
+    "opencv-python",
+    "pillow",
+    "torch",
+    "torchvision",
+)
 PerformanceMode = Literal["balanced", "fastest", "low_memory"]
 PreviewRenderMode = Literal["pixel_level", "simplified"]
 PERFORMANCE_MODE_VALUES: tuple[PerformanceMode, ...] = (
@@ -63,6 +95,8 @@ PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = (
     "simplified",
 )
 PROJ_DATA_ENV_KEYS = ("PROJ_DATA", "PROJ_LIB")
+DependencyInstallCommand: TypeAlias = list[str]
+DependencyInstallPlan: TypeAlias = list[DependencyInstallCommand]
 
 
 class DependencyStatusRow(TypedDict):
@@ -78,6 +112,10 @@ class DependencyStatusRow(TypedDict):
         Whether the distribution can be found in the active environment.
     version : str
         Installed distribution version, or an empty string when missing.
+    installable : bool
+        Whether the plugin installer should attempt to install this dependency.
+    note : str
+        Short source or action note for the settings dialog.
 
     """
 
@@ -85,6 +123,8 @@ class DependencyStatusRow(TypedDict):
     distribution: str
     installed: bool
     version: str
+    installable: bool
+    note: str
 
 
 def initialize_rasterio_proj_data() -> None:
@@ -412,6 +452,11 @@ def dependency_status_rows() -> list[DependencyStatusRow]:
     """
     rows: list[DependencyStatusRow] = []
     for module_name, distribution_name in DEPENDENCY_DISTRIBUTIONS.items():
+        runtime_dependency = module_name in QGIS_RUNTIME_DEPENDENCY_NAMES
+        installable = (
+            module_name in DEPENDENCY_INSTALL_REQUIREMENTS and not runtime_dependency
+        )
+        note = "QGIS runtime" if runtime_dependency else "Installable"
         try:
             distribution = importlib.metadata.distribution(distribution_name)
         except importlib.metadata.PackageNotFoundError:
@@ -421,6 +466,8 @@ def dependency_status_rows() -> list[DependencyStatusRow]:
                     "distribution": distribution_name,
                     "installed": False,
                     "version": "",
+                    "installable": installable,
+                    "note": note,
                 }
             )
         else:
@@ -430,6 +477,8 @@ def dependency_status_rows() -> list[DependencyStatusRow]:
                     "distribution": distribution_name,
                     "installed": True,
                     "version": distribution.version,
+                    "installable": installable,
+                    "note": note,
                 }
             )
     return rows
@@ -452,6 +501,246 @@ def _dependency_install_requirement(module_name: str) -> str:
     if module_name == "geosam" and LOCAL_GEOSAM_REPOSITORY.exists():
         return str(LOCAL_GEOSAM_REPOSITORY)
     return DEPENDENCY_INSTALL_REQUIREMENTS[module_name]
+
+
+def _selected_dependency_module_names(
+    module_names: Iterable[str] | None = None,
+) -> list[str]:
+    """Return known dependency module names selected for installation.
+
+    Parameters
+    ----------
+    module_names : Iterable[str] | None, optional
+        Dependency package names to install. When omitted, all known plugin
+        dependencies are selected.
+
+    Returns
+    -------
+    list[str]
+        Known dependency module names in installation order.
+
+    Raises
+    ------
+    RuntimeError
+        Raised when no known dependencies were selected.
+
+    """
+    if module_names is None:
+        selected_module_names = list(DEPENDENCY_INSTALL_REQUIREMENTS)
+    else:
+        selected_module_names = [
+            module_name
+            for module_name in module_names
+            if module_name in DEPENDENCY_INSTALL_REQUIREMENTS
+        ]
+    if not selected_module_names:
+        msg = "No known dependencies were selected for installation."
+        logger.error(msg)
+        raise RuntimeError(msg)
+    return selected_module_names
+
+
+def _create_qgis_runtime_constraints_file() -> Path | None:
+    """Create a temporary pip constraints file for bundled QGIS packages.
+
+    Returns
+    -------
+    Path | None
+        Temporary constraints file path, or ``None`` when no protected runtime
+        distributions are installed in the active environment.
+
+    Raises
+    ------
+    RuntimeError
+        Raised when the constraints file cannot be written.
+
+    Notes
+    -----
+    The constraints are generated from the currently installed package
+    versions. This preserves whichever versions the active QGIS runtime ships,
+    including future runtimes that may bundle newer major versions.
+
+    """
+    constraint_lines: list[str] = []
+    installed_versions: dict[str, str] = {}
+    for distribution_name in QGIS_RUNTIME_CONSTRAINT_DISTRIBUTIONS:
+        resolved_version = _runtime_constraint_version(distribution_name)
+        if resolved_version is None:
+            continue
+        installed_versions[distribution_name] = resolved_version
+        constraint_lines.append(f"{distribution_name}=={resolved_version}")
+
+    constraint_lines.extend(_qgis_runtime_resolver_constraints(installed_versions))
+
+    if not constraint_lines:
+        return None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix="geo_sam_qgis_runtime_",
+            suffix=".constraints.txt",
+            delete=False,
+        ) as constraints_file:
+            constraints_file.write("\n".join(constraint_lines))
+            constraints_file.write("\n")
+            return Path(constraints_file.name)
+    except OSError as exc:
+        msg = "Could not create QGIS runtime dependency constraints file."
+        logger.error("%s Error: %s", msg, exc)
+        raise RuntimeError(msg) from exc
+
+
+def _qgis_runtime_resolver_constraints(installed_versions: dict[str, str]) -> list[str]:
+    """Return extra pip constraints for QGIS runtime compatibility.
+
+    Parameters
+    ----------
+    installed_versions : dict[str, str]
+        Installed protected distribution versions keyed by distribution name.
+
+    Returns
+    -------
+    list[str]
+        Additional requirement constraints that prevent pip resolver backtracking
+        into incompatible or source-only transitive dependency versions.
+
+    Notes
+    -----
+    These constraints do not pin QGIS packages. They only guide transitive
+    dependencies toward versions compatible with the active QGIS runtime.
+
+    """
+    constraints = list(PIP_RESOLVER_CONSTRAINT_REQUIREMENTS)
+    numpy_major_version = _distribution_major_version(installed_versions.get("numpy"))
+    if numpy_major_version is not None and numpy_major_version < 2:
+        constraints.append("opencv-python==4.11.0.86")
+    constraints.extend(_setuptools_resolver_constraints())
+    return constraints
+
+
+def _distribution_major_version(version_text: str | None) -> int | None:
+    """Return the leading integer version component.
+
+    Parameters
+    ----------
+    version_text : str | None
+        Distribution version text.
+
+    Returns
+    -------
+    int | None
+        Major version number, or ``None`` when it cannot be parsed.
+
+    """
+    if version_text is None:
+        return None
+    major_text = version_text.split(".", maxsplit=1)[0]
+    try:
+        return int(major_text)
+    except ValueError:
+        logger.debug("Could not parse distribution major version from %s.", version_text)
+        return None
+
+
+def _runtime_constraint_version(distribution_name: str) -> str | None:
+    """Return the effective version used for a runtime constraint line.
+
+    Parameters
+    ----------
+    distribution_name : str
+        Distribution name written into the pip constraints file.
+
+    Returns
+    -------
+    str | None
+        Resolved version text, or ``None`` when the distribution is unavailable.
+
+    Notes
+    -----
+    Some QGIS Python environments expose placeholder distribution metadata such
+    as ``python-dateutil==0.0.0`` while the importable module is a valid
+    release. This helper normalizes those cases so pip receives a satisfiable
+    constraint set.
+
+    """
+    try:
+        distribution = importlib.metadata.distribution(distribution_name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+    distribution_version = distribution.version
+    if distribution_name != "python-dateutil" or distribution_version != "0.0.0":
+        return distribution_version
+
+    try:
+        dateutil_module = importlib.import_module("dateutil")
+    except ImportError:
+        logger.warning(
+            "python-dateutil distribution metadata reports version %s, and the "
+            "dateutil module could not be imported for a fallback version.",
+            distribution_version,
+        )
+        return distribution_version
+
+    module_version = getattr(dateutil_module, "__version__", None)
+    if not module_version:
+        logger.warning(
+            "python-dateutil distribution metadata reports version %s, and the "
+            "dateutil module does not expose __version__ for fallback.",
+            distribution_version,
+        )
+        return distribution_version
+
+    logger.info(
+        "Using python-dateutil module version %s instead of placeholder "
+        "distribution version %s in runtime constraints.",
+        module_version,
+        distribution_version,
+    )
+    return str(module_version)
+
+
+def _setuptools_resolver_constraints() -> list[str]:
+    """Return setuptools constraints compatible with the selected torch build.
+
+    Returns
+    -------
+    list[str]
+        Additional setuptools constraints for pip resolution.
+
+    Notes
+    -----
+    ``torch==2.11.0`` requires ``setuptools<82``. Some QGIS Python runtimes
+    currently bundle ``setuptools==82.0.0`` or newer, which would make a
+    generated exact runtime pin impossible to satisfy. The plugin does not rely
+    on the QGIS-bundled setuptools version at runtime, so dependency installs
+    should prefer the torch-compatible range instead of preserving that exact
+    version.
+
+    """
+    try:
+        setuptools_version = importlib.metadata.version("setuptools")
+    except importlib.metadata.PackageNotFoundError:
+        return ["setuptools<82"]
+
+    setuptools_major_version = _distribution_major_version(setuptools_version)
+    if setuptools_major_version is None:
+        logger.debug(
+            "Could not determine setuptools major version from %s; using "
+            "torch-compatible upper bound.",
+            setuptools_version,
+        )
+        return ["setuptools<82"]
+    if setuptools_major_version >= 82:
+        logger.info(
+            "QGIS runtime provides setuptools %s; using setuptools<82 for "
+            "torch compatibility during dependency installation.",
+            setuptools_version,
+        )
+        return ["setuptools<82"]
+    return [f"setuptools=={setuptools_version}"]
 
 
 def _is_relative_to(path: Path, base_path: Path) -> bool:
@@ -486,23 +775,12 @@ def _iter_python_interpreter_candidates() -> list[Path]:
         Ordered executable candidates, with duplicates removed.
 
     """
-    prefix_path = Path(sys.prefix).expanduser().resolve()
-    executable_path = Path(sys.executable).expanduser().resolve()
+    prefix_path = Path(sys.prefix).expanduser()
+    executable_path = Path(sys.executable).expanduser()
     candidate_paths: list[Path] = []
 
-    for relative_path in (
-        "bin/python",
-        "bin/python3",
-        "bin/python3.11",
-        "python",
-        "python3",
-        "python3.11",
-        "python.exe",
-        "python3.exe",
-    ):
-        candidate_paths.append(prefix_path / relative_path)
-
-    candidate_paths.extend(_iter_qgis_app_python_candidates(executable_path))
+    candidate_paths.extend(_iter_prefix_python_candidates(prefix_path))
+    candidate_paths.extend(_iter_platform_qgis_python_candidates(executable_path))
 
     for raw_path in sys.path:
         if not raw_path:
@@ -522,21 +800,125 @@ def _iter_python_interpreter_candidates() -> list[Path]:
             for child_path in sorted(parent_path.glob("python*")):
                 candidate_paths.append(child_path)
 
+    return _unique_python_candidates(candidate_paths)
+
+
+def _iter_prefix_python_candidates(prefix_path: Path) -> list[Path]:
+    """Return Python executables below and near ``sys.prefix``.
+
+    Parameters
+    ----------
+    prefix_path : Path
+        Active Python prefix path.
+
+    Returns
+    -------
+    list[Path]
+        Candidate executable paths for virtualenv, conda, and system prefixes.
+
+    Notes
+    -----
+    Conda-based QGIS installs normally expose the interpreter in
+    ``sys.prefix/bin`` or ``sys.prefix/Scripts``. The parent scan is restricted
+    to the active prefix name so it can cover relocated prefixes without
+    accidentally selecting another conda environment.
+
+    """
+    candidate_paths: list[Path] = []
+    candidate_directories = [
+        prefix_path / "bin",
+        prefix_path / "Scripts",
+        prefix_path,
+    ]
+    for directory_path in candidate_directories:
+        candidate_paths.extend(_iter_python_files(directory_path))
+
+    parent_path = prefix_path.parent
+    prefix_name = prefix_path.name
+    for directory_name in ("bin", "Scripts"):
+        glob_pattern = f"{prefix_name}*/{directory_name}/python*"
+        candidate_paths.extend(sorted(parent_path.glob(glob_pattern)))
+
+    return candidate_paths
+
+
+def _iter_python_files(directory_path: Path) -> list[Path]:
+    """Return Python-like files in a directory.
+
+    Parameters
+    ----------
+    directory_path : Path
+        Directory to scan.
+
+    Returns
+    -------
+    list[Path]
+        Ordered candidate files whose names begin with ``python``.
+
+    """
+    return sorted(directory_path.glob("python*"))
+
+
+def _unique_python_candidates(candidate_paths: Iterable[Path]) -> list[Path]:
+    """Return unique Python candidates without resolving symlink wrappers.
+
+    Parameters
+    ----------
+    candidate_paths : Iterable[Path]
+        Raw candidate executable paths.
+
+    Returns
+    -------
+    list[Path]
+        Candidate paths with duplicate textual paths removed.
+
+    Notes
+    -----
+    The macOS QGIS app exposes ``Contents/MacOS/python`` as a symlink wrapper
+    that sets ``PYTHONHOME`` before running the real binary. Resolving that
+    symlink would break direct execution, so this helper keeps the original
+    executable path.
+
+    """
     unique_candidates: list[Path] = []
-    seen_paths: set[Path] = set()
+    seen_paths: set[str] = set()
     for candidate_path in candidate_paths:
         try:
-            resolved_candidate = candidate_path.expanduser().resolve()
+            expanded_candidate = candidate_path.expanduser()
         except OSError:
             continue
-        if resolved_candidate in seen_paths:
+        if not expanded_candidate.is_absolute():
+            expanded_candidate = Path.cwd() / expanded_candidate
+        candidate_key = str(expanded_candidate)
+        if candidate_key in seen_paths:
             continue
-        seen_paths.add(resolved_candidate)
-        unique_candidates.append(resolved_candidate)
+        seen_paths.add(candidate_key)
+        unique_candidates.append(expanded_candidate)
     return unique_candidates
 
 
-def _iter_qgis_app_python_candidates(executable_path: Path) -> list[Path]:
+def _iter_platform_qgis_python_candidates(executable_path: Path) -> list[Path]:
+    """Return platform-specific QGIS Python executable candidates.
+
+    Parameters
+    ----------
+    executable_path : Path
+        Active QGIS process executable path.
+
+    Returns
+    -------
+    list[Path]
+        Candidate Python executable paths under the detected QGIS root.
+
+    """
+    if sys.platform == "win32":
+        return _iter_windows_qgis_python_candidates(executable_path)
+    if sys.platform == "darwin":
+        return _iter_macos_qgis_python_candidates(executable_path)
+    return _iter_linux_qgis_python_candidates(executable_path)
+
+
+def _iter_windows_qgis_python_candidates(executable_path: Path) -> list[Path]:
     """Return Python executables bundled beside Windows QGIS launchers.
 
     Parameters
@@ -581,6 +963,67 @@ def _iter_qgis_app_python_candidates(executable_path: Path) -> list[Path]:
     return candidate_paths
 
 
+def _iter_macos_qgis_python_candidates(executable_path: Path) -> list[Path]:
+    """Return Python executables for official macOS QGIS app bundles.
+
+    Parameters
+    ----------
+    executable_path : Path
+        Active QGIS process executable path.
+
+    Returns
+    -------
+    list[Path]
+        Candidate Python executable paths under ``QGIS.app``.
+
+    Notes
+    -----
+    The official macOS app uses ``Contents/MacOS/python`` as a relocatable
+    wrapper. Prefer that path over versioned binaries because the wrapper sets
+    ``PYTHONHOME`` correctly before Python starts.
+
+    """
+    contents_path: Path | None = None
+    for parent_path in (executable_path, *executable_path.parents):
+        if parent_path.name != "Contents":
+            continue
+        contents_path = parent_path
+        break
+    if contents_path is None:
+        return []
+
+    macos_path = contents_path / "MacOS"
+    candidate_paths = [
+        macos_path / "python",
+        macos_path / "python3",
+    ]
+    candidate_paths.extend(_iter_python_files(macos_path))
+    return candidate_paths
+
+
+def _iter_linux_qgis_python_candidates(executable_path: Path) -> list[Path]:
+    """Return Python executables near Linux QGIS launchers.
+
+    Parameters
+    ----------
+    executable_path : Path
+        Active QGIS process executable path.
+
+    Returns
+    -------
+    list[Path]
+        Candidate Python executable paths near the launcher.
+
+    """
+    candidate_paths: list[Path] = []
+    for parent_path in executable_path.parents:
+        if parent_path.name not in {"bin", "sbin"}:
+            continue
+        candidate_paths.extend(_iter_python_files(parent_path))
+        break
+    return candidate_paths
+
+
 def _is_python_interpreter_candidate(candidate_path: Path) -> bool:
     """Return whether a path is an executable Python interpreter candidate.
 
@@ -619,7 +1062,13 @@ def resolve_python_interpreter() -> Path:
         Raised when no suitable Python interpreter can be found.
 
     """
-    executable_path = Path(sys.executable).expanduser().resolve()
+    executable_path = Path(sys.executable).expanduser()
+    if sys.platform == "darwin":
+        for candidate_path in _iter_macos_qgis_python_candidates(executable_path):
+            if not _is_python_interpreter_candidate(candidate_path):
+                continue
+            return candidate_path
+
     if _is_python_interpreter_candidate(executable_path):
         return executable_path
 
@@ -638,8 +1087,8 @@ def resolve_python_interpreter() -> Path:
 
 def get_dependency_install_command(
     module_names: Iterable[str] | None = None,
-) -> list[str]:
-    """Build the pip command used to install plugin dependencies.
+) -> DependencyInstallCommand:
+    """Build the first pip command used to install plugin dependencies.
 
     Parameters
     ----------
@@ -649,7 +1098,7 @@ def get_dependency_install_command(
 
     Returns
     -------
-    list[str]
+    DependencyInstallCommand
         Command arguments suitable for ``subprocess`` execution.
 
     Raises
@@ -659,30 +1108,126 @@ def get_dependency_install_command(
         resolved.
 
     """
-    if module_names is None:
-        selected_module_names = list(DEPENDENCY_INSTALL_REQUIREMENTS)
-    else:
-        selected_module_names = [
-            module_name
-            for module_name in module_names
-            if module_name in DEPENDENCY_INSTALL_REQUIREMENTS
-        ]
-    if not selected_module_names:
-        msg = "No known dependencies were selected for installation."
-        logger.error(msg)
-        raise RuntimeError(msg)
+    return get_dependency_install_commands(module_names)[0]
 
+
+def get_dependency_install_commands(
+    module_names: Iterable[str] | None = None,
+) -> DependencyInstallPlan:
+    """Build pip commands used to install plugin dependencies.
+
+    Parameters
+    ----------
+    module_names : Iterable[str] | None, optional
+        Dependency package names to install. When omitted, all known plugin
+        dependencies are installed.
+
+    Returns
+    -------
+    DependencyInstallPlan
+        Command argument lists suitable for ``subprocess`` execution.
+
+    Raises
+    ------
+    RuntimeError
+        Raised when the current QGIS runtime Python interpreter cannot be
+        resolved or no known dependencies were selected.
+
+    Notes
+    -----
+    The local ``geosam`` package is installed in a separate ``--no-deps`` step.
+    QGIS already owns geospatial runtime packages such as rasterio, geopandas,
+    and pyproj; resolving the local package dependencies through pip can force
+    pip to reconcile wheel metadata that does not match QGIS' bundled runtime.
+
+    """
+    selected_module_names = _selected_dependency_module_names(module_names)
     python_interpreter = resolve_python_interpreter()
-    return [
+    constraints_path = _create_qgis_runtime_constraints_file()
+    commands: DependencyInstallPlan = []
+    resolver_module_names = [
+        module_name for module_name in selected_module_names if module_name != "geosam"
+    ]
+
+    if resolver_module_names:
+        command = _dependency_install_command_base(
+            python_interpreter,
+            constraints_path,
+        )
+        command.extend(
+            [
+                _dependency_install_requirement(module_name)
+                for module_name in resolver_module_names
+            ]
+        )
+        commands.append(command)
+
+    if "geosam" in selected_module_names:
+        commands.append(
+            [
+                str(python_interpreter),
+                "-m",
+                "pip",
+                "install",
+                "--no-deps",
+                _dependency_install_requirement("geosam"),
+            ]
+        )
+
+    return commands
+
+
+def format_dependency_install_commands(commands: Iterable[Iterable[str]]) -> str:
+    """Return readable dependency installation commands.
+
+    Parameters
+    ----------
+    commands : Iterable[Iterable[str]]
+        Command argument lists produced by :func:`get_dependency_install_commands`.
+
+    Returns
+    -------
+    str
+        Shell-readable command text for logs, one command per line.
+
+    """
+    return "\n".join(
+        format_dependency_install_command(command) for command in commands
+    )
+
+
+def _dependency_install_command_base(
+    python_interpreter: Path,
+    constraints_path: Path | None,
+) -> DependencyInstallCommand:
+    """Build the shared pip install command prefix.
+
+    Parameters
+    ----------
+    python_interpreter : Path
+        Python interpreter used by the active QGIS runtime.
+    constraints_path : Path | None
+        Runtime constraints file path, or ``None`` when no constraints exist.
+
+    Returns
+    -------
+    DependencyInstallCommand
+        Command prefix for dependency-resolving pip installs.
+
+    """
+    command: DependencyInstallCommand = [
         str(python_interpreter),
         "-m",
         "pip",
         "install",
-        *[
-            _dependency_install_requirement(module_name)
-            for module_name in selected_module_names
-        ],
+        "--upgrade-strategy",
+        "only-if-needed",
+        "--only-binary",
+        ",".join(PIP_ONLY_BINARY_DISTRIBUTIONS),
     ]
+    if constraints_path is not None:
+        command.extend(["--constraint", str(constraints_path)])
+    return command
 
 
 def format_dependency_install_command(command: Iterable[str]) -> str:
@@ -719,30 +1264,38 @@ def install_dependencies(
 
     """
     try:
-        command = get_dependency_install_command()
+        commands = get_dependency_install_commands()
     except RuntimeError as exc:
         logger.error("Dependency installation aborted: %s", exc)
         return False, str(exc)
 
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
     output_lines: list[str] = []
 
-    if process.stdout is not None:
-        for raw_line in process.stdout:
-            line = raw_line.rstrip()
-            output_lines.append(line)
-            if log_callback is not None:
-                log_callback(line)
+    for command in commands:
+        if log_callback is not None:
+            log_callback(f"Command: {format_dependency_install_command(command)}")
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
 
-    return_code = process.wait()
+        if process.stdout is not None:
+            for raw_line in process.stdout:
+                line = raw_line.rstrip()
+                output_lines.append(line)
+                if log_callback is not None:
+                    log_callback(line)
+
+        return_code = process.wait()
+        if return_code != 0:
+            output = "\n".join(line for line in output_lines if line.strip())
+            return False, output
+
     output = "\n".join(line for line in output_lines if line.strip())
-    return return_code == 0, output
+    return True, output
 
 
 def open_url(url: str) -> None:
