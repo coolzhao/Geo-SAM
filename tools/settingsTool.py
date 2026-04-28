@@ -161,8 +161,8 @@ class GeoSamSettingsDialog(QDialog):
         self.clear_all_dependencies_button.clicked.connect(
             self.clear_all_dependencies_clicked
         )
-        button_row.addWidget(self.refresh_dependencies_button)
         button_row.addWidget(self.install_dependencies_button)
+        button_row.addWidget(self.refresh_dependencies_button)
         button_row.addWidget(self.open_dependency_folder_button)
         button_row.addWidget(self.clear_current_dependencies_button)
         button_row.addWidget(self.clear_all_dependencies_button)
