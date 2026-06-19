@@ -14,11 +14,11 @@ from qgis.core import (
     QgsRectangle,
     QgsWkbTypes,
 )
-from qgis.gui import QgisInterface, QgsDoubleSpinBox, QgsFileWidget, QgsMapToolPan
+from qgis.gui import QgisInterface, QgsFileWidget, QgsMapToolPan
 from qgis.PyQt import QtCore
 from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
-from qgis.PyQt.QtGui import QColor, QKeySequence
-from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog, QShortcut
+from qgis.PyQt.QtGui import QColor, QKeySequence, QShortcut
+from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog
 from rasterio.windows import from_bounds as window_from_bounds
 from torchgeo.datasets import BoundingBox
 from torchgeo.samplers import Units
@@ -162,12 +162,15 @@ class Selector(QDockWidget):
 
             ######### Setting default parameters for items #########
             self.wdg_sel.MapLayerComboBox.setFilters(
-                QgsMapLayerProxyModel.PolygonLayer | QgsMapLayerProxyModel.VectorLayer
+                QgsMapLayerProxyModel.Filter.PolygonLayer
+                | QgsMapLayerProxyModel.Filter.VectorLayer
             )
             self.wdg_sel.MapLayerComboBox.setAllowEmptyLayer(True)
             self.wdg_sel.MapLayerComboBox.setAdditionalLayers([None])
 
-            self.wdg_sel.QgsFile_feature.setStorageMode(QgsFileWidget.GetDirectory)
+            self.wdg_sel.QgsFile_feature.setStorageMode(
+                QgsFileWidget.StorageMode.GetDirectory
+            )
 
             # set button checkable
             self.wdg_sel.pushButton_fg.setCheckable(True)
@@ -252,13 +255,15 @@ class Selector(QDockWidget):
 
             ########### shortcuts ############
             # create shortcuts
-            self.shortcut_clear = QShortcut(QKeySequence(Qt.Key_C), self.wdg_sel)
-            self.shortcut_undo = QShortcut(QKeySequence(Qt.Key_Z), self.wdg_sel)
-            self.shortcut_save = QShortcut(QKeySequence(Qt.Key_S), self.wdg_sel)
-            self.shortcut_hover_mode = QShortcut(QKeySequence(Qt.Key_P), self.wdg_sel)
-            self.shortcut_tab = QShortcut(QKeySequence(Qt.Key_Tab), self.wdg_sel)
+            self.shortcut_clear = QShortcut(QKeySequence(Qt.Key.Key_C), self.wdg_sel)
+            self.shortcut_undo = QShortcut(QKeySequence(Qt.Key.Key_Z), self.wdg_sel)
+            self.shortcut_save = QShortcut(QKeySequence(Qt.Key.Key_S), self.wdg_sel)
+            self.shortcut_hover_mode = QShortcut(
+                QKeySequence(Qt.Key.Key_P), self.wdg_sel
+            )
+            self.shortcut_tab = QShortcut(QKeySequence(Qt.Key.Key_Tab), self.wdg_sel)
             self.shortcut_undo_sam_pg = QShortcut(
-                QKeySequence(QKeySequence.Undo), self.wdg_sel
+                QKeySequence(QKeySequence.StandardKey.Undo), self.wdg_sel
             )
 
             # connect shortcuts
@@ -271,12 +276,12 @@ class Selector(QDockWidget):
 
             # set context for shortcuts to application
             # this will make shortcuts work even if the widget is not focused
-            self.shortcut_clear.setContext(Qt.ApplicationShortcut)
-            self.shortcut_undo.setContext(Qt.ApplicationShortcut)
-            self.shortcut_save.setContext(Qt.ApplicationShortcut)
-            self.shortcut_hover_mode.setContext(Qt.ApplicationShortcut)
-            self.shortcut_tab.setContext(Qt.ApplicationShortcut)
-            self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
+            self.shortcut_clear.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_undo.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_save.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_hover_mode.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_undo_sam_pg.setContext(Qt.ShortcutContext.ApplicationShortcut)
 
             # disable tool buttons when no feature loaded
             self.wdg_sel.radioButton_enable.setChecked(False)
@@ -285,7 +290,7 @@ class Selector(QDockWidget):
 
             ########## set dock ##########
             self.wdg_sel.setFloating(True)
-            self.wdg_sel.setFocusPolicy(Qt.StrongFocus)
+            self.wdg_sel.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
             # default is fgpt, but do not change when reloading feature folder
             # self.reset_prompt_type()
@@ -294,7 +299,7 @@ class Selector(QDockWidget):
             self.clear_layers(clear_extent=True)
 
         # add widget to QGIS
-        self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
+        self.iface.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, self.wdg_sel)
 
         self.toggle_edit_mode()
         # self.toggle_encoding_extent()
@@ -382,7 +387,7 @@ class Selector(QDockWidget):
     def disconnect_safely(self, item):
         try:
             item.disconnect()
-        except:
+        except (RuntimeError, TypeError):
             pass
 
     def reset_to_project_crs(self):
@@ -828,7 +833,7 @@ class Selector(QDockWidget):
         new_layer: QgsMapLayer = self.wdg_sel.MapLayerComboBox.currentLayer()  # noqa: F821
         if new_layer is not None:
             # if new_layer.type() != QgsMapLayer.VectorLayer:
-            if new_layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+            if new_layer.geometryType() != QgsWkbTypes.GeometryType.PolygonGeometry:
                 MessageTool.MessageBoxOK(
                     f"Layer {new_layer.name()} is not a polygon vector layer, please choose another one"
                 )
@@ -930,8 +935,8 @@ class Selector(QDockWidget):
     def create_vector_file(self) -> None:
         """Create a new vector file for SAM output"""
         file_dialog = QFileDialog()
-        file_dialog.setFileMode(QFileDialog.AnyFile)
-        file_dialog.setOption(QFileDialog.DontConfirmOverwrite, True)
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)
 
         file_path, _ = file_dialog.getSaveFileName(
             None, "Create Vector File", "", shp_file_create_filter
@@ -952,7 +957,7 @@ class Selector(QDockWidget):
     def load_vector_file(self) -> None:
         """Load a existed vector file for SAM output"""
         file_dialog = QFileDialog()
-        file_dialog.setFileMode(QFileDialog.AnyFile)
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
 
         file_path, _ = file_dialog.getOpenFileName(
             None, "Load Vector File", "", shp_file_load_filter
@@ -1242,7 +1247,7 @@ class EncoderCopilot(QDockWidget):
             ########## connect functions to widget items ##########
             # upper part
             self.wdg_copilot.MapLayerComboBox.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.wdg_copilot.MapLayerComboBox.layerChanged.connect(
                 self.parse_raster_info
@@ -1281,7 +1286,9 @@ class EncoderCopilot(QDockWidget):
             self.wdg_copilot.AdvancedParameterGroupBox.setCollapsed(True)
             # checkpoint
             self.wdg_copilot.CheckpointFileWidget.setFilter("*.pth")
-            self.wdg_copilot.CheckpointFileWidget.setStorageMode(QgsFileWidget.GetFile)
+            self.wdg_copilot.CheckpointFileWidget.setStorageMode(
+                QgsFileWidget.StorageMode.GetFile
+            )
             self.wdg_copilot.CheckpointFileWidget.setConfirmOverwrite(False)
 
             # model types
@@ -1577,7 +1584,7 @@ class EncoderCopilot(QDockWidget):
 
         file_dialog = QFileDialog()
         file_dialog.setDefaultSuffix("json")
-        file_dialog.setFileMode(QFileDialog.AnyFile)
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
 
         file_path, _ = file_dialog.getSaveFileName(
             None, "Save Setting to File", "", "Json Files (*.json)"

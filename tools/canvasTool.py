@@ -50,22 +50,30 @@ from .ulid import GroupId
 
 qgis_version = Qgis.QGIS_VERSION_INT
 
-# QVariant has been deprecated in version 3.38, use QMetaType instead
+# QVariant was deprecated in QGIS 3.38; QMetaType is required by QGIS 4.
 if qgis_version < 33800:
-    from qgis.PyQt.QtCore import QVariant as QMetaType
+    from qgis.PyQt.QtCore import QVariant
 
-    QMetaType.QString = QMetaType.String
+    FIELD_TYPE_STRING = QVariant.String
+    FIELD_TYPE_INT = QVariant.Int
+    FIELD_TYPE_DOUBLE = QVariant.Double
+    FIELD_TYPE_BOOL = QVariant.Bool
 else:
     from qgis.PyQt.QtCore import QMetaType
 
+    FIELD_TYPE_STRING = QMetaType.Type.QString
+    FIELD_TYPE_INT = QMetaType.Type.Int
+    FIELD_TYPE_DOUBLE = QMetaType.Type.Double
+    FIELD_TYPE_BOOL = QMetaType.Type.Bool
+
 SAM_Feature_Fields = [
-    QgsField("group_ulid", QMetaType.QString),
-    QgsField("N_GM", QMetaType.Int),
-    QgsField("id", QMetaType.Int),
-    QgsField("Area", QMetaType.Double),
-    QgsField("N_FG", QMetaType.Int),
-    QgsField("N_BG", QMetaType.Int),
-    QgsField("BBox", QMetaType.Bool),
+    QgsField("group_ulid", FIELD_TYPE_STRING),
+    QgsField("N_GM", FIELD_TYPE_INT),
+    QgsField("id", FIELD_TYPE_INT),
+    QgsField("Area", FIELD_TYPE_DOUBLE),
+    QgsField("N_FG", FIELD_TYPE_INT),
+    QgsField("N_BG", FIELD_TYPE_INT),
+    QgsField("BBox", FIELD_TYPE_BOOL),
 ]
 SAM_Feature_QgsFields = QgsFields()
 new_fields = QgsFields()
@@ -99,9 +107,14 @@ class Canvas_Rectangle:
         self.img_crs_manager = img_crs_manager
         self.alpha = alpha
         self.line_width = line_width
-        self.rubberBand = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+        self.rubberBand = QgsRubberBand(
+            self.canvas, QgsWkbTypes.GeometryType.PolygonGeometry
+        )
 
-        self.colors_bbox = {"fill_color": QColor(0, 0, 255, 10), "line_color": Qt.blue}
+        self.colors_bbox = {
+            "fill_color": QColor(0, 0, 255, 10),
+            "line_color": Qt.GlobalColor.blue,
+        }
         self.colors_extent = {
             "fill_color": QColor(0, 0, 0, 0),
             "line_color": QColor(255, 0, 0),
@@ -186,7 +199,7 @@ class Canvas_Rectangle:
 
     def clear(self):
         """Clear the rectangle on canvas"""
-        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
+        self.rubberBand.reset(QgsWkbTypes.GeometryType.PolygonGeometry)
         self.canvas.refresh()
         self.rect_list.clear()
 
@@ -205,7 +218,7 @@ class Canvas_Rectangle:
                     self.clear()
 
     def showRect(self, startPoint, endPoint):
-        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
+        self.rubberBand.reset(QgsWkbTypes.GeometryType.PolygonGeometry)
         if startPoint.x() == endPoint.x() or startPoint.y() == endPoint.y():
             return None
 
@@ -298,7 +311,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.startPoint = self.endPoint = None
         self.isEmittingPoint = False
         self.have_added_for_moving = False
-        self.canvas_rect.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
+        self.canvas_rect.rubberBand.reset(QgsWkbTypes.GeometryType.PolygonGeometry)
 
     def canvasPressEvent(self, e):
         self.pressed = False
@@ -444,7 +457,7 @@ class Canvas_Points:
         self.background_color = QColor(255, 0, 0)
         self.point_size = 1
         # enum type: circle = 4, https://api.qgis.org/api/qgsvertexmarker_8h_source.html
-        self.icon_type = QgsVertexMarker.ICON_CIRCLE
+        self.icon_type = QgsVertexMarker.IconType.ICON_CIRCLE
 
     @property
     def project_crs(self):
@@ -656,7 +669,9 @@ class Canvas_SAM_Polygon:
         self.line_width = line_width
 
     def new_rubber_band(self):
-        rubber_band = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+        rubber_band = QgsRubberBand(
+            self.canvas, QgsWkbTypes.GeometryType.PolygonGeometry
+        )
         self.set_layer_style(
             rubber_band, self.fill_color, self.line_color, self.line_width
         )
@@ -754,14 +769,14 @@ class SAM_PolygonFeature:
     def layer_name(self):
         try:
             return self.layer.name()
-        except:
+        except (AttributeError, RuntimeError):
             return self.default_name
 
     @property
     def layer_id(self):
         try:
             return self.layer.id()
-        except:
+        except (AttributeError, RuntimeError):
             return None
 
     def reset_geojson(self):
@@ -810,7 +825,7 @@ class SAM_PolygonFeature:
             writer = QgsVectorFileWriter.create(
                 shapefile,
                 SAM_Feature_QgsFields,
-                QgsWkbTypes.Polygon,
+                QgsWkbTypes.Type.Polygon,
                 self.img_crs_manager.img_crs,
                 transform_context,
                 save_options,

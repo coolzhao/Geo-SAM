@@ -34,7 +34,8 @@ from qgis.core import (
 )
 from qgis.gui import QgsDockWidget, QgsFileWidget
 from qgis.PyQt.QtCore import QCoreApplication
-from qgis.PyQt.QtWidgets import QAction, QDockWidget
+from qgis.PyQt.QtGui import QAction
+from qgis.PyQt.QtWidgets import QDockWidget
 from qgis.utils import iface
 from segment_anything import sam_model_registry
 from segment_anything.modeling import Sam
@@ -122,7 +123,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             description=self.tr(
                 "Target resolution in meters (default to native resolution)"
             ),
-            type=QgsProcessingParameterNumber.Double,
+            type=QgsProcessingParameterNumber.Type.Double,
             optional=True,
             minValue=0,
             maxValue=100000,
@@ -134,7 +135,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             description=self.tr(
                 "Data value range to be rescaled to [0, 255] (default to [min, max] of the values)"
             ),  # inside processing extent
-            type=QgsProcessingParameterNumber.Double,
+            type=QgsProcessingParameterNumber.Type.Double,
             defaultValue=None,
             optional=True,
         )
@@ -145,7 +146,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             description=self.tr(
                 "CUDA Device ID (choose which GPU to use, default to device 0)"
             ),
-            type=QgsProcessingParameterNumber.Integer,
+            type=QgsProcessingParameterNumber.Type.Integer,
             defaultValue=0,
             minValue=0,
             maxValue=9,
@@ -166,7 +167,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 description=self.tr(
                     "Stride (large image will be sampled into overlapped patches)"
                 ),
-                type=QgsProcessingParameterNumber.Integer,
+                type=QgsProcessingParameterNumber.Type.Integer,
                 defaultValue=512,
                 minValue=1,
                 maxValue=1024,
@@ -215,7 +216,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 description=self.tr(
                     "Batch size (take effect if choose to use GPU and CUDA is available)"
                 ),
-                type=QgsProcessingParameterNumber.Integer,
+                type=QgsProcessingParameterNumber.Type.Integer,
                 defaultValue=1,
                 minValue=1,
                 maxValue=1024,
@@ -232,7 +233,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
         for param in (crs_param, res_param, range_param, cuda_id_param):
             param.setFlags(
-                param.flags() | QgsProcessingParameterDefinition.FlagAdvanced
+                param.flags() | QgsProcessingParameterDefinition.Flag.FlagAdvanced
             )
             self.addParameter(param)
 
@@ -397,7 +398,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             for band in self.selected_bands:
                 band_stats = rlayer_data_provider.bandStatistics(
                     bandNo=band,
-                    stats=QgsRasterBandStats.All,
+                    stats=QgsRasterBandStats.Stats.All,
                     extent=stat_extent,
                     sampleSize=sample_size,
                 )

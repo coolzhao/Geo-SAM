@@ -32,14 +32,14 @@ color_list = [
 ]
 
 ICON_TYPE = {
-    "Cross": QgsVertexMarker.ICON_CROSS,
-    "X": QgsVertexMarker.ICON_X,
-    "Box": QgsVertexMarker.ICON_BOX,
-    "Circle": QgsVertexMarker.ICON_CIRCLE,
-    "D_triangle": QgsVertexMarker.ICON_DOUBLE_TRIANGLE,
-    "Triangle": QgsVertexMarker.ICON_TRIANGLE,
-    "Rhombus": QgsVertexMarker.ICON_RHOMBUS,
-    "I_triangle": QgsVertexMarker.ICON_INVERTED_TRIANGLE,
+    "Cross": QgsVertexMarker.IconType.ICON_CROSS,
+    "X": QgsVertexMarker.IconType.ICON_X,
+    "Box": QgsVertexMarker.IconType.ICON_BOX,
+    "Circle": QgsVertexMarker.IconType.ICON_CIRCLE,
+    "D_triangle": QgsVertexMarker.IconType.ICON_DOUBLE_TRIANGLE,
+    "Triangle": QgsVertexMarker.IconType.ICON_TRIANGLE,
+    "Rhombus": QgsVertexMarker.IconType.ICON_RHOMBUS,
+    "I_triangle": QgsVertexMarker.IconType.ICON_INVERTED_TRIANGLE,
 }
 
 Settings: dict = DefaultSettings.copy()

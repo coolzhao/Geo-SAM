@@ -1,21 +1,22 @@
 import os
 
 from qgis.PyQt.QtCore import QSize
-from qgis.PyQt.QtGui import QCursor, QIcon
-from qgis.core import Qgis, QgsApplication
+from qgis.PyQt.QtGui import QCursor, QFontMetrics, QIcon
+from qgis.PyQt.QtWidgets import QApplication
+from qgis.core import Qgis
 
 __all__ = [
-    'CursorPointFG',
-    'CursorPointBG',
-    'CursorRect',
-    'customize_fg_point_cursor',
-    'customize_bg_point_cursor',
-    'customize_bbox_cursor'
+    "CursorPointFG",
+    "CursorPointBG",
+    "CursorRect",
+    "customize_fg_point_cursor",
+    "customize_bg_point_cursor",
+    "customize_bbox_cursor",
 ]
 
 cwd = os.path.abspath(os.path.dirname(__file__))
 
-__point_cursor_str = '''<?xml version="1.0" encoding="utf-8"?>
+__point_cursor_str = """<?xml version="1.0" encoding="utf-8"?>
 <!-- Generator: Adobe Illustrator 25.4.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
 <svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 viewBox="0 0 37.9 38" style="enable-background:new 0 0 37.9 38;" xml:space="preserve">
@@ -34,9 +35,9 @@ __point_cursor_str = '''<?xml version="1.0" encoding="utf-8"?>
 <line class="st1" x1="18.9" y1="38" x2="18.9" y2="0"/>
 <circle class="st2" cx="18.9" cy="19" r="7.5"/>
 </svg>
-'''
+"""
 
-__rect_cursor_str = '''<?xml version="1.0" encoding="utf-8"?>
+__rect_cursor_str = """<?xml version="1.0" encoding="utf-8"?>
 <!-- Generator: Adobe Illustrator 25.4.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
 <svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 viewBox="0 0 37.9 37.8" style="enable-background:new 0 0 37.9 37.8;" xml:space="preserve">
@@ -55,15 +56,15 @@ __rect_cursor_str = '''<?xml version="1.0" encoding="utf-8"?>
 <line class="st1" x1="18.9" y1="37.8" x2="18.9" y2="0"/>
 <rect x="21.3" y="21.4" class="st2" width="15.1" height="14.9"/>
 </svg>
-'''
+"""
 
-st0_point = 'fill:#FFFFFF;'
-st1_point = 'fill:none;stroke:#000000;stroke-width:2;stroke-miterlimit:10;'
-st2_point = 'fill:{};'
+st0_point = "fill:#FFFFFF;"
+st1_point = "fill:none;stroke:#000000;stroke-width:2;stroke-miterlimit:10;"
+st2_point = "fill:{};"
 
-st0_rect = 'fill:#FFFFFF;'
-st1_rect = 'fill:none;stroke:#000000;stroke-width:2;stroke-miterlimit:10;'
-st2_rect = 'fill:none;stroke:{};stroke-width:3;stroke-miterlimit:10;'
+st0_rect = "fill:#FFFFFF;"
+st1_rect = "fill:none;stroke:#000000;stroke-width:2;stroke-miterlimit:10;"
+st2_rect = "fill:none;stroke:{};stroke-width:3;stroke-miterlimit:10;"
 
 CursorPointBlue_path = os.path.join(cwd, "CursorPointBlue.svg")
 CursorPointRed_path = os.path.join(cwd, "CursorPointRed.svg")
@@ -75,71 +76,42 @@ CursorBG_path = CursorPointRed_path
 CursorBBox_path = CursorRect_path
 
 # scaling ref: https://github.com/qgis/QGIS/blob/11c77af3dd95fb1f5bb4ce3a4ef5dc97de951ec5/src/core/qgsapplication.cpp#L873
-UI_SCALE = round(Qgis.UI_SCALE_FACTOR *
-                 QgsApplication.fontMetrics().height())  # / 32.0
+UI_SCALE = round(
+    Qgis.UI_SCALE_FACTOR * QFontMetrics(QApplication.font()).height()
+)  # / 32.0
 # QIcon("filepath.svg").pixmap(QSize()) https://stackoverflow.com/a/36936216
 
 
-CursorPointFG = QCursor(
-    QIcon(CursorFG_path)
-    .pixmap(QSize(UI_SCALE, UI_SCALE))
-)
+CursorPointFG = QCursor(QIcon(CursorFG_path).pixmap(QSize(UI_SCALE, UI_SCALE)))
 
-CursorPointBG = QCursor(
-    QIcon(CursorPointRed_path)
-    .pixmap(QSize(UI_SCALE, UI_SCALE))
-)
+CursorPointBG = QCursor(QIcon(CursorPointRed_path).pixmap(QSize(UI_SCALE, UI_SCALE)))
 
-CursorRect = QCursor(
-    QIcon(CursorRect_path)
-    .pixmap(QSize(UI_SCALE, UI_SCALE))
-)
+CursorRect = QCursor(QIcon(CursorRect_path).pixmap(QSize(UI_SCALE, UI_SCALE)))
 
 
 def customize_fg_point_cursor(color2):
-    svg = __point_cursor_str.format(
-        st0_point,
-        st1_point,
-        st2_point.format(color2)
-    )
-    with open(CursorFG_path, 'w') as f:
+    svg = __point_cursor_str.format(st0_point, st1_point, st2_point.format(color2))
+    with open(CursorFG_path, "w") as f:
         f.write(svg)
 
-    CursorPointFG = QCursor(
-        QIcon(CursorFG_path)
-        .pixmap(QSize(UI_SCALE, UI_SCALE))
-    )
+    CursorPointFG = QCursor(QIcon(CursorFG_path).pixmap(QSize(UI_SCALE, UI_SCALE)))
     return CursorPointFG
 
 
 def customize_bg_point_cursor(color2):
-    svg = __point_cursor_str.format(
-        st0_point,
-        st1_point,
-        st2_point.format(color2)
-    )
-    with open(CursorBG_path, 'w') as f:
+    svg = __point_cursor_str.format(st0_point, st1_point, st2_point.format(color2))
+    with open(CursorBG_path, "w") as f:
         f.write(svg)
 
-    CursorPointBG = QCursor(
-        QIcon(CursorBG_path)
-        .pixmap(QSize(UI_SCALE, UI_SCALE))
-    )
+    CursorPointBG = QCursor(QIcon(CursorBG_path).pixmap(QSize(UI_SCALE, UI_SCALE)))
     return CursorPointBG
 
 
 def customize_bbox_cursor(color2):
-    svg = __rect_cursor_str.format(
-        st0_rect,
-        st1_rect,
-        st2_rect.format(color2)
-    )
+    svg = __rect_cursor_str.format(st0_rect, st1_rect, st2_rect.format(color2))
 
-    with open(CursorBBox_path, 'w') as f:
+    with open(CursorBBox_path, "w") as f:
         f.write(svg)
 
-    CursorRect = QCursor(
-        QIcon(CursorBBox_path)
-        .pixmap(QSize(UI_SCALE, UI_SCALE))
-    )
+    CursorRect = QCursor(QIcon(CursorBBox_path).pixmap(QSize(UI_SCALE, UI_SCALE)))
     return CursorRect
