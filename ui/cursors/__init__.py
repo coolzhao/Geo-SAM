@@ -1,7 +1,7 @@
 import os
 
-from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QCursor, QIcon
+from qgis.PyQt.QtCore import QSize
+from qgis.PyQt.QtGui import QCursor, QFontMetrics, QIcon
 from qgis.core import Qgis, QgsApplication
 
 __all__ = [
@@ -76,7 +76,7 @@ CursorBBox_path = CursorRect_path
 
 # scaling ref: https://github.com/qgis/QGIS/blob/11c77af3dd95fb1f5bb4ce3a4ef5dc97de951ec5/src/core/qgsapplication.cpp#L873
 UI_SCALE = round(Qgis.UI_SCALE_FACTOR *
-                 QgsApplication.fontMetrics().height())  # / 32.0
+                 QFontMetrics(QgsApplication.font()).height())  # / 32.0
 # QIcon("filepath.svg").pixmap(QSize()) https://stackoverflow.com/a/36936216
 
 

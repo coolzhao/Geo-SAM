@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor
+from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtGui import QColor
 from qgis._gui import QgsMapMouseEvent
 from qgis.core import (
     QgsCoordinateTransform,
@@ -121,11 +121,11 @@ class Canvas_Rectangle:
         self.alpha = alpha
         self.line_width = line_width
         self.rubberBand = QgsRubberBand(
-            self.canvas, QgsWkbTypes.PolygonGeometry)
+            self.canvas, QgsWkbTypes.GeometryType.PolygonGeometry)
 
         self.colors_bbox = {
             'fill_color': QColor(0, 0, 255, 10),
-            'line_color': Qt.blue
+            'line_color': Qt.GlobalColor.blue
         }
         self.colors_extent = {
             'fill_color': QColor(0, 0, 0, 0),
@@ -215,7 +215,7 @@ class Canvas_Rectangle:
 
     def clear(self):
         '''Clear the rectangle on canvas'''
-        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
+        self.rubberBand.reset(QgsWkbTypes.GeometryType.PolygonGeometry)
         self.canvas.refresh()
         self.rect_list.clear()
 
@@ -234,7 +234,7 @@ class Canvas_Rectangle:
                     self.clear()
 
     def showRect(self, startPoint, endPoint):
-        self.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
+        self.rubberBand.reset(QgsWkbTypes.GeometryType.PolygonGeometry)
         if startPoint.x() == endPoint.x() or startPoint.y() == endPoint.y():
             return
 
@@ -323,7 +323,7 @@ class RectangleMapTool(QgsMapToolEmitPoint):
         self.startPoint = self.endPoint = None
         self.isEmittingPoint = False
         self.have_added_for_moving = False
-        self.canvas_rect.rubberBand.reset(QgsWkbTypes.PolygonGeometry)
+        self.canvas_rect.rubberBand.reset(QgsWkbTypes.GeometryType.PolygonGeometry)
 
     def canvasPressEvent(self, e):
         self.pressed = False
@@ -672,7 +672,9 @@ class Canvas_SAM_Polygon:
         self.line_width = line_width
 
     def new_rubber_band(self):
-        rubber_band = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+        rubber_band = QgsRubberBand(
+            self.canvas, QgsWkbTypes.GeometryType.PolygonGeometry
+        )
         self.set_layer_style(
             rubber_band,
             self.fill_color,
@@ -862,7 +864,7 @@ class SAM_PolygonFeature:
             writer = QgsVectorFileWriter.create(
                 shapefile,
                 SAM_Feature_QgsFields,
-                QgsWkbTypes.Polygon,
+                QgsWkbTypes.Type.Polygon,
                 self.img_crs_manager.img_crs,
                 transform_context,
                 save_options

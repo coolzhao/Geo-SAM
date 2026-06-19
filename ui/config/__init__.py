@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from PyQt5.QtGui import QColor
+from qgis.PyQt.QtGui import QColor
 
 __all__ = ['Settings', "DefaultSettings", "save_user_settings"]
 

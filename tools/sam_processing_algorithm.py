@@ -84,7 +84,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
     def flags(self) -> Any:
         """Return processing flags for the algorithm."""
-        return super().flags() | QgsProcessingAlgorithm.FlagNoThreading
+        return super().flags() | QgsProcessingAlgorithm.Flag.FlagNoThreading
 
     def initAlgorithm(self, config: dict[str, Any] | None = None) -> None:
         """Define processing inputs."""
@@ -117,7 +117,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             description=self.tr(
                 "Target resolution in meters (default to native resolution)"
             ),
-            type=QgsProcessingParameterNumber.Double,
+            type=QgsProcessingParameterNumber.Type.Double,
             optional=True,
             minValue=0,
             maxValue=100000,
@@ -127,14 +127,14 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             description=self.tr(
                 "Data value range rescaled to [0, 255] (optional fixed range)."
             ),
-            type=QgsProcessingParameterNumber.Double,
+            type=QgsProcessingParameterNumber.Type.Double,
             defaultValue=None,
             optional=True,
         )
         cuda_id_param = QgsProcessingParameterNumber(
             name=self.CUDA_ID,
             description=self.tr("CUDA device id (default to 0)"),
-            type=QgsProcessingParameterNumber.Integer,
+            type=QgsProcessingParameterNumber.Type.Integer,
             defaultValue=0,
             minValue=0,
             maxValue=9,
@@ -150,7 +150,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterNumber(
                 name=self.STRIDE,
                 description=self.tr("Sliding-window stride."),
-                type=QgsProcessingParameterNumber.Integer,
+                type=QgsProcessingParameterNumber.Type.Integer,
                 defaultValue=512,
                 minValue=1,
                 maxValue=1024,
@@ -194,7 +194,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                     "Batch size placeholder. GeoSAM currently encodes one chip "
                     "at a time."
                 ),
-                type=QgsProcessingParameterNumber.Integer,
+                type=QgsProcessingParameterNumber.Type.Integer,
                 defaultValue=1,
                 minValue=1,
                 maxValue=1024,
@@ -217,7 +217,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             memory_strategy_param,
         ):
             param.setFlags(
-                param.flags() | QgsProcessingParameterDefinition.FlagAdvanced
+                param.flags() | QgsProcessingParameterDefinition.Flag.FlagAdvanced
             )
             if param is not memory_strategy_param:
                 self.addParameter(param)
@@ -379,17 +379,39 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         features_dir = output_dir / "features"
         features_dir.mkdir(parents=True, exist_ok=True)
 
-        feedback.pushInfo(f"Layer path: {source_path}")
-        feedback.pushInfo(f"Layer name: {raster_layer.name()}")
-        feedback.pushInfo(f"Bands selected: {selected_bands}")
-        feedback.pushInfo(f"Target CRS: {target_crs.authid() or target_crs.toWkt()}")
-        feedback.pushInfo(f"Target resolution: {resolution} {target_units}")
-        feedback.pushInfo(f"Device type: {device or 'cpu'}")
-        feedback.pushInfo(f"GeoSAM model: {self.model_options[model_index][1]}")
-        feedback.pushInfo(f"Checkpoint path: {checkpoint_path}")
-        feedback.pushInfo(f"Memory strategy: {memory_strategy}")
-        feedback.pushInfo(f"Patch size: {model_spec.resolved_imgsz}")
-        feedback.pushInfo(f"Patch sample num: {len(chip_rectangles)}")
+        feedback.pushInfo(self.tr("Layer path: {path}").format(path=source_path))
+        feedback.pushInfo(self.tr("Layer name: {name}").format(name=raster_layer.name()))
+        feedback.pushInfo(
+            self.tr("Bands selected: {bands}").format(bands=selected_bands)
+        )
+        feedback.pushInfo(
+            self.tr("Target CRS: {crs}").format(
+                crs=target_crs.authid() or target_crs.toWkt()
+            )
+        )
+        feedback.pushInfo(
+            self.tr("Target resolution: {resolution} {units}").format(
+                resolution=resolution, units=target_units
+            )
+        )
+        feedback.pushInfo(self.tr("Device type: {device}").format(device=device or "cpu"))
+        feedback.pushInfo(
+            self.tr("GeoSAM model: {model}").format(
+                model=self.model_options[model_index][1]
+            )
+        )
+        feedback.pushInfo(
+            self.tr("Checkpoint path: {path}").format(path=checkpoint_path)
+        )
+        feedback.pushInfo(
+            self.tr("Memory strategy: {strategy}").format(strategy=memory_strategy)
+        )
+        feedback.pushInfo(
+            self.tr("Patch size: {size}").format(size=model_spec.resolved_imgsz)
+        )
+        feedback.pushInfo(
+            self.tr("Patch sample count: {count}").format(count=len(chip_rectangles))
+        )
 
         rows: list[dict[str, Any]] = []
         total = 100 / len(chip_rectangles)
@@ -444,7 +466,11 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         manifest_path = output_dir / "manifest.parquet"
         manifest.to_parquet(manifest_path)
         elapsed_time = time.time() - start_time
-        feedback.pushInfo(f"GeoSAM encoding completed in {elapsed_time:.3f}s.")
+        feedback.pushInfo(
+            self.tr("GeoSAM encoding completed in {seconds:.3f}s.").format(
+                seconds=elapsed_time
+            )
+        )
         self.feature_dir = str(output_dir)
         return {
             "Output feature path": self.feature_dir,
@@ -637,7 +663,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         for band in selected_bands:
             band_stats = provider.bandStatistics(
                 bandNo=band,
-                stats=QgsRasterBandStats.All,
+                stats=QgsRasterBandStats.Stats.All,
                 extent=stat_extent,
                 sampleSize=min(int(1e8), raster_layer.width() * raster_layer.height()),
             )
@@ -685,7 +711,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             "mActionGeoSamTool",
         )
         if sam_tool_action is None:
-            feedback.pushInfo("\n Geo-SAM tool action not found. \n")
+            feedback.pushInfo(self.tr("Geo-SAM tool action not found."))
             return False
 
         sam_tool_action.trigger()
@@ -703,15 +729,18 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
                 load_feature_widget: QgsFileWidget = sam_tool_widget.QgsFile_feature
                 load_feature_widget.setFilePath(self.feature_dir)
                 sam_tool_widget.pushButton_load_feature.click()
-                loaded_message = (
-                    "\n GeoSAM widget found and features loaded in "
-                    f"{elapsed_time:.3f} ms \n"
+                loaded_message = self.tr(
+                    "GeoSAM widget found and features loaded in {milliseconds:.3f} ms."
+                ).format(
+                    milliseconds=elapsed_time
                 )
                 feedback.pushInfo(loaded_message)
                 return True
             if elapsed_time > 3000:
                 feedback.pushInfo(
-                    f"\n GeoSAM widget not found {elapsed_time:.3f} ms \n"
+                    self.tr("GeoSAM widget not found after {milliseconds:.3f} ms.").format(
+                        milliseconds=elapsed_time
+                    )
                 )
                 return False
 

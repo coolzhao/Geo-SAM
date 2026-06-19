@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt5.QtCore import QProcess, QThread, Qt, pyqtSignal
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import (
+from qgis.PyQt.QtCore import QProcess, QThread, Qt, pyqtSignal
+from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
@@ -33,6 +33,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .messageTool import MessageTool
+from .i18n import translate
 from .dependency_path import (
     clear_all_plugin_managed_site_packages,
     clear_current_plugin_managed_site_packages,
@@ -88,9 +89,12 @@ class ModelDownloadThread(QThread):
 class GeoSamSettingsDialog(QDialog):
     """Standalone settings dialog for the Geo-SAM plugin."""
 
+    DEPENDENCIES_TAB_INDEX = 0
+    MODEL_MANAGEMENT_TAB_INDEX = 1
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Geo-SAM Settings")
+        self.setWindowTitle(self.tr("Geo-SAM Settings"))
         self.resize(760, 520)
         self.settings = load_plugin_settings()
         self._dependency_install_process: QProcess | None = None
@@ -101,21 +105,44 @@ class GeoSamSettingsDialog(QDialog):
         self._model_download_thread: ModelDownloadThread | None = None
 
         self.tab_widget = QTabWidget(self)
-        self.tab_widget.addTab(self._build_dependency_tab(), "Dependencies")
-        self.tab_widget.addTab(self._build_model_tab(), "Model Management")
-        self.tab_widget.addTab(self._build_cache_tab(), "Cache")
-        self.tab_widget.addTab(self._build_help_tab(), "Help")
+        self.tab_widget.addTab(self._build_dependency_tab(), self.tr("Dependencies"))
+        self.tab_widget.addTab(self._build_model_tab(), self.tr("Model Management"))
+        self.tab_widget.addTab(self._build_cache_tab(), self.tr("Cache"))
+        self.tab_widget.addTab(self._build_help_tab(), self.tr("Help"))
 
-        self.close_button = QPushButton("Close", self)
+        self.close_button = QPushButton(self.tr("Close"), self)
         self.close_button.clicked.connect(self.accept)
 
         root_layout = QVBoxLayout(self)
         root_layout.addWidget(self.tab_widget)
-        root_layout.addWidget(self.close_button, alignment=Qt.AlignRight)
+        root_layout.addWidget(self.close_button, alignment=Qt.AlignmentFlag.AlignRight)
 
         self.refresh_dependency_status()
         self.refresh_model_list()
         self.refresh_cache_status()
+
+    def show_dependencies(self) -> None:
+        """Select the dependency management page."""
+        self.tab_widget.setCurrentIndex(self.DEPENDENCIES_TAB_INDEX)
+
+    def show_model_management(self, model_id: str | None = None) -> None:
+        """Select model management and optionally highlight a model.
+
+        Parameters
+        ----------
+        model_id : str | None, optional
+            Model identifier to select in the model list.
+
+        """
+        self.tab_widget.setCurrentIndex(self.MODEL_MANAGEMENT_TAB_INDEX)
+        if model_id is None:
+            return
+
+        for item_index in range(self.model_list.count()):
+            item = self.model_list.item(item_index)
+            if item.data(Qt.ItemDataRole.UserRole) == model_id:
+                self.model_list.setCurrentItem(item)
+                return
 
     def _build_dependency_tab(self) -> QWidget:
         tab = QWidget(self)
@@ -125,39 +152,52 @@ class GeoSamSettingsDialog(QDialog):
         self.dependency_summary_label.setWordWrap(True)
         self.dependency_storage_label = QLabel(tab)
         self.dependency_storage_label.setWordWrap(True)
-        self.dependency_storage_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.dependency_storage_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
 
         self.dependency_table = QTableWidget(tab)
         self.dependency_table.setColumnCount(4)
         self.dependency_table.setHorizontalHeaderLabels(
-            ["Package", "Status", "Version", "Source"]
+            [
+                self.tr("Package"),
+                self.tr("Status"),
+                self.tr("Version"),
+                self.tr("Source"),
+            ]
         )
         self.dependency_table.verticalHeader().setVisible(True)
         self.dependency_table.setAlternatingRowColors(True)
-        self.dependency_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.dependency_table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.dependency_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.dependency_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection
+        )
         self.dependency_table.horizontalHeader().setStretchLastSection(True)
         self.dependency_table.setMinimumHeight(220)
 
         button_row = QHBoxLayout()
-        self.refresh_dependencies_button = QPushButton("Refresh Status", tab)
+        self.refresh_dependencies_button = QPushButton(self.tr("Refresh Status"), tab)
         self.refresh_dependencies_button.clicked.connect(self.refresh_dependency_status)
-        self.install_dependencies_button = QPushButton("Install Missing", tab)
+        self.install_dependencies_button = QPushButton(self.tr("Install Missing"), tab)
         self.install_dependencies_button.clicked.connect(
             self.install_dependencies_clicked
         )
-        self.open_dependency_folder_button = QPushButton("Open Folder", tab)
+        self.open_dependency_folder_button = QPushButton(self.tr("Open Folder"), tab)
         self.open_dependency_folder_button.clicked.connect(
             self.open_dependency_folder_clicked
         )
         self.clear_current_dependencies_button = QPushButton(
-            "Clear Current Runtime",
+            self.tr("Clear Current Runtime"),
             tab,
         )
         self.clear_current_dependencies_button.clicked.connect(
             self.clear_current_dependencies_clicked
         )
-        self.clear_all_dependencies_button = QPushButton("Clear All Runtimes", tab)
+        self.clear_all_dependencies_button = QPushButton(
+            self.tr("Clear All Runtimes"), tab
+        )
         self.clear_all_dependencies_button.clicked.connect(
             self.clear_all_dependencies_clicked
         )
@@ -168,7 +208,7 @@ class GeoSamSettingsDialog(QDialog):
         button_row.addWidget(self.clear_all_dependencies_button)
 
         self.dependency_install_status_label = QLabel(
-            "Installable dependency status will appear here.",
+            self.tr("Installable dependency status will appear here."),
             tab,
         )
         self.dependency_install_status_label.setWordWrap(True)
@@ -179,7 +219,7 @@ class GeoSamSettingsDialog(QDialog):
         self.dependency_install_log = QPlainTextEdit(tab)
         self.dependency_install_log.setReadOnly(True)
         self.dependency_install_log.setPlaceholderText(
-            "Dependency installation output will appear here."
+            self.tr("Dependency installation output will appear here.")
         )
         self.dependency_install_log.setMinimumHeight(220)
 
@@ -196,27 +236,27 @@ class GeoSamSettingsDialog(QDialog):
         tab = QWidget(self)
         layout = QVBoxLayout(tab)
 
-        path_group = QGroupBox("Storage", tab)
+        path_group = QGroupBox(self.tr("Storage"), tab)
         path_layout = QGridLayout(path_group)
         self.model_dir_edit = QLineEdit(str(self.settings["model_store_dir"]), tab)
         self.model_dir_edit.editingFinished.connect(self.save_model_directory)
 
-        browse_button = QPushButton("Browse", tab)
+        browse_button = QPushButton(self.tr("Browse"), tab)
         browse_button.clicked.connect(self.browse_model_directory)
-        open_button = QPushButton("Open Folder", tab)
+        open_button = QPushButton(self.tr("Open Folder"), tab)
         open_button.clicked.connect(lambda: open_path(get_model_directory()))
 
-        path_layout.addWidget(QLabel("Model Folder", tab), 0, 0)
+        path_layout.addWidget(QLabel(self.tr("Model Folder"), tab), 0, 0)
         path_layout.addWidget(self.model_dir_edit, 0, 1)
         path_layout.addWidget(browse_button, 0, 2)
         path_layout.addWidget(open_button, 0, 3)
 
-        list_group = QGroupBox("Models", tab)
+        list_group = QGroupBox(self.tr("Models"), tab)
         list_layout = QVBoxLayout(list_group)
         self.model_list = QListWidget(tab)
         self.model_list.itemSelectionChanged.connect(self.refresh_model_action_state)
         list_layout.addWidget(self.model_list)
-        self.model_download_status_label = QLabel("Ready", tab)
+        self.model_download_status_label = QLabel(self.tr("Ready"), tab)
         list_layout.addWidget(self.model_download_status_label)
         self.model_download_progress = QProgressBar(tab)
         self.model_download_progress.setRange(0, 0)
@@ -224,13 +264,13 @@ class GeoSamSettingsDialog(QDialog):
         list_layout.addWidget(self.model_download_progress)
 
         action_row = QHBoxLayout()
-        self.download_button = QPushButton("Download", tab)
+        self.download_button = QPushButton(self.tr("Download"), tab)
         self.download_button.clicked.connect(self.download_selected_model)
-        self.delete_button = QPushButton("Delete", tab)
+        self.delete_button = QPushButton(self.tr("Delete"), tab)
         self.delete_button.clicked.connect(self.delete_selected_model)
-        release_button = QPushButton("Release Loaded Models", tab)
+        release_button = QPushButton(self.tr("Release Loaded Models"), tab)
         release_button.clicked.connect(self.release_loaded_models_clicked)
-        refresh_button = QPushButton("Refresh", tab)
+        refresh_button = QPushButton(self.tr("Refresh"), tab)
         refresh_button.clicked.connect(self.refresh_model_list)
         action_row.addWidget(self.download_button)
         action_row.addWidget(self.delete_button)
@@ -248,16 +288,16 @@ class GeoSamSettingsDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         form_layout = QFormLayout()
-        self.cache_enabled_checkbox = QCheckBox("Enable cache", tab)
+        self.cache_enabled_checkbox = QCheckBox(self.tr("Enable cache"), tab)
         self.cache_enabled_checkbox.setChecked(bool(self.settings["cache_enabled"]))
         self.cache_enabled_checkbox.toggled.connect(self.save_cache_settings)
 
         cache_dir_row = QHBoxLayout()
         self.cache_dir_edit = QLineEdit(str(self.settings["cache_dir"]), tab)
         self.cache_dir_edit.editingFinished.connect(self.save_cache_settings)
-        cache_browse_button = QPushButton("Browse", tab)
+        cache_browse_button = QPushButton(self.tr("Browse"), tab)
         cache_browse_button.clicked.connect(self.browse_cache_directory)
-        cache_open_button = QPushButton("Open Folder", tab)
+        cache_open_button = QPushButton(self.tr("Open Folder"), tab)
         cache_open_button.clicked.connect(lambda: open_path(get_cache_directory()))
         cache_dir_row.addWidget(self.cache_dir_edit)
         cache_dir_row.addWidget(cache_browse_button)
@@ -269,9 +309,9 @@ class GeoSamSettingsDialog(QDialog):
         self.cache_size_box.valueChanged.connect(self.save_cache_settings)
 
         self.performance_mode_combo = QComboBox(tab)
-        self.performance_mode_combo.addItem("Balanced", "balanced")
-        self.performance_mode_combo.addItem("Fastest", "fastest")
-        self.performance_mode_combo.addItem("Low Memory", "low_memory")
+        self.performance_mode_combo.addItem(self.tr("Balanced"), "balanced")
+        self.performance_mode_combo.addItem(self.tr("Fastest"), "fastest")
+        self.performance_mode_combo.addItem(self.tr("Low Memory"), "low_memory")
         self.performance_mode_combo.setCurrentIndex(
             max(
                 0,
@@ -285,7 +325,7 @@ class GeoSamSettingsDialog(QDialog):
         )
 
         self.clear_cache_on_close_checkbox = QCheckBox(
-            "Clear cache when the plugin closes",
+            self.tr("Clear cache when the plugin closes"),
             tab,
         )
         self.clear_cache_on_close_checkbox.setChecked(
@@ -294,17 +334,19 @@ class GeoSamSettingsDialog(QDialog):
         self.clear_cache_on_close_checkbox.toggled.connect(self.save_cache_settings)
 
         self.cache_status_label = QLabel("", tab)
-        cleanup_button = QPushButton("Cleanup Now", tab)
+        cleanup_button = QPushButton(self.tr("Cleanup Now"), tab)
         cleanup_button.clicked.connect(self.cleanup_cache_clicked)
-        clear_button = QPushButton("Clear All Cache", tab)
+        clear_button = QPushButton(self.tr("Clear All Cache"), tab)
         clear_button.clicked.connect(self.clear_cache_clicked)
 
-        form_layout.addRow("Cache", self.cache_enabled_checkbox)
-        form_layout.addRow("Location", cache_dir_row)
-        form_layout.addRow("Max Size (MB)", self.cache_size_box)
-        form_layout.addRow("Performance", self.performance_mode_combo)
-        form_layout.addRow("Close Behavior", self.clear_cache_on_close_checkbox)
-        form_layout.addRow("Current Usage", self.cache_status_label)
+        form_layout.addRow(self.tr("Cache"), self.cache_enabled_checkbox)
+        form_layout.addRow(self.tr("Location"), cache_dir_row)
+        form_layout.addRow(self.tr("Max Size (MB)"), self.cache_size_box)
+        form_layout.addRow(self.tr("Performance"), self.performance_mode_combo)
+        form_layout.addRow(
+            self.tr("Close Behavior"), self.clear_cache_on_close_checkbox
+        )
+        form_layout.addRow(self.tr("Current Usage"), self.cache_status_label)
         form_layout.addRow("", cleanup_button)
         form_layout.addRow("", clear_button)
 
@@ -318,26 +360,27 @@ class GeoSamSettingsDialog(QDialog):
 
         metadata_path = PLUGIN_ROOT / "metadata.txt"
         version_label = QLabel(self._plugin_version_text(metadata_path), tab)
-        version_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        version_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         layout.addWidget(version_label)
 
         for label_text, url in HELP_LINKS.items():
-            button = QPushButton(label_text, tab)
+            button = QPushButton(translate(label_text), tab)
             button.clicked.connect(lambda _checked=False, target=url: open_url(target))
             layout.addWidget(button)
 
         layout.addStretch(1)
         return tab
 
-    @staticmethod
-    def _plugin_version_text(metadata_path: Path) -> str:
-        version = "unknown"
+    def _plugin_version_text(self, metadata_path: Path) -> str:
+        version = self.tr("unknown")
         if metadata_path.exists():
             for line in metadata_path.read_text(encoding="utf-8").splitlines():
                 if line.startswith("version="):
                     version = line.split("=", 1)[1].strip()
                     break
-        return f"Geo-SAM Version: {version}"
+        return self.tr("Geo-SAM Version: {version}").format(version=version)
 
     def refresh_dependency_status(self) -> None:
         rows = dependency_status_rows()
@@ -350,10 +393,14 @@ class GeoSamSettingsDialog(QDialog):
             row["package"] for row in installable_missing_rows
         ]
         self.dependency_summary_label.setText(
-            "Dependencies: "
-            f"{installed_count} installed, {missing_count} missing. "
-            f"{len(installable_missing_rows)} installable. "
-            "Installation runs in the background."
+            self.tr(
+                "Dependencies: {installed} installed, {missing} missing. "
+                "{installable} installable. Installation runs in the background."
+            ).format(
+                installed=installed_count,
+                missing=missing_count,
+                installable=len(installable_missing_rows),
+            )
         )
         current_dependency_path = get_plugin_managed_site_packages()
         current_stats = get_plugin_managed_dependency_stats(current_dependency_path)
@@ -366,19 +413,24 @@ class GeoSamSettingsDialog(QDialog):
         ]
         total_size_bytes = sum(row["size_bytes"] for row in all_stats)
         self.dependency_storage_label.setText(
-            "Plugin-managed install: "
-            f"{self._format_bytes(current_stats['size_bytes'])} in current runtime, "
-            f"{self._format_bytes(total_size_bytes)} across "
-            f"{len(all_dependency_paths)} runtime folder(s). "
-            f"Current path: {current_dependency_path}"
+            self.tr(
+                "Plugin-managed install: {current_size} in current runtime, "
+                "{total_size} across {folder_count} runtime folder(s). "
+                "Current path: {current_path}"
+            ).format(
+                current_size=self._format_bytes(current_stats["size_bytes"]),
+                total_size=self._format_bytes(total_size_bytes),
+                folder_count=len(all_dependency_paths),
+                current_path=current_dependency_path,
+            )
         )
         self.dependency_table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
-            status_text = dependency_status_text(row["state"])
+            status_text = translate(dependency_status_text(row["state"]))
             version_text = row["version"] if row["installed"] else "-"
             text_color = QColor("#008c4a") if row["installed"] else QColor("#b00020")
             for column_index, value in enumerate(
-                (row["package"], status_text, version_text, row["source"])
+                (row["package"], status_text, version_text, translate(row["source"]))
             ):
                 item = QTableWidgetItem(value)
                 item.setForeground(text_color)
@@ -405,14 +457,16 @@ class GeoSamSettingsDialog(QDialog):
         if not self._missing_dependency_names:
             self.refresh_dependency_status()
             self.dependency_install_status_label.setText(
-                "No installable dependencies are missing."
+                self.tr("No installable dependencies are missing.")
             )
             return
 
         self.dependency_install_log.clear()
         missing_dependencies = ", ".join(self._missing_dependency_names)
         self.dependency_install_status_label.setText(
-            f"Installing missing dependencies: {missing_dependencies}"
+            self.tr("Installing missing dependencies: {dependencies}").format(
+                dependencies=missing_dependencies
+            )
         )
         self.dependency_install_progress.setVisible(True)
         self.install_dependencies_button.setEnabled(False)
@@ -423,7 +477,9 @@ class GeoSamSettingsDialog(QDialog):
         self.close_button.setEnabled(False)
         self._dependency_install_output_buffer = ""
         self._append_dependency_install_log(
-            f"Starting dependency installation: {missing_dependencies}"
+            self.tr("Starting dependency installation: {dependencies}").format(
+                dependencies=missing_dependencies
+            )
         )
         try:
             commands = get_dependency_install_commands(self._missing_dependency_names)
@@ -431,7 +487,9 @@ class GeoSamSettingsDialog(QDialog):
             self._finish_dependency_install(False, str(exc))
             return
         self._append_dependency_install_log(
-            f"Commands:\n{format_dependency_install_commands(commands)}"
+            self.tr("Commands:\n{commands}").format(
+                commands=format_dependency_install_commands(commands)
+            )
         )
 
         self._dependency_install_commands = commands
@@ -452,12 +510,14 @@ class GeoSamSettingsDialog(QDialog):
         ]
         self._dependency_install_command_index += 1
         self._append_dependency_install_log(
-            f"Running command: {format_dependency_install_command(command)}"
+            self.tr("Running command: {command}").format(
+                command=format_dependency_install_command(command)
+            )
         )
         process = QProcess(self)
         process.setProgram(command[0])
         process.setArguments(command[1:])
-        process.setProcessChannelMode(QProcess.MergedChannels)
+        process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         process.readyReadStandardOutput.connect(self._read_dependency_install_output)
         process.errorOccurred.connect(self._dependency_install_error)
         process.finished.connect(self._dependency_install_finished)
@@ -523,7 +583,7 @@ class GeoSamSettingsDialog(QDialog):
 
         self._read_dependency_install_output()
         error_message = process.errorString().strip() or (
-            "Dependency installer process failed to start."
+            self.tr("Dependency installer process failed to start.")
         )
         combined_output = self.dependency_install_log.toPlainText().strip()
         if combined_output:
@@ -539,18 +599,22 @@ class GeoSamSettingsDialog(QDialog):
         self.refresh_dependencies_button.setEnabled(True)
         self.close_button.setEnabled(True)
         self.dependency_install_status_label.setText(
-            "Dependency installation completed."
+            self.tr("Dependency installation completed.")
             if ok
-            else "Dependency installation failed."
+            else self.tr("Dependency installation failed.")
         )
         self._dependency_install_process = None
         self._dependency_install_commands = []
         self._dependency_install_command_index = 0
 
         if ok and not output.strip():
-            self._append_dependency_install_log("Dependency installation completed.")
+            self._append_dependency_install_log(
+                self.tr("Dependency installation completed.")
+            )
         elif not ok and not output.strip():
-            self._append_dependency_install_log("Dependency installation failed.")
+            self._append_dependency_install_log(
+                self.tr("Dependency installation failed.")
+            )
         self.refresh_dependency_status()
 
     def _append_dependency_install_log(self, message: str) -> None:
@@ -570,23 +634,27 @@ class GeoSamSettingsDialog(QDialog):
         dependency_path = get_plugin_managed_site_packages()
         answer = QMessageBox.question(
             self,
-            "Clear Current Runtime Dependencies",
-            "Delete plugin-managed dependencies for the current QGIS runtime?\n\n"
-            f"Path:\n{dependency_path}\n\n"
-            "Restart QGIS after clearing if any dependency was already imported.",
+            self.tr("Clear Current Runtime Dependencies"),
+            self.tr(
+                "Delete plugin-managed dependencies for the current QGIS runtime?\n\n"
+                "Path:\n{path}\n\n"
+                "Restart QGIS after clearing if any dependency was already imported."
+            ).format(path=dependency_path),
         )
-        if answer != QMessageBox.Yes:
+        if answer != QMessageBox.StandardButton.Yes:
             return
         try:
             removed_count = clear_current_plugin_managed_site_packages()
         except OSError as exc:
             MessageTool.MessageBoxOK(
                 str(exc),
-                title="Dependency Cleanup Failed",
+                title=self.tr("Dependency Cleanup Failed"),
             )
             return
         self._append_dependency_install_log(
-            f"Cleared {removed_count} file(s) from current runtime dependencies."
+            self.tr(
+                "Cleared {count} file(s) from current runtime dependencies."
+            ).format(count=removed_count)
         )
         self.refresh_dependency_status()
 
@@ -596,24 +664,28 @@ class GeoSamSettingsDialog(QDialog):
         path_text = "\n".join(str(path) for path in dependency_paths)
         answer = QMessageBox.question(
             self,
-            "Clear All Runtime Dependencies",
-            "Delete all plugin-managed dependency installs for Geo-SAM?\n\n"
-            f"Paths:\n{path_text}\n\n"
-            "This does not remove QGIS, conda, or global Python packages. "
-            "Restart QGIS after clearing if any dependency was already imported.",
+            self.tr("Clear All Runtime Dependencies"),
+            self.tr(
+                "Delete all plugin-managed dependency installs for Geo-SAM?\n\n"
+                "Paths:\n{paths}\n\n"
+                "This does not remove QGIS, conda, or global Python packages. "
+                "Restart QGIS after clearing if any dependency was already imported."
+            ).format(paths=path_text),
         )
-        if answer != QMessageBox.Yes:
+        if answer != QMessageBox.StandardButton.Yes:
             return
         try:
             removed_count = clear_all_plugin_managed_site_packages()
         except OSError as exc:
             MessageTool.MessageBoxOK(
                 str(exc),
-                title="Dependency Cleanup Failed",
+                title=self.tr("Dependency Cleanup Failed"),
             )
             return
         self._append_dependency_install_log(
-            f"Cleared {removed_count} file(s) from all runtime dependencies."
+            self.tr("Cleared {count} file(s) from all runtime dependencies.").format(
+                count=removed_count
+            )
         )
         self.refresh_dependency_status()
 
@@ -650,7 +722,7 @@ class GeoSamSettingsDialog(QDialog):
     def browse_model_directory(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Model Directory",
+            self.tr("Select Model Directory"),
             self.model_dir_edit.text() or str(DEFAULT_MODEL_DIR),
         )
         if directory:
@@ -660,12 +732,14 @@ class GeoSamSettingsDialog(QDialog):
     def refresh_model_list(self) -> None:
         self.model_list.clear()
         for row in get_model_status_rows():
-            status_text = "Downloaded" if row["downloaded"] else "Missing"
+            status_text = (
+                self.tr("Downloaded") if row["downloaded"] else self.tr("Missing")
+            )
             item = QListWidgetItem(
                 f"{row['label']} [{row['model_type']}] - {status_text}",
                 self.model_list,
             )
-            item.setData(Qt.UserRole, row["model_id"])
+            item.setData(Qt.ItemDataRole.UserRole, row["model_id"])
         self.refresh_model_action_state()
 
     def refresh_model_action_state(self) -> None:
@@ -678,13 +752,15 @@ class GeoSamSettingsDialog(QDialog):
         item = self.model_list.currentItem()
         if item is None:
             return None
-        return str(item.data(Qt.UserRole))
+        return str(item.data(Qt.ItemDataRole.UserRole))
 
     def download_selected_model(self) -> None:
         model_id = self._selected_model_id()
         if model_id is None or self._model_download_thread is not None:
             return
-        self.model_download_status_label.setText(f"Downloading {model_id}...")
+        self.model_download_status_label.setText(
+            self.tr("Downloading {model_id}...").format(model_id=model_id)
+        )
         self.model_download_progress.setVisible(True)
         self.close_button.setEnabled(False)
         self.model_list.setEnabled(False)
@@ -701,20 +777,20 @@ class GeoSamSettingsDialog(QDialog):
 
     def _download_model_succeeded(self, checkpoint_path: str) -> None:
         """Handle a successful background model download."""
-        self.model_download_status_label.setText("Download completed.")
+        self.model_download_status_label.setText(self.tr("Download completed."))
         MessageTool.MessageBar(
             "Geo-SAM",
-            f"Model downloaded to {checkpoint_path}",
+            self.tr("Model downloaded to {path}").format(path=checkpoint_path),
             level="success",
         )
         self.refresh_model_list()
 
     def _download_model_failed(self, error_message: str) -> None:
         """Handle a failed background model download."""
-        self.model_download_status_label.setText("Download failed.")
+        self.model_download_status_label.setText(self.tr("Download failed."))
         MessageTool.MessageBoxOK(
             error_message,
-            title="Model Download Failed",
+            title=self.tr("Model Download Failed"),
         )
 
     def _download_model_finished(self) -> None:
@@ -735,10 +811,10 @@ class GeoSamSettingsDialog(QDialog):
             return
         answer = QMessageBox.question(
             self,
-            "Delete Model",
-            "Delete the selected checkpoint from the local model folder?",
+            self.tr("Delete Model"),
+            self.tr("Delete the selected checkpoint from the local model folder?"),
         )
-        if answer != QMessageBox.Yes:
+        if answer != QMessageBox.StandardButton.Yes:
             return
         delete_model(model_id)
         self.refresh_model_list()
@@ -748,7 +824,9 @@ class GeoSamSettingsDialog(QDialog):
         removed_count = release_runtime_models()
         MessageTool.MessageBar(
             "Geo-SAM",
-            f"Released {removed_count} loaded model session(s).",
+            self.tr("Released {count} loaded model session(s).").format(
+                count=removed_count
+            ),
             level="info",
         )
 
@@ -760,19 +838,21 @@ class GeoSamSettingsDialog(QDialog):
         ).strip()
         if performance_mode not in PERFORMANCE_MODE_VALUES:
             performance_mode = "balanced"
-        self.settings = save_plugin_settings({
-            "cache_enabled": self.cache_enabled_checkbox.isChecked(),
-            "cache_dir": cache_dir,
-            "cache_max_size_mb": self.cache_size_box.value(),
-            "clear_cache_on_plugin_close": self.clear_cache_on_close_checkbox.isChecked(),
-            "performance_mode": performance_mode,
-        })
+        self.settings = save_plugin_settings(
+            {
+                "cache_enabled": self.cache_enabled_checkbox.isChecked(),
+                "cache_dir": cache_dir,
+                "cache_max_size_mb": self.cache_size_box.value(),
+                "clear_cache_on_plugin_close": self.clear_cache_on_close_checkbox.isChecked(),
+                "performance_mode": performance_mode,
+            }
+        )
         self.refresh_cache_status()
 
     def browse_cache_directory(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Cache Directory",
+            self.tr("Select Cache Directory"),
             self.cache_dir_edit.text() or str(DEFAULT_CACHE_DIR),
         )
         if directory:
@@ -788,7 +868,7 @@ class GeoSamSettingsDialog(QDialog):
         self.refresh_cache_status()
         MessageTool.MessageBar(
             "Geo-SAM",
-            f"Removed {removed_count} cached file(s).",
+            self.tr("Removed {count} cached file(s).").format(count=removed_count),
             level="info",
         )
 
@@ -798,6 +878,6 @@ class GeoSamSettingsDialog(QDialog):
         self.refresh_cache_status()
         MessageTool.MessageBar(
             "Geo-SAM",
-            f"Deleted {removed_count} cached file(s).",
+            self.tr("Deleted {count} cached file(s).").format(count=removed_count),
             level="info",
         )

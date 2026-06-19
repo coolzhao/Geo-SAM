@@ -16,8 +16,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, TypedDict
 
-from PyQt5.QtCore import QUrl
-from PyQt5.QtGui import QDesktopServices
+from qgis.PyQt.QtCore import QUrl
+from qgis.PyQt.QtGui import QDesktopServices
 
 from .dependency_path import register_plugin_managed_dependency_path
 
@@ -56,6 +56,7 @@ DEPENDENCY_INSTALL_REQUIREMENTS: dict[str, str] = {
     "shapely": "shapely>=2.0.7",
     "pyproj": "pyproj>=3.6.1",
 }
+PLUGIN_RUNTIME_DEPENDENCY_NAMES: tuple[str, ...] = tuple(DEPENDENCY_DISTRIBUTIONS)
 RUNTIME_PROVIDED_DEPENDENCY_NAMES: tuple[str, ...] = (
     "rasterio",
     "geopandas",
@@ -640,6 +641,18 @@ def missing_segmentation_runtime_dependencies() -> list[str]:
     return missing_runtime_dependencies(SEGMENTATION_RUNTIME_DEPENDENCY_NAMES)
 
 
+def missing_plugin_runtime_dependencies() -> list[str]:
+    """Return missing dependencies managed by the Geo-SAM installer.
+
+    Returns
+    -------
+    list[str]
+        Missing module names shown on the Dependencies page.
+
+    """
+    return missing_runtime_dependencies(PLUGIN_RUNTIME_DEPENDENCY_NAMES)
+
+
 def format_missing_dependencies_message(
     module_names: Iterable[str],
     *,
@@ -862,7 +875,9 @@ def _distribution_major_version(version_text: str | None) -> int | None:
     try:
         return int(major_text)
     except ValueError:
-        logger.debug("Could not parse distribution major version from %s.", version_text)
+        logger.debug(
+            "Could not parse distribution major version from %s.", version_text
+        )
         return None
 
 
@@ -1418,9 +1433,7 @@ def format_dependency_install_commands(commands: Iterable[Iterable[str]]) -> str
         Shell-readable command text for logs, one command per line.
 
     """
-    return "\n".join(
-        format_dependency_install_command(command) for command in commands
-    )
+    return "\n".join(format_dependency_install_command(command) for command in commands)
 
 
 def _dependency_install_command_base(

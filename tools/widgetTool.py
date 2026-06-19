@@ -12,12 +12,13 @@ from time import perf_counter
 from typing import Any, Literal, TYPE_CHECKING
 
 import numpy as np
-from PyQt5.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import (
+from qgis.PyQt.QtCore import QEvent, QObject, Qt, QThread, pyqtSignal
+from qgis.PyQt.QtGui import QColor, QKeySequence
+from qgis.PyQt.QtWidgets import (
     QApplication,
     QDockWidget,
     QFileDialog,
+    QMessageBox,
     QShortcut,
 )
 from qgis.core import (
@@ -167,12 +168,14 @@ class ShowPatchExtentThread(QThread):
         for patch in self.ds_sampler:
             bbox = patch["bbox"]
             if isinstance(bbox, QgsRectangle):
-                extents.append([
-                    bbox.xMinimum(),
-                    bbox.yMinimum(),
-                    bbox.xMaximum(),
-                    bbox.yMaximum(),
-                ])
+                extents.append(
+                    [
+                        bbox.xMinimum(),
+                        bbox.yMinimum(),
+                        bbox.xMaximum(),
+                        bbox.yMaximum(),
+                    ]
+                )
                 continue
             extents.append([bbox.minx, bbox.miny, bbox.maxx, bbox.maxy])
         self.retrieve_patch.emit(f"{extents}")
@@ -218,7 +221,7 @@ class RealtimePreparedQueryTask(QgsTask):
         self._base_description = self._build_base_description(
             layer_name=getattr(prepared_query, "layer_name", None),
         )
-        super().__init__(self.progress_description(), QgsTask.CanCancel)
+        super().__init__(self.progress_description(), QgsTask.Flag.CanCancel)
         self.setProgress(0.0)
 
     @staticmethod
@@ -360,6 +363,7 @@ class PromptTabEventFilter(QObject):
         except RuntimeError:
             return False
 
+
 class Selector(QDockWidget):
     execute_SAM = pyqtSignal()
 
@@ -479,7 +483,8 @@ class Selector(QDockWidget):
 
             ######### Setting default parameters for items #########
             self.wdg_sel.MapLayerComboBox.setFilters(
-                QgsMapLayerProxyModel.PolygonLayer | QgsMapLayerProxyModel.VectorLayer
+                QgsMapLayerProxyModel.Filter.PolygonLayer
+                | QgsMapLayerProxyModel.Filter.VectorLayer
             )
             self.wdg_sel.MapLayerComboBox.setAllowEmptyLayer(True)
             self.wdg_sel.MapLayerComboBox.setAdditionalLayers([None])
@@ -501,7 +506,7 @@ class Selector(QDockWidget):
                 )
             )
             self.wdg_sel.RealTimeLayerComboBox.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.wdg_sel.RealTimeLayerComboBox.setAllowEmptyLayer(True)
             self.wdg_sel.RealTimeLayerComboBox.setAdditionalLayers([None])
@@ -510,7 +515,9 @@ class Selector(QDockWidget):
                 for model_id, label in get_model_display_items():
                     self.wdg_sel.ModelComboBox.addItem(label, model_id)
 
-            self.wdg_sel.QgsFile_feature.setStorageMode(QgsFileWidget.GetDirectory)
+            self.wdg_sel.QgsFile_feature.setStorageMode(
+                QgsFileWidget.StorageMode.GetDirectory
+            )
             self.wdg_sel.QgsFile_feature.setFilePath("")
 
             # set button checkable
@@ -599,12 +606,14 @@ class Selector(QDockWidget):
 
             ########### shortcuts ############
             # create shortcuts
-            self.shortcut_clear = QShortcut(QKeySequence(Qt.Key_C), self.wdg_sel)
-            self.shortcut_undo = QShortcut(QKeySequence(Qt.Key_Z), self.wdg_sel)
-            self.shortcut_save = QShortcut(QKeySequence(Qt.Key_S), self.wdg_sel)
-            self.shortcut_hover_mode = QShortcut(QKeySequence(Qt.Key_P), self.wdg_sel)
+            self.shortcut_clear = QShortcut(QKeySequence(Qt.Key.Key_C), self.wdg_sel)
+            self.shortcut_undo = QShortcut(QKeySequence(Qt.Key.Key_Z), self.wdg_sel)
+            self.shortcut_save = QShortcut(QKeySequence(Qt.Key.Key_S), self.wdg_sel)
+            self.shortcut_hover_mode = QShortcut(
+                QKeySequence(Qt.Key.Key_P), self.wdg_sel
+            )
             self.shortcut_undo_sam_pg = QShortcut(
-                QKeySequence(QKeySequence.Undo), self.wdg_sel
+                QKeySequence(QKeySequence.StandardKey.Undo), self.wdg_sel
             )
 
             # connect shortcuts
@@ -616,11 +625,11 @@ class Selector(QDockWidget):
 
             # set context for shortcuts to application
             # this will make shortcuts work even if the widget is not focused
-            self.shortcut_clear.setContext(Qt.ApplicationShortcut)
-            self.shortcut_undo.setContext(Qt.ApplicationShortcut)
-            self.shortcut_save.setContext(Qt.ApplicationShortcut)
-            self.shortcut_hover_mode.setContext(Qt.ApplicationShortcut)
-            self.shortcut_undo_sam_pg.setContext(Qt.ApplicationShortcut)
+            self.shortcut_clear.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_undo.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_save.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_hover_mode.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            self.shortcut_undo_sam_pg.setContext(Qt.ShortcutContext.ApplicationShortcut)
 
             ########## set default Settings ##########
             self.set_user_settings()
@@ -628,7 +637,7 @@ class Selector(QDockWidget):
 
             ########## set dock ##########
             self.wdg_sel.setFloating(False)
-            self.wdg_sel.setFocusPolicy(Qt.StrongFocus)
+            self.wdg_sel.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
             # default is fgpt, but do not change when reloading feature folder
             # self.reset_prompt_type()
@@ -638,7 +647,7 @@ class Selector(QDockWidget):
 
         # add widget to QGIS
         self.wdg_sel.setFloating(False)
-        self.iface.addDockWidget(Qt.TopDockWidgetArea, self.wdg_sel)
+        self.iface.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, self.wdg_sel)
 
         self.toggle_edit_mode()
         self.toggle_encoding_extent()
@@ -672,16 +681,18 @@ class Selector(QDockWidget):
         feature_group_box = getattr(self.wdg_sel, "FeatureFolderGroupBox", None)
         model_group_box = getattr(self.wdg_sel, "groupBox_model", None)
         if model_group_box is not None:
-            title = "Live Encoding"
+            title = self.tr("Live Encoding")
             if using_feature_cache and self.runtime_feature_summary is not None:
                 model_id = self.runtime_feature_summary.model_id
                 if model_id is not None:
-                    title = f"Live Encoding (feature mode uses {model_id})"
+                    title = self.tr(
+                        "Live Encoding (feature mode uses {model_id})"
+                    ).format(model_id=model_id)
                 else:
-                    title = "Live Encoding (select model for feature mode)"
+                    title = self.tr("Live Encoding (select model for feature mode)")
             model_group_box.setTitle(title)
         if feature_group_box is not None:
-            feature_group_box.setTitle("Pre-encoded")
+            feature_group_box.setTitle(self.tr("Pre-encoded"))
 
     def on_model_changed(self):
         """Persist the selected model and validate checkpoint availability."""
@@ -697,12 +708,7 @@ class Selector(QDockWidget):
         checkpoint_path = get_model_checkpoint_path(model_id)
         if checkpoint_path.exists():
             return
-        MessageTool.MessageBoxOK(
-            "The selected model is not downloaded yet.\n"
-            "1. Open Geo-SAM Settings and download the checkpoint.\n"
-            "2. Documentation: https://geo-sam.readthedocs.io/en/latest/",
-            title="Model Not Downloaded",
-        )
+        self._prompt_missing_model_download(model_id, source="selected")
 
     def on_realtime_layer_changed(self):
         """React to realtime layer changes and rebuild the runtime context."""
@@ -742,7 +748,9 @@ class Selector(QDockWidget):
         self.canvas_points.background_color = self.wdg_sel.ColorButton_bgpt.color()
         self.canvas_points.foreground_color = self.wdg_sel.ColorButton_fgpt.color()
         self.canvas_points.point_size = self.wdg_sel.SpinBoxPtSize.value()
-        icon_name = self.wdg_sel.comboBoxIconType.currentText() or DEFAULT_POINT_ICON_NAME
+        icon_name = (
+            self.wdg_sel.comboBoxIconType.currentText() or DEFAULT_POINT_ICON_NAME
+        )
         self.canvas_points.icon_type = ICON_TYPE.get(
             icon_name, ICON_TYPE[DEFAULT_POINT_ICON_NAME]
         )
@@ -805,15 +813,17 @@ class Selector(QDockWidget):
         self.realtime_query_cache.clear()
         self.resume_preview_mode_after_cache_hit = False
         self._reset_realtime_background_state()
-        save_plugin_settings({
-            "selected_model_id": "",
-            "model_store_dir": str(load_plugin_settings()["model_store_dir"]),
-            "cache_enabled": bool(load_plugin_settings()["cache_enabled"]),
-            "cache_dir": str(load_plugin_settings()["cache_dir"]),
-            "cache_max_size_mb": int(load_plugin_settings()["cache_max_size_mb"]),
-            "performance_mode": "balanced",
-            "preview_render_mode": "pixel_level",
-        })
+        save_plugin_settings(
+            {
+                "selected_model_id": "",
+                "model_store_dir": str(load_plugin_settings()["model_store_dir"]),
+                "cache_enabled": bool(load_plugin_settings()["cache_enabled"]),
+                "cache_dir": str(load_plugin_settings()["cache_dir"]),
+                "cache_max_size_mb": int(load_plugin_settings()["cache_max_size_mb"]),
+                "performance_mode": "balanced",
+                "preview_render_mode": "pixel_level",
+            }
+        )
         if hasattr(self, "wdg_sel") and hasattr(
             self.wdg_sel,
             "VectorizationModeComboBox",
@@ -1106,11 +1116,17 @@ class Selector(QDockWidget):
             model_index = self.wdg_sel.ModelComboBox.findData(summary.model_id)
             if model_index >= 0:
                 self.wdg_sel.ModelComboBox.setCurrentIndex(model_index)
-        model_description = summary.model_id or "unknown model"
+        model_description = summary.model_id or self.tr("unknown model")
         MessageTool.MessageBar(
             "Geo-SAM",
-            f"Loaded feature folder '{Path(feature_dir).name}' with "
-            f"{summary.chip_count} cached chips ({model_description}).",
+            self.tr(
+                "Loaded feature folder '{folder}' with {chip_count} cached chips "
+                "({model})."
+            ).format(
+                folder=Path(feature_dir).name,
+                chip_count=summary.chip_count,
+                model=model_description,
+            ),
             level="success",
         )
         return self.runtime_source_kind
@@ -1130,7 +1146,7 @@ class Selector(QDockWidget):
         )
         MessageTool.MessageBar(
             "Geo-SAM",
-            f"Loaded realtime layer '{layer.name()}'.",
+            self.tr("Loaded realtime layer '{layer}'.").format(layer=layer.name()),
             level="success",
         )
         return self.runtime_source_kind
@@ -1154,6 +1170,46 @@ class Selector(QDockWidget):
             return None
         return str(model_id)
 
+    def _prompt_missing_model_download(
+        self,
+        model_id: str,
+        *,
+        source: Literal["selected", "feature"],
+    ) -> None:
+        """Ask whether to open Model Management for a missing checkpoint.
+
+        Parameters
+        ----------
+        model_id : str
+            Missing model identifier to select in Model Management.
+        source : {"selected", "feature"}
+            Context in which the missing model was resolved.
+
+        """
+        logger.warning(
+            "Geo-SAM model checkpoint is missing for %s model: %s",
+            source,
+            model_id,
+        )
+        if source == "feature":
+            message = self.tr(
+                "The model recorded in the selected feature folder ({model_id}) "
+                "is not downloaded yet.\n\n"
+                "Would you like to open Model Management and download it now?"
+            ).format(model_id=model_id)
+        else:
+            message = self.tr(
+                "The selected model ({model_id}) is not downloaded yet.\n\n"
+                "Would you like to open Model Management and download it now?"
+            ).format(model_id=model_id)
+
+        answer = MessageTool.MessageBoxYesNo(
+            message,
+            title=self.tr("Model Not Downloaded"),
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.parent.open_model_management_dialog(model_id)
+
     def _require_selected_model(self) -> str | None:
         """Ensure the active source resolves to a usable model id."""
         if (
@@ -1165,11 +1221,7 @@ class Selector(QDockWidget):
                 checkpoint_path = get_model_checkpoint_path(model_id)
                 if checkpoint_path.exists():
                     return model_id
-                MessageTool.MessageBoxOK(
-                    "The model recorded in the selected feature folder is not downloaded yet.\n"
-                    "Open Geo-SAM Settings to download it.",
-                    title="Model Not Downloaded",
-                )
+                self._prompt_missing_model_download(model_id, source="feature")
                 return None
 
         model_id = self.selected_model_id()
@@ -1182,11 +1234,7 @@ class Selector(QDockWidget):
         checkpoint_path = get_model_checkpoint_path(model_id)
         if checkpoint_path.exists():
             return model_id
-        MessageTool.MessageBoxOK(
-            "The selected model is not downloaded yet.\n"
-            "Open Geo-SAM Settings to download it.",
-            title="Model Not Downloaded",
-        )
+        self._prompt_missing_model_download(model_id, source="selected")
         return None
 
     def _build_geosam_query(self):
@@ -1237,11 +1285,13 @@ class Selector(QDockWidget):
                 self.canvas_points.img_crs_points,
                 self.canvas_points.labels,
             ):
-                point_items.append({
-                    "x": round(float(point.x()), 6),
-                    "y": round(float(point.y()), 6),
-                    "label": "fg" if label else "bg",
-                })
+                point_items.append(
+                    {
+                        "x": round(float(point.x()), 6),
+                        "y": round(float(point.y()), 6),
+                        "label": "fg" if label else "bg",
+                    }
+                )
 
         bbox_item: dict[str, float] | None = None
         if hasattr(self, "canvas_rect") and self.canvas_rect.extent is not None:
@@ -1388,8 +1438,7 @@ class Selector(QDockWidget):
 
         focus_widget = QApplication.focusWidget()
         if not (
-            self._is_prompt_cycle_target(focus_widget)
-            or self._is_prompt_tool_active()
+            self._is_prompt_cycle_target(focus_widget) or self._is_prompt_tool_active()
         ):
             return False
 
@@ -1413,9 +1462,12 @@ class Selector(QDockWidget):
         """
         if watched not in self._prompt_tab_filter_targets():
             return False
-        if event.type() != QEvent.KeyPress:
+        if event.type() != QEvent.Type.KeyPress:
             return False
-        if event.key() != Qt.Key_Tab or event.modifiers() != Qt.NoModifier:
+        if (
+            event.key() != Qt.Key.Key_Tab
+            or event.modifiers() != Qt.KeyboardModifier.NoModifier
+        ):
             return False
         if not self._is_prompt_tool_active():
             return False
@@ -1767,20 +1819,25 @@ class Selector(QDockWidget):
             query_task.setDependentLayers([self.runtime_layer])
         self._active_realtime_query_task = query_task
         query_task.progressChanged.connect(
-            lambda progress_value, task_ref=query_task: self._on_realtime_query_progress(
+            lambda progress_value,
+            task_ref=query_task: self._on_realtime_query_progress(
                 task_ref,
                 progress_value,
             )
         )
         query_task.taskCompleted.connect(
-            lambda task_ref=query_task, started_at=request.query_started_at, had_pressed_prompt=request.had_pressed_prompt: self._finalize_realtime_query_task(
+            lambda task_ref=query_task,
+            started_at=request.query_started_at,
+            had_pressed_prompt=request.had_pressed_prompt: self._finalize_realtime_query_task(
                 task_ref,
                 had_pressed_prompt=had_pressed_prompt,
                 query_started_at=started_at,
             )
         )
         query_task.taskTerminated.connect(
-            lambda task_ref=query_task, started_at=request.query_started_at, had_pressed_prompt=request.had_pressed_prompt: self._finalize_realtime_query_task(
+            lambda task_ref=query_task,
+            started_at=request.query_started_at,
+            had_pressed_prompt=request.had_pressed_prompt: self._finalize_realtime_query_task(
                 task_ref,
                 had_pressed_prompt=had_pressed_prompt,
                 query_started_at=started_at,
@@ -2003,7 +2060,7 @@ class Selector(QDockWidget):
                     float(chip_bounds.maxx),
                     float(chip_bounds.maxy),
                 )
-                ]
+            ]
         if hasattr(chip_bounds, "to_tuple") and callable(chip_bounds.to_tuple):
             chip_bounds = chip_bounds.to_tuple()
         if isinstance(chip_bounds, np.ndarray):
@@ -2152,7 +2209,9 @@ class Selector(QDockWidget):
                 return False
 
             self.ensure_polygon_sam_exist()
-            polygon_layer = self.polygon.get_layer() if hasattr(self, "polygon") else None
+            polygon_layer = (
+                self.polygon.get_layer() if hasattr(self, "polygon") else None
+            )
             if polygon_layer is None:
                 return False
 
@@ -2179,7 +2238,9 @@ class Selector(QDockWidget):
 
         query = self._build_geosam_query()
         if query is None:
-            self._log_sam_execution("skip_no_query", had_pressed_prompt=had_pressed_prompt)
+            self._log_sam_execution(
+                "skip_no_query", had_pressed_prompt=had_pressed_prompt
+            )
             self._clear_query_chip_extent_cache(keep_source_boundary=True)
             self._reset_prompt_press_state()
             self._restore_active_prompt_tool()
@@ -2322,7 +2383,9 @@ class Selector(QDockWidget):
         if hasattr(self, "polygon"):
             self.polygon.img_crs_manager = self.img_crs_manager
             old_layer_id = self.polygon.layer_id
-            old_layer = QgsProject.instance().mapLayer(old_layer_id) if old_layer_id else None
+            old_layer = (
+                QgsProject.instance().mapLayer(old_layer_id) if old_layer_id else None
+            )
             if old_layer and new_layer and old_layer.id() == new_layer.id():
                 return
             if not self.polygon.reset_layer(new_layer):
@@ -2345,14 +2408,14 @@ class Selector(QDockWidget):
     def load_vector_file(self) -> None:
         file_dialog = QFileDialog()
         file_dialog.setDefaultSuffix("shp")
-        file_dialog.setFileMode(QFileDialog.AnyFile)
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
 
         file_path, _ = file_dialog.getSaveFileName(
             None,
-            "QFileDialog.getOpenFileName()",
+            self.tr("Save Shapefile"),
             "",
-            "Shapefile (*.shp)",
-            options=QFileDialog.DontConfirmOverwrite,
+            self.tr("Shapefile (*.shp)"),
+            options=QFileDialog.Option.DontConfirmOverwrite,
         )
 
         if file_path is None or file_path == "":
@@ -2379,8 +2442,10 @@ class Selector(QDockWidget):
                 return
             MessageTool.MessageBar(
                 "Attention",
-                f"Layer '{file_path.name}' has already been in the project, "
-                "you can start labeling now",
+                self.tr(
+                    "Layer '{layer}' is already in the project; you can start "
+                    "labeling now."
+                ).format(layer=file_path.name),
             )
             polygon_layer = self.polygon.get_layer()
             if polygon_layer is not None:
@@ -2567,7 +2632,9 @@ class Selector(QDockWidget):
 
     def reset_points_icon(self):
         """Reset point-marker icon type."""
-        icon_name = self.wdg_sel.comboBoxIconType.currentText() or DEFAULT_POINT_ICON_NAME
+        icon_name = (
+            self.wdg_sel.comboBoxIconType.currentText() or DEFAULT_POINT_ICON_NAME
+        )
         save_user_settings({"icon_type": icon_name}, mode="update")
         if not hasattr(self, "canvas_points"):
             return
@@ -2617,6 +2684,7 @@ class Selector(QDockWidget):
 
         self.polygon.canvas_preview_polygon.set_line_style(color)
 
+
 class EncoderCopilot(QDockWidget):
     # TODO: support encoding process in this widget
     retrieve_range = pyqtSignal(str)
@@ -2647,7 +2715,7 @@ class EncoderCopilot(QDockWidget):
             ########## connect functions to widget items ##########
             # upper part
             self.wdg_copilot.MapLayerComboBox.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.wdg_copilot.MapLayerComboBox.layerChanged.connect(
                 self.parse_raster_info
@@ -2685,7 +2753,9 @@ class EncoderCopilot(QDockWidget):
             self.wdg_copilot.AdvancedParameterGroupBox.setCollapsed(True)
             # checkpoint
             self.wdg_copilot.CheckpointFileWidget.setFilter("*.pt")
-            self.wdg_copilot.CheckpointFileWidget.setStorageMode(QgsFileWidget.GetFile)
+            self.wdg_copilot.CheckpointFileWidget.setStorageMode(
+                QgsFileWidget.StorageMode.GetFile
+            )
             self.wdg_copilot.CheckpointFileWidget.setConfirmOverwrite(False)
 
             if self.wdg_copilot.SAMModelComboBox.count() == 0:
@@ -2709,7 +2779,7 @@ class EncoderCopilot(QDockWidget):
         range = eval(range)
         self.wdg_copilot.MinValueBox.setValue(range[0])
         self.wdg_copilot.MaxValueBox.setValue(range[1])
-        self.wdg_copilot.label_range_status.setText("Done!")
+        self.wdg_copilot.label_range_status.setText(self.tr("Done!"))
 
     def show_patch_extent_in_canvas(self, extents: str):
         extents = eval(extents)
@@ -2735,19 +2805,21 @@ class EncoderCopilot(QDockWidget):
                 alpha=alpha,
                 line_width=line_width,
             )
-        self.wdg_copilot.label_patch_settings.setText(f"Done! {len(extents)} patches")
+        self.wdg_copilot.label_patch_settings.setText(
+            self.tr("Done! {count} patches").format(count=len(extents))
+        )
 
     def parse_raster_info(self):
         """Parse raster info and set to widget items"""
         # clear widget items
         self.wdg_copilot.label_range_status.setText("")
         self.wdg_copilot.label_patch_settings.setText("")
-        self.wdg_copilot.MaxValueBox.setClearValue(0, "Not set")
-        self.wdg_copilot.MinValueBox.setClearValue(0, "Not set")
+        self.wdg_copilot.MaxValueBox.setClearValue(0, self.tr("Not set"))
+        self.wdg_copilot.MinValueBox.setClearValue(0, self.tr("Not set"))
         self.wdg_copilot.MinValueBox.clear()
         self.wdg_copilot.MaxValueBox.clear()
-        self.wdg_copilot.BoxResolutionScale.setClearValue(1, "Not set")
-        self.wdg_copilot.BoxOverlap.setClearValue(50, "Not set")
+        self.wdg_copilot.BoxResolutionScale.setClearValue(1, self.tr("Not set"))
+        self.wdg_copilot.BoxOverlap.setClearValue(50, self.tr("Not set"))
 
         if not self.valid_raster_layer():
             self.clear_bands()
@@ -2793,7 +2865,7 @@ class EncoderCopilot(QDockWidget):
 
         bands = list(set(self.get_bands()))
 
-        self.wdg_copilot.label_range_status.setText("Parse ...")
+        self.wdg_copilot.label_range_status.setText(self.tr("Parse ..."))
         self.ParseThread = ParseRangeThread(
             self.retrieve_range, self.raster_layer.source(), extent, bands
         )
@@ -2972,10 +3044,13 @@ class EncoderCopilot(QDockWidget):
 
         file_dialog = QFileDialog()
         file_dialog.setDefaultSuffix("json")
-        file_dialog.setFileMode(QFileDialog.AnyFile)
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
 
         file_path, _ = file_dialog.getSaveFileName(
-            None, "QFileDialog.getOpenFileName()", "", "Json Files (*.json)"
+            None,
+            self.tr("Save Encoder Settings"),
+            "",
+            self.tr("JSON Files (*.json)"),
         )
         file_path = Path(file_path)
         try:
@@ -3033,7 +3108,7 @@ class EncoderCopilot(QDockWidget):
             )
         except Exception as exc:
             MessageTool.MessageBoxOK(
-                f"Failed to compute patch extents: {exc}",
+                self.tr("Failed to compute patch extents: {error}").format(error=exc),
                 title="Patch Preview Failed",
             )
             return
@@ -3047,7 +3122,7 @@ class EncoderCopilot(QDockWidget):
             )
             return
 
-        self.wdg_copilot.label_patch_settings.setText("Computing ...")
+        self.wdg_copilot.label_patch_settings.setText(self.tr("Computing ..."))
         self.show_patch_extent_thread = ShowPatchExtentThread(
             self.retrieve_patch,
             [{"bbox": QgsRectangle(*patch_extent)} for patch_extent in patch_extents],

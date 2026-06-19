@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
-from PyQt5.QtGui import QImage
+from qgis.PyQt.QtGui import QImage
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
@@ -837,7 +837,7 @@ def _download_tile_array(
         logger.error(msg)
         raise OnlineRasterTileDownloadError(msg)
 
-    rgb_image = image.convertToFormat(QImage.Format_RGB888)
+    rgb_image = image.convertToFormat(QImage.Format.Format_RGB888)
     if rgb_image.width() != provider.tile_size or rgb_image.height() != provider.tile_size:
         msg = (
             "Geo-SAM received an unexpected tile size from the active online provider. "

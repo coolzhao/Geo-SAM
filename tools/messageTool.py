@@ -1,21 +1,32 @@
-from typing import Optional
-from PyQt5.QtWidgets import QMessageBox
+"""User-facing QGIS message helpers."""
+
+from __future__ import annotations
+
+import logging
+
+from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.core import Qgis, QgsMessageLog
 from qgis.utils import iface
 
-LEVELS = {'info': Qgis.Info,
-          'warning': Qgis.Warning,
-          'critical': Qgis.Critical,
-          'success': Qgis.Success}
+from .i18n import translate
+
+logger = logging.getLogger(__name__)
+
+LEVELS = {
+    "info": Qgis.MessageLevel.Info,
+    "warning": Qgis.MessageLevel.Warning,
+    "critical": Qgis.MessageLevel.Critical,
+    "success": Qgis.MessageLevel.Success,
+}
 LEVELS_ALL = list(LEVELS.keys())
 
 
 class MessageTool:
-    '''A class for showing messages to the user.'''
+    """A class for showing messages to the user."""
 
     @staticmethod
-    def MessageBoxOK(text: str, title: str = 'Warning') -> None:
-        '''Show a message box with an OK button. 
+    def MessageBoxOK(text: str, title: str = "Warning") -> None:
+        """Show a message box with an OK button.
 
         Parameters:
         ----------
@@ -23,22 +34,20 @@ class MessageTool:
             The text of the message.
         title : str, optional
             The title of the message box, by default 'Warning'.
-        
+
         Returns:
         -------
         int if the button clicked, or None if the message box was closed.
-        '''
+        """
         mb = QMessageBox()
-        mb.setText(
-            text
-        )
-        mb.setStandardButtons(QMessageBox.Ok)
-        mb.setWindowTitle(title)
+        mb.setText(translate(text))
+        mb.setStandardButtons(QMessageBox.StandardButton.Ok)
+        mb.setWindowTitle(translate(title))
         mb.exec()
 
     @staticmethod
-    def MessageBoxOKCancel(text: str, title: str = 'Warning') -> Optional[int]:
-        '''Show a message box with OK and Cancel buttons.
+    def MessageBoxOKCancel(text: str, title: str = "Warning") -> int:
+        """Show a message box with OK and Cancel buttons.
 
         Parameters:
         ----------
@@ -50,17 +59,19 @@ class MessageTool:
         Returns:
         -------
         int if the button clicked, or None if the message box was closed.
-        '''
+        """
         mb = QMessageBox()
-        mb.setText(text)
-        mb.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
-        mb.setDefaultButton(QMessageBox.Cancel)
-        mb.setWindowTitle(title)
+        mb.setText(translate(text))
+        mb.setStandardButtons(
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+        )
+        mb.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        mb.setWindowTitle(translate(title))
         return mb.exec()
 
     @staticmethod
-    def MessageBoxYesNo(text: str, title: str = 'Warning') -> Optional[int]:
-        '''Show a message box with Yes and No buttons.
+    def MessageBoxYesNo(text: str, title: str = "Warning") -> int:
+        """Show a message box with Yes and No buttons.
 
         Parameters:
         ----------
@@ -72,23 +83,21 @@ class MessageTool:
         Returns:
         -------
         int if the button clicked, or None if the message box was closed.
-        '''
+        """
         mb = QMessageBox()
-        mb.setText(
-            text
+        mb.setText(translate(text))
+        mb.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-        mb.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        mb.setDefaultButton(QMessageBox.No)
-        mb.setWindowTitle(title)
+        mb.setDefaultButton(QMessageBox.StandardButton.No)
+        mb.setWindowTitle(translate(title))
         return mb.exec()
 
     @staticmethod
     def MessageBar(
-            title: str,
-            text: str,
-            level: str = 'info',
-            duration: int = 10) -> None:
-        '''Show a message in the QGIS message bar.
+        title: str, text: str, level: str = "info", duration: int = 10
+    ) -> None:
+        """Show a message in the QGIS message bar.
 
         Parameters:
         ----------
@@ -100,23 +109,22 @@ class MessageTool:
             The level of the message, by default 'info'
         duration : int, optional
             The duration of the message in seconds, by default 10
-        '''
+        """
         level = level.lower()
         if level not in LEVELS_ALL:
-            raise ValueError(
-                f'level must be one of {LEVELS_ALL}, got {level}'
-            )
+            msg = f"level must be one of {LEVELS_ALL}, got {level}"
+            logger.error(msg)
+            raise ValueError(msg)
 
         iface.messageBar().pushMessage(
-            title,
-            text,
-            level=LEVELS[level],
-            duration=duration
+            translate(title), translate(text), level=LEVELS[level], duration=duration
         )
 
     @staticmethod
-    def MessageLog(text: str, level: str = 'info', tag="Geo SAM", notify_user='auto') -> None:
-        '''Show a message in the QGIS log.
+    def MessageLog(
+        text: str, level: str = "info", tag="Geo SAM", notify_user="auto"
+    ) -> None:
+        """Show a message in the QGIS log.
 
         Parameters:
         ----------
@@ -127,19 +135,16 @@ class MessageTool:
         tag : str, optional
             The tag of the message, by default 'Geo SAM'
         notify_user : bool or 'auto', optional
-            Whether to notify the user, by default 'auto'. If 'auto', 
+            Whether to notify the user, by default 'auto'. If 'auto',
             the user will be notified for warning and critical messages.
-        '''
+        """
         level = level.lower()
         if level not in LEVELS_ALL:
-            raise ValueError(
-                f'level must be one of {LEVELS_ALL}, got {level}'
-            )
-        if notify_user == 'auto':
-            notify_user = level in ['warning', 'critical']
+            msg = f"level must be one of {LEVELS_ALL}, got {level}"
+            logger.error(msg)
+            raise ValueError(msg)
+        if notify_user == "auto":
+            notify_user = level in ["warning", "critical"]
         QgsMessageLog.logMessage(
-            text,
-            level=LEVELS[level],
-            tag=tag,
-            notifyUser=notify_user
+            text, level=LEVELS[level], tag=tag, notifyUser=notify_user
         )
