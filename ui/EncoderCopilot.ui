@@ -33,19 +33,38 @@
         </property>
         <layout class="QGridLayout" name="gridLayout_10">
          <item row="0" column="1">
-          <widget class="QGroupBox" name="groupBox_4">
-           <property name="title">
-            <string>Extent (Required)</string>
-           </property>
-           <layout class="QGridLayout" name="gridLayout_4">
-            <item row="0" column="0">
-             <widget class="QgsExtentGroupBox" name="ExtentGroupBox">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
+          <widget class="QWidget" name="extentRequiredWrapper">
+           <layout class="QVBoxLayout" name="extentRequiredLayout">
+            <property name="spacing">
+             <number>0</number>
+            </property>
+            <property name="margin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="label_extent_title">
+              <property name="text">
+               <string notr="true">placeholder</string>
               </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="groupBox_4">
+              <property name="title">
+               <string/>
+              </property>
+              <layout class="QGridLayout" name="gridLayout_4">
+               <item row="0" column="0">
+                <widget class="QgsExtentGroupBox" name="ExtentGroupBox">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </widget>
             </item>
            </layout>
@@ -183,64 +202,83 @@
           </widget>
          </item>
          <item row="0" column="0">
-          <widget class="QGroupBox" name="groupBox_3">
-           <property name="title">
-            <string>Raster (Required)</string>
-           </property>
-           <layout class="QGridLayout" name="gridLayout_3">
-            <item row="1" column="0">
-             <widget class="QGroupBox" name="groupBox_2">
-              <property name="title">
-               <string>RGB Bands</string>
+          <widget class="QWidget" name="rasterRequiredWrapper">
+           <layout class="QVBoxLayout" name="rasterRequiredLayout">
+            <property name="spacing">
+             <number>0</number>
+            </property>
+            <property name="margin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="label_raster_title">
+              <property name="text">
+               <string notr="true">placeholder</string>
               </property>
-              <layout class="QHBoxLayout" name="horizontalLayout_2">
-               <item>
-                <widget class="QGroupBox" name="groupBox_28">
-                 <property name="title">
-                  <string>Red</string>
-                 </property>
-                 <layout class="QVBoxLayout" name="verticalLayout_16">
-                  <item>
-                   <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_R"/>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-               <item>
-                <widget class="QGroupBox" name="groupBox_29">
-                 <property name="title">
-                  <string>Green</string>
-                 </property>
-                 <layout class="QVBoxLayout" name="verticalLayout_17">
-                  <item>
-                   <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_G"/>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-               <item>
-                <widget class="QGroupBox" name="groupBox_30">
-                 <property name="title">
-                  <string>Blue</string>
-                 </property>
-                 <layout class="QVBoxLayout" name="verticalLayout_18">
-                  <item>
-                   <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_B"/>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-              </layout>
              </widget>
             </item>
-            <item row="0" column="0">
-             <widget class="QGroupBox" name="groupBox">
+            <item>
+             <widget class="QGroupBox" name="groupBox_3">
               <property name="title">
-               <string>Layer</string>
+               <string/>
               </property>
-              <layout class="QGridLayout" name="gridLayout">
+              <layout class="QGridLayout" name="gridLayout_3">
                <item row="1" column="0">
-                <widget class="QgsMapLayerComboBox" name="MapLayerComboBox"/>
+                <widget class="QGroupBox" name="groupBox_2">
+                 <property name="title">
+                  <string>RGB Bands</string>
+                 </property>
+                 <layout class="QHBoxLayout" name="horizontalLayout_2">
+                  <item>
+                   <widget class="QGroupBox" name="groupBox_28">
+                    <property name="title">
+                     <string>Red</string>
+                    </property>
+                    <layout class="QVBoxLayout" name="verticalLayout_16">
+                     <item>
+                      <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_R"/>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QGroupBox" name="groupBox_29">
+                    <property name="title">
+                     <string>Green</string>
+                    </property>
+                    <layout class="QVBoxLayout" name="verticalLayout_17">
+                     <item>
+                      <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_G"/>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QGroupBox" name="groupBox_30">
+                    <property name="title">
+                     <string>Blue</string>
+                    </property>
+                    <layout class="QVBoxLayout" name="verticalLayout_18">
+                     <item>
+                      <widget class="QgsRasterBandComboBox" name="RasterBandComboBox_B"/>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item row="0" column="0">
+                <widget class="QGroupBox" name="groupBox">
+                 <property name="title">
+                  <string>Layer</string>
+                 </property>
+                 <layout class="QGridLayout" name="gridLayout">
+                  <item row="1" column="0">
+                   <widget class="QgsMapLayerComboBox" name="MapLayerComboBox"/>
+                  </item>
+                 </layout>
+                </widget>
                </item>
               </layout>
              </widget>
@@ -270,28 +308,7 @@
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_2">
             <item>
-             <widget class="QGroupBox" name="groupBox_12">
-              <property name="title">
-               <string>SAM Checkpoint Path</string>
-              </property>
-              <layout class="QHBoxLayout" name="horizontalLayout">
-               <item>
-                <widget class="QgsFileWidget" name="CheckpointFileWidget"/>
-               </item>
-              </layout>
-             </widget>
-            </item>
-            <item>
-             <widget class="QGroupBox" name="groupBox_14">
-              <property name="title">
-               <string>SAM Model Type</string>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout">
-               <item>
-                <widget class="QComboBox" name="SAMModelComboBox"/>
-               </item>
-              </layout>
-             </widget>
+             <widget class="QComboBox" name="ModelComboBox"/>
             </item>
            </layout>
           </widget>
@@ -470,11 +487,6 @@
    <extends>QgsCollapsibleGroupBox</extends>
    <header>qgsextentgroupbox.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>QgsFileWidget</class>
-   <extends>QWidget</extends>
-   <header>qgsfilewidget.h</header>
   </customwidget>
   <customwidget>
    <class>QgsMapLayerComboBox</class>

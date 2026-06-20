@@ -16,15 +16,15 @@ from qgis.PyQt.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
-    QSpinBox,
+    QSlider,
+    QTabBar,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -49,7 +49,6 @@ from .plugin_settings import (
     PERFORMANCE_MODE_VALUES,
     PLUGIN_ROOT,
     clear_cache,
-    cleanup_cache,
     dependency_status_text,
     dependency_status_rows,
     format_dependency_install_command,
@@ -63,7 +62,7 @@ from .plugin_settings import (
     open_url,
     save_plugin_settings,
 )
-from .geosam_runtime import release_runtime_models
+from .geosam_runtime import get_loaded_model_ids, release_runtime_models
 
 
 class ModelDownloadThread(QThread):
@@ -131,17 +130,17 @@ class GeoSamSettingsDialog(QDialog):
         Parameters
         ----------
         model_id : str | None, optional
-            Model identifier to select in the model list.
+            Model identifier to select in the model table.
 
         """
         self.tab_widget.setCurrentIndex(self.MODEL_MANAGEMENT_TAB_INDEX)
         if model_id is None:
             return
 
-        for item_index in range(self.model_list.count()):
-            item = self.model_list.item(item_index)
-            if item.data(Qt.ItemDataRole.UserRole) == model_id:
-                self.model_list.setCurrentItem(item)
+        for row_index in range(self.model_table.rowCount()):
+            item = self.model_table.item(row_index, self.COL_NAME)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == model_id:
+                self.model_table.selectRow(row_index)
                 return
 
     def _build_dependency_tab(self) -> QWidget:
@@ -232,10 +231,24 @@ class GeoSamSettingsDialog(QDialog):
         layout.addWidget(self.dependency_install_log)
         return tab
 
+    # Filter tab indices for the model filter bar.
+    FILTER_ALL = 0
+    FILTER_DOWNLOADED = 1
+    FILTER_NOT_DOWNLOADED = 2
+    FILTER_IN_MEMORY = 3
+
+    # Table column indices.
+    COL_NAME = 0
+    COL_SERIES = 1
+    COL_FILE_STATUS = 2
+    COL_LOAD_STATUS = 3
+    COL_ACTIONS = 4
+
     def _build_model_tab(self) -> QWidget:
         tab = QWidget(self)
         layout = QVBoxLayout(tab)
 
+        # -- Storage group ------------------------------------------------
         path_group = QGroupBox(self.tr("Storage"), tab)
         path_layout = QGridLayout(path_group)
         self.model_dir_edit = QLineEdit(str(self.settings["model_store_dir"]), tab)
@@ -251,11 +264,45 @@ class GeoSamSettingsDialog(QDialog):
         path_layout.addWidget(browse_button, 0, 2)
         path_layout.addWidget(open_button, 0, 3)
 
+        # -- Models group --------------------------------------------------
         list_group = QGroupBox(self.tr("Models"), tab)
         list_layout = QVBoxLayout(list_group)
-        self.model_list = QListWidget(tab)
-        self.model_list.itemSelectionChanged.connect(self.refresh_model_action_state)
-        list_layout.addWidget(self.model_list)
+
+        # Filter bar
+        self.model_filter_bar = QTabBar(tab)
+        self.model_filter_bar.addTab(self.tr("All"))
+        self.model_filter_bar.addTab(self.tr("Downloaded"))
+        self.model_filter_bar.addTab(self.tr("Not Downloaded"))
+        self.model_filter_bar.addTab(self.tr("In Memory"))
+        self.model_filter_bar.currentChanged.connect(self._apply_model_filter)
+        list_layout.addWidget(self.model_filter_bar)
+
+        # Model table
+        self.model_table = QTableWidget(tab)
+        self.model_table.setColumnCount(5)
+        self.model_table.setHorizontalHeaderLabels([
+            self.tr("Model Name"),
+            self.tr("Series"),
+            self.tr("File Status"),
+            self.tr("Load Status"),
+            self.tr("Actions"),
+        ])
+        self.model_table.verticalHeader().setVisible(False)
+        self.model_table.setAlternatingRowColors(True)
+        self.model_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.model_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.model_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.model_table.horizontalHeader().setStretchLastSection(True)
+        self.model_table.setMinimumHeight(260)
+        list_layout.addWidget(self.model_table)
+
+        # Download progress
         self.model_download_status_label = QLabel(self.tr("Ready"), tab)
         list_layout.addWidget(self.model_download_status_label)
         self.model_download_progress = QProgressBar(tab)
@@ -263,24 +310,28 @@ class GeoSamSettingsDialog(QDialog):
         self.model_download_progress.setVisible(False)
         list_layout.addWidget(self.model_download_progress)
 
-        action_row = QHBoxLayout()
-        self.download_button = QPushButton(self.tr("Download"), tab)
-        self.download_button.clicked.connect(self.download_selected_model)
-        self.delete_button = QPushButton(self.tr("Delete"), tab)
-        self.delete_button.clicked.connect(self.delete_selected_model)
-        release_button = QPushButton(self.tr("Release Loaded Models"), tab)
-        release_button.clicked.connect(self.release_loaded_models_clicked)
+        # -- Current model status -----------------------------------------
+        self.current_model_label = QLabel(tab)
+        self.current_model_label.setWordWrap(True)
+        self.current_model_status_label = QLabel(tab)
+        self.current_model_status_label.setWordWrap(True)
+
+        # -- Bottom action buttons ----------------------------------------
+        bottom_row = QHBoxLayout()
+        self.unload_button = QPushButton(self.tr("Unload Current"), tab)
+        self.unload_button.setEnabled(False)
+        self.unload_button.clicked.connect(self.unload_current_model_clicked)
         refresh_button = QPushButton(self.tr("Refresh"), tab)
         refresh_button.clicked.connect(self.refresh_model_list)
-        action_row.addWidget(self.download_button)
-        action_row.addWidget(self.delete_button)
-        action_row.addWidget(release_button)
-        action_row.addWidget(refresh_button)
-        action_row.addStretch(1)
+        bottom_row.addWidget(self.unload_button)
+        bottom_row.addWidget(refresh_button)
+        bottom_row.addStretch(1)
 
         layout.addWidget(path_group)
         layout.addWidget(list_group)
-        layout.addLayout(action_row)
+        layout.addWidget(self.current_model_label)
+        layout.addWidget(self.current_model_status_label)
+        layout.addLayout(bottom_row)
         return tab
 
     def _build_cache_tab(self) -> QWidget:
@@ -303,10 +354,18 @@ class GeoSamSettingsDialog(QDialog):
         cache_dir_row.addWidget(cache_browse_button)
         cache_dir_row.addWidget(cache_open_button)
 
-        self.cache_size_box = QSpinBox(tab)
-        self.cache_size_box.setRange(100, 20480)
-        self.cache_size_box.setValue(int(self.settings["cache_max_size_mb"]))
-        self.cache_size_box.valueChanged.connect(self.save_cache_settings)
+        cache_size_row = QHBoxLayout()
+        self.cache_size_slider = QSlider(Qt.Orientation.Horizontal, tab)
+        self.cache_size_slider.setRange(100, 20480)
+        self.cache_size_slider.setValue(int(self.settings["cache_max_size_mb"]))
+        self.cache_size_edit = QLineEdit(str(self.settings["cache_max_size_mb"]), tab)
+        self.cache_size_edit.setFixedWidth(70)
+        self.cache_size_suffix = QLabel(self.tr("MB"), tab)
+        self.cache_size_slider.valueChanged.connect(self._on_cache_slider_changed)
+        self.cache_size_edit.editingFinished.connect(self._on_cache_edit_finished)
+        cache_size_row.addWidget(self.cache_size_slider)
+        cache_size_row.addWidget(self.cache_size_edit)
+        cache_size_row.addWidget(self.cache_size_suffix)
 
         self.performance_mode_combo = QComboBox(tab)
         self.performance_mode_combo.addItem(self.tr("Balanced"), "balanced")
@@ -334,20 +393,17 @@ class GeoSamSettingsDialog(QDialog):
         self.clear_cache_on_close_checkbox.toggled.connect(self.save_cache_settings)
 
         self.cache_status_label = QLabel("", tab)
-        cleanup_button = QPushButton(self.tr("Cleanup Now"), tab)
-        cleanup_button.clicked.connect(self.cleanup_cache_clicked)
-        clear_button = QPushButton(self.tr("Clear All Cache"), tab)
+        clear_button = QPushButton(self.tr("Clear Cache Now"), tab)
         clear_button.clicked.connect(self.clear_cache_clicked)
 
         form_layout.addRow(self.tr("Cache"), self.cache_enabled_checkbox)
         form_layout.addRow(self.tr("Location"), cache_dir_row)
-        form_layout.addRow(self.tr("Max Size (MB)"), self.cache_size_box)
-        form_layout.addRow(self.tr("Performance"), self.performance_mode_combo)
+        form_layout.addRow(self.tr("Max Size"), cache_size_row)
+        form_layout.addRow(self.tr("Model Performance"), self.performance_mode_combo)
         form_layout.addRow(
             self.tr("Close Behavior"), self.clear_cache_on_close_checkbox
         )
         form_layout.addRow(self.tr("Current Usage"), self.cache_status_label)
-        form_layout.addRow("", cleanup_button)
         form_layout.addRow("", clear_button)
 
         layout.addLayout(form_layout)
@@ -730,43 +786,192 @@ class GeoSamSettingsDialog(QDialog):
             self.save_model_directory()
 
     def refresh_model_list(self) -> None:
-        self.model_list.clear()
-        for row in get_model_status_rows():
-            status_text = (
-                self.tr("Downloaded") if row["downloaded"] else self.tr("Missing")
-            )
-            item = QListWidgetItem(
-                f"{row['label']} [{row['model_type']}] - {status_text}",
-                self.model_list,
-            )
-            item.setData(Qt.ItemDataRole.UserRole, row["model_id"])
-        self.refresh_model_action_state()
+        """Rebuild the model table from current status and apply the active filter."""
+        loaded_ids = get_loaded_model_ids()
+        rows = get_model_status_rows()
+        self.model_table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            model_id = row["model_id"]
+            is_downloaded = row["downloaded"]
+            is_loaded = model_id in loaded_ids
 
-    def refresh_model_action_state(self) -> None:
-        has_selection = self.model_list.currentItem() is not None
+            # Column 0: Model Name
+            name_item = QTableWidgetItem(row["label"])
+            name_item.setData(Qt.ItemDataRole.UserRole, model_id)
+            self.model_table.setItem(row_index, self.COL_NAME, name_item)
+
+            # Column 1: Series
+            series_item = QTableWidgetItem(row["model_type"].upper())
+            self.model_table.setItem(row_index, self.COL_SERIES, series_item)
+
+            # Column 2: File Status
+            if is_downloaded:
+                file_text = self.tr("Downloaded")
+                file_color = QColor("#008c4a")
+            else:
+                file_text = self.tr("Not Downloaded")
+                file_color = QColor("#b00020")
+            file_item = QTableWidgetItem(file_text)
+            file_item.setForeground(file_color)
+            self.model_table.setItem(row_index, self.COL_FILE_STATUS, file_item)
+
+            # Column 3: Load Status
+            if is_loaded:
+                load_text = self.tr("In Memory")
+                load_color = QColor("#008c4a")
+            else:
+                load_text = "—"
+                load_color = QColor("#888888")
+            load_item = QTableWidgetItem(load_text)
+            load_item.setForeground(load_color)
+            self.model_table.setItem(row_index, self.COL_LOAD_STATUS, load_item)
+
+            # Column 4: Actions
+            action_widget = self._create_model_action_widget(
+                model_id, is_downloaded, is_loaded
+            )
+            self.model_table.setCellWidget(row_index, self.COL_ACTIONS, action_widget)
+
+        header = self.model_table.horizontalHeader()
+        header.setStretchLastSection(False)
+        for col in range(self.model_table.columnCount()):
+            header.setSectionResizeMode(
+                col, QHeaderView.ResizeMode.Stretch
+            )
+        self._apply_model_filter()
+        self._update_current_model_status()
+
+    def _create_model_action_widget(
+        self,
+        model_id: str,
+        is_downloaded: bool,
+        is_loaded: bool,
+    ) -> QWidget:
+        """Create the inline action buttons for a model table row.
+
+        Parameters
+        ----------
+        model_id : str
+            Model identifier.
+        is_downloaded : bool
+            Whether the checkpoint file exists locally.
+        is_loaded : bool
+            Whether the model has engines in memory.
+
+        Returns
+        -------
+        QWidget
+            Widget with horizontal layout of contextual action buttons.
+
+        """
+        widget = QWidget(self.model_table)
+        hbox = QHBoxLayout(widget)
+        hbox.setContentsMargins(2, 2, 2, 2)
+        hbox.setSpacing(4)
+
         is_downloading = self._model_download_thread is not None
-        self.download_button.setEnabled(has_selection and not is_downloading)
-        self.delete_button.setEnabled(has_selection and not is_downloading)
+
+        if not is_downloaded:
+            download_btn = QPushButton(self.tr("Download"), widget)
+            download_btn.clicked.connect(
+                lambda _checked=False, mid=model_id: self.download_model_by_id(mid)
+            )
+            download_btn.setEnabled(not is_downloading)
+            hbox.addWidget(download_btn)
+        else:
+            delete_btn = QPushButton(self.tr("Delete"), widget)
+            delete_btn.clicked.connect(
+                lambda _checked=False, mid=model_id: self.delete_model_by_id(mid)
+            )
+            delete_btn.setEnabled(not is_downloading)
+            hbox.addWidget(delete_btn)
+
+        hbox.addStretch(1)
+        return widget
+
+    def _apply_model_filter(self) -> None:
+        """Show or hide table rows based on the active filter tab."""
+        filter_index = self.model_filter_bar.currentIndex()
+        loaded_ids = get_loaded_model_ids()
+        for row_index in range(self.model_table.rowCount()):
+            name_item = self.model_table.item(row_index, self.COL_NAME)
+            if name_item is None:
+                continue
+            model_id = str(name_item.data(Qt.ItemDataRole.UserRole))
+            file_item = self.model_table.item(row_index, self.COL_FILE_STATUS)
+            is_downloaded = (
+                file_item is not None
+                and file_item.text() == self.tr("Downloaded")
+            )
+            is_loaded = model_id in loaded_ids
+
+            visible = True
+            if filter_index == self.FILTER_DOWNLOADED:
+                visible = is_downloaded
+            elif filter_index == self.FILTER_NOT_DOWNLOADED:
+                visible = not is_downloaded
+            elif filter_index == self.FILTER_IN_MEMORY:
+                visible = is_loaded
+
+            self.model_table.setRowHidden(row_index, not visible)
+
+    def _update_current_model_status(self) -> None:
+        """Update the current-model and unload-button state."""
+        loaded_ids = get_loaded_model_ids()
+        if loaded_ids:
+            labels: list[str] = []
+            for model_id in loaded_ids:
+                try:
+                    from .model_manager import get_model_definition
+
+                    definition = get_model_definition(model_id)
+                    labels.append(definition.label)
+                except KeyError:
+                    labels.append(model_id)
+            display = ", ".join(sorted(labels))
+            self.current_model_label.setText(
+                self.tr("Current Model: {model}").format(model=display)
+            )
+            self.current_model_status_label.setText(
+                self.tr("Status: Loaded, ready for segmentation")
+            )
+            self.unload_button.setEnabled(True)
+        else:
+            self.current_model_label.setText(self.tr("Current Model: —"))
+            self.current_model_status_label.setText(
+                self.tr("Status: No model loaded")
+            )
+            self.unload_button.setEnabled(False)
 
     def _selected_model_id(self) -> str | None:
-        item = self.model_list.currentItem()
-        if item is None:
+        """Return the model id of the currently selected table row."""
+        selected = self.model_table.selectedItems()
+        if not selected:
             return None
-        return str(item.data(Qt.ItemDataRole.UserRole))
+        row_index = selected[0].row()
+        name_item = self.model_table.item(row_index, self.COL_NAME)
+        if name_item is None:
+            return None
+        return str(name_item.data(Qt.ItemDataRole.UserRole))
 
-    def download_selected_model(self) -> None:
-        model_id = self._selected_model_id()
-        if model_id is None or self._model_download_thread is not None:
+    def download_model_by_id(self, model_id: str) -> None:
+        """Start downloading a model by its identifier.
+
+        Parameters
+        ----------
+        model_id : str
+            Model identifier to download.
+
+        """
+        if self._model_download_thread is not None:
             return
         self.model_download_status_label.setText(
             self.tr("Downloading {model_id}...").format(model_id=model_id)
         )
         self.model_download_progress.setVisible(True)
         self.close_button.setEnabled(False)
-        self.model_list.setEnabled(False)
+        self.model_table.setEnabled(False)
         self.model_dir_edit.setEnabled(False)
-        self.download_button.setEnabled(False)
-        self.delete_button.setEnabled(False)
 
         thread = ModelDownloadThread(model_id, self)
         thread.succeeded.connect(self._download_model_succeeded)
@@ -774,6 +979,25 @@ class GeoSamSettingsDialog(QDialog):
         thread.finished.connect(self._download_model_finished)
         self._model_download_thread = thread
         thread.start()
+
+    def delete_model_by_id(self, model_id: str) -> None:
+        """Confirm and delete a model checkpoint by its identifier.
+
+        Parameters
+        ----------
+        model_id : str
+            Model identifier to delete.
+
+        """
+        answer = QMessageBox.question(
+            self,
+            self.tr("Delete Model"),
+            self.tr("Delete the selected checkpoint from the local model folder?"),
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        delete_model(model_id)
+        self.refresh_model_list()
 
     def _download_model_succeeded(self, checkpoint_path: str) -> None:
         """Handle a successful background model download."""
@@ -797,30 +1021,16 @@ class GeoSamSettingsDialog(QDialog):
         """Restore UI state after the background model download ends."""
         self.model_download_progress.setVisible(False)
         self.close_button.setEnabled(True)
-        self.model_list.setEnabled(True)
+        self.model_table.setEnabled(True)
         self.model_dir_edit.setEnabled(True)
         thread = self._model_download_thread
         self._model_download_thread = None
         if thread is not None:
             thread.deleteLater()
-        self.refresh_model_action_state()
-
-    def delete_selected_model(self) -> None:
-        model_id = self._selected_model_id()
-        if model_id is None:
-            return
-        answer = QMessageBox.question(
-            self,
-            self.tr("Delete Model"),
-            self.tr("Delete the selected checkpoint from the local model folder?"),
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-        delete_model(model_id)
         self.refresh_model_list()
 
-    def release_loaded_models_clicked(self) -> None:
-        """Release loaded GeoSAM model sessions from memory."""
+    def unload_current_model_clicked(self) -> None:
+        """Release all loaded GeoSAM model sessions from memory."""
         removed_count = release_runtime_models()
         MessageTool.MessageBar(
             "Geo-SAM",
@@ -829,6 +1039,22 @@ class GeoSamSettingsDialog(QDialog):
             ),
             level="info",
         )
+        self.refresh_model_list()
+
+    def _on_cache_slider_changed(self, value: int) -> None:
+        """Sync the line edit when the slider moves."""
+        self.cache_size_edit.setText(str(value))
+        self.save_cache_settings()
+
+    def _on_cache_edit_finished(self) -> None:
+        """Sync the slider when the line edit is committed."""
+        try:
+            value = int(self.cache_size_edit.text())
+        except ValueError:
+            value = self.cache_size_slider.value()
+        value = max(100, min(20480, value))
+        self.cache_size_slider.setValue(value)
+        # slider valueChanged will trigger save_cache_settings
 
     def save_cache_settings(self) -> None:
         cache_dir = self.cache_dir_edit.text().strip() or str(DEFAULT_CACHE_DIR)
@@ -842,7 +1068,7 @@ class GeoSamSettingsDialog(QDialog):
             {
                 "cache_enabled": self.cache_enabled_checkbox.isChecked(),
                 "cache_dir": cache_dir,
-                "cache_max_size_mb": self.cache_size_box.value(),
+                "cache_max_size_mb": self.cache_size_slider.value(),
                 "clear_cache_on_plugin_close": self.clear_cache_on_close_checkbox.isChecked(),
                 "performance_mode": performance_mode,
             }
@@ -862,15 +1088,6 @@ class GeoSamSettingsDialog(QDialog):
     def refresh_cache_status(self) -> None:
         current_size_mb = get_cache_size_bytes(get_cache_directory()) / (1024 * 1024)
         self.cache_status_label.setText(f"{current_size_mb:.1f} MB")
-
-    def cleanup_cache_clicked(self) -> None:
-        removed_count = cleanup_cache()
-        self.refresh_cache_status()
-        MessageTool.MessageBar(
-            "Geo-SAM",
-            self.tr("Removed {count} cached file(s).").format(count=removed_count),
-            level="info",
-        )
 
     def clear_cache_clicked(self) -> None:
         """Delete all plugin cache files immediately."""

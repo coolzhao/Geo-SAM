@@ -14,7 +14,7 @@ from qgis.core import QgsApplication
 from qgis.gui import QgisInterface
 
 from .tools.geosam_backend import configure_geosam_qgis_runtime
-from .tools.i18n import install_translator, remove_translator
+from .tools.i18n import install_translator, remove_translator, translate
 from .tools.plugin_settings import missing_plugin_runtime_dependencies
 from .ui.icons import (
     QIcon_EncoderCopilot,
@@ -45,42 +45,50 @@ class Geo_SAM(QObject):
         self.provider = GeoSamProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
 
+    def _tr(self, text: str) -> str:
+        """Translate a user-facing Geo-SAM string."""
+        return translate(text)
+
     def initGui(self):
         """Initialize plugin actions and configure the GeoSAM QGIS backend."""
         install_translator()
         configure_geosam_qgis_runtime()
         self.initProcessing()
 
-        self.toolbar: QToolBar = self.iface.addToolBar(self.tr("Geo SAM Toolbar"))
+        self.toolbar: QToolBar = self.iface.addToolBar(self._tr("Geo SAM Toolbar"))
         self.toolbar.setObjectName("mGeoSamToolbar")
-        self.toolbar.setToolTip(self.tr("Geo SAM Toolbar"))
+        self.toolbar.setToolTip(self._tr("Geo SAM Toolbar"))
 
         self.actionSamTool = QAction(
-            QIcon_GeoSAMTool, self.tr("Geo-SAM Segmentation"), self.iface.mainWindow()
+            QIcon_GeoSAMTool, self._tr("Geo-SAM Segmentation"), self.iface.mainWindow()
         )
 
         self.actionSamEncoder = QAction(
-            QIcon_EncoderTool, self.tr("Geo-SAM Image Encoder"), self.iface.mainWindow()
+            QIcon_EncoderTool,
+            self._tr("Geo-SAM Image Encoder"),
+            self.iface.mainWindow(),
         )
 
         self.actionSamEncoderCopilot = QAction(
             QIcon_EncoderCopilot,
-            self.tr("Geo-SAM Encoder Copilot"),
+            self._tr("Geo-SAM Encoder Copilot"),
             self.iface.mainWindow(),
         )
         self.actionSamSettings = QAction(
-            QIcon_GeoSAMSettings, self.tr("Geo-SAM Settings"), self.iface.mainWindow()
+            QIcon_GeoSAMSettings,
+            self._tr("Geo-SAM Settings"),
+            self.iface.mainWindow(),
         )
 
         self.actionSamTool.setObjectName("mActionGeoSamTool")
         self.actionSamTool.setToolTip(
-            self.tr("Geo-SAM Segmentation: Use it to label landforms")
+            self._tr("Geo-SAM Segmentation: Use it to label landforms")
         )
         self.actionSamTool.triggered.connect(self.create_widget_selector)
 
         self.actionSamEncoder.setObjectName("mActionGeoSamEncoder")
         self.actionSamEncoder.setToolTip(
-            self.tr(
+            self._tr(
                 "Geo-SAM Image Encoder: Use it to encode/preprocess image before labeling"
             )
         )
@@ -88,18 +96,18 @@ class Geo_SAM(QObject):
 
         self.actionSamEncoderCopilot.setObjectName("mActionGeoSamEncoderCopilot")
         self.actionSamEncoderCopilot.setToolTip(
-            self.tr("Encoder Copilot: Assist you in optimizing your Encoder Settings")
+            self._tr("Encoder Copilot: Assist you in optimizing your Encoder Settings")
         )
         self.actionSamEncoderCopilot.triggered.connect(
             self.create_widget_encoder_copilot
         )
         self.actionSamSettings.setObjectName("mActionGeoSamSettings")
         self.actionSamSettings.setToolTip(
-            self.tr("Geo-SAM Settings: Manage dependencies, models, cache, and help")
+            self._tr("Geo-SAM Settings: Manage dependencies, models, cache, and help")
         )
         self.actionSamSettings.triggered.connect(self.open_settings_dialog)
 
-        menu_title = self.tr("Geo-SAM Tools")
+        menu_title = self._tr("Geo-SAM Tools")
         self.iface.addPluginToMenu(menu_title, self.actionSamTool)
         self.iface.addPluginToMenu(menu_title, self.actionSamEncoder)
         self.iface.addPluginToMenu(menu_title, self.actionSamEncoderCopilot)
@@ -114,7 +122,7 @@ class Geo_SAM(QObject):
 
     def create_widget_selector(self):
         """Create widget for selecting landform by prompts"""
-        action_label = self.tr("Segmentation")
+        action_label = self._tr("Segmentation")
         if not self._ensure_runtime_dependencies(action_label):
             return
 
@@ -130,7 +138,7 @@ class Geo_SAM(QObject):
 
     def create_widget_encoder_copilot(self):
         """Create widget for co-piloting encoder settings"""
-        action_label = self.tr("Encoder Copilot")
+        action_label = self._tr("Encoder Copilot")
         if not self._ensure_runtime_dependencies(action_label):
             return
 
@@ -234,8 +242,8 @@ class Geo_SAM(QObject):
         dependency_text = ", ".join(dict.fromkeys(missing_dependency_names))
         answer = QMessageBox.question(
             self.iface.mainWindow(),
-            self.tr("Geo-SAM Dependencies Missing"),
-            self.tr(
+            self._tr("Geo-SAM Dependencies Missing"),
+            self._tr(
                 "Geo-SAM requires the following dependencies for {action}:\n\n"
                 "{dependencies}\n\n"
                 "Would you like to open the Dependencies page and install them now?"
@@ -302,6 +310,6 @@ class Geo_SAM(QObject):
 
     def encodeImage(self):
         """Convert layer containing a point x & y coordinate to a new point layer"""
-        if not self._ensure_runtime_dependencies(self.tr("Image Encoder")):
+        if not self._ensure_runtime_dependencies(self._tr("Image Encoder")):
             return
         processing.execAlgorithmDialog("geo_sam:geo_sam_encoder", {})

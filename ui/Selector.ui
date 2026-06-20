@@ -12,7 +12,7 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>976</width>
+    <width>500</width>
     <height>80</height>
    </size>
   </property>
@@ -37,205 +37,266 @@
       </property>
       <widget class="QWidget" name="Source">
        <attribute name="title">
-        <string>Image Source</string>
+         <string>Input / Output</string>
        </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_paths">
-        <item>
-         <widget class="QFrame" name="frame_paths">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_paths" stretch="0">
-           <property name="leftMargin">
-            <number>3</number>
-           </property>
-           <property name="topMargin">
-            <number>3</number>
-           </property>
-           <property name="rightMargin">
-            <number>3</number>
-           </property>
-           <property name="bottomMargin">
-            <number>3</number>
-           </property>
-           <item>
-            <widget class="QSplitter" name="splitter">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
+        <layout class="QVBoxLayout" name="verticalLayout_paths">
+         <item>
+          <widget class="QFrame" name="frameIORow">
+             <layout class="QHBoxLayout" name="horizontalLayout_io" stretch="2,1">
+             <property name="spacing">
+              <number>4</number>
              </property>
-             <property name="handleWidth">
-              <number>7</number>
+             <property name="leftMargin">
+              <number>3</number>
              </property>
-             <widget class="QGroupBox" name="groupBox_model">
+             <property name="topMargin">
+              <number>3</number>
+             </property>
+             <property name="rightMargin">
+              <number>3</number>
+             </property>
+             <property name="bottomMargin">
+              <number>3</number>
+             </property>
+            <item>
+             <widget class="QGroupBox" name="grpSegInput">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+               <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
               <property name="title">
-               <string>Live Encoding</string>
+               <string>Segmentation Input</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignHCenter|Qt::AlignTop</set>
               </property>
-              <layout class="QHBoxLayout" name="horizontalLayout_model" stretch="1,0">
+                <layout class="QHBoxLayout" name="horizontalLayout_paths">
+                 <property name="spacing">
+                  <number>4</number>
+                 </property>
                <item>
-                <widget class="QGroupBox" name="horizontalGroupBox_2">
+                <widget class="QComboBox" name="SourceModeComboBox">
                  <property name="sizePolicy">
-                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
-                 <property name="title">
-                  <string>Image Layer</string>
-                 </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
-                 </property>
-                 <layout class="QHBoxLayout" name="horizontalLayout_7">
-                  <item>
-                   <widget class="QgsMapLayerComboBox" name="RealTimeLayerComboBox">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="maximumSize">
-                     <size>
-                      <width>16777215</width>
-                      <height>32</height>
-                     </size>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="pushButton_zoom_to_realtime_extent">
-                    <property name="toolTip">
-                     <string>Zoom to the selected image layer extent</string>
-                    </property>
-                    <property name="text">
-                     <string>Zoom to</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
+                 <item>
+                  <property name="text">
+                   <string>Image Layer</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>Feature File</string>
+                  </property>
+                 </item>
                 </widget>
                </item>
                <item>
-                <widget class="QGroupBox" name="horizontalGroupBox">
+                <widget class="QStackedWidget" name="SourceStack">
                  <property name="sizePolicy">
-                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                   <horstretch>0</horstretch>
+                  <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                   <horstretch>1</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
-                 <property name="title">
-                  <string>Model</string>
+                 <property name="currentIndex">
+                  <number>0</number>
                  </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
-                 </property>
-                 <layout class="QHBoxLayout" name="horizontalLayout_8">
+                 <widget class="QWidget" name="page_realtime">
+                  <layout class="QHBoxLayout" name="horizontalLayout_realtime">
+                   <property name="spacing">
+                    <number>4</number>
+                   </property>
+                   <property name="leftMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="topMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="rightMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="bottomMargin">
+                    <number>0</number>
+                   </property>
+                    <item>
+                     <widget class="QLabel" name="label_realtime_model">
+                       <property name="text">
+                        <string>Model</string>
+                       </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QComboBox" name="ModelComboBox">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                        <horstretch>1</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>16777215</width>
+                        <height>32</height>
+                       </size>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QLabel" name="label_realtime_layer">
+                       <property name="text">
+                        <string>Layer</string>
+                       </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QgsMapLayerComboBox" name="RealTimeLayerComboBox">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                        <horstretch>1</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>16777215</width>
+                        <height>32</height>
+                       </size>
+                      </property>
+                     </widget>
+                    </item>
+                   <item>
+                    <widget class="QPushButton" name="pushButton_zoom_to_realtime_extent">
+                     <property name="toolTip">
+                      <string>Zoom to the selected image layer extent</string>
+                     </property>
+                     <property name="text">
+                      <string>Zoom to</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                 <widget class="QWidget" name="page_feature">
+                  <layout class="QHBoxLayout" name="horizontalLayout_feature">
+                   <property name="spacing">
+                    <number>4</number>
+                   </property>
+                   <property name="leftMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="topMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="rightMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="bottomMargin">
+                    <number>0</number>
+                   </property>
+                   <item>
+                    <widget class="QLabel" name="label_feature_path">
+                      <property name="text">
+                       <string>Feature File</string>
+                      </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QgsFileWidget" name="QgsFile_feature">
+                     <property name="sizePolicy">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                       <horstretch>1</horstretch>
+                       <verstretch>0</verstretch>
+                      </sizepolicy>
+                     </property>
+                     <property name="toolTip">
+                      <string>Input or choose the cached feature folder to load</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="pushButton_load_feature">
+                     <property name="toolTip">
+                      <string>Load the selected feature folder</string>
+                     </property>
+                     <property name="text">
+                      <string>Load</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="pushButton_zoom_to_extent">
+                     <property name="toolTip">
+                      <string>Zoom to the current source extent</string>
+                     </property>
+                     <property name="text">
+                      <string>Zoom to</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="grpSegResult">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="title">
+                <string>Segmentation Result</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignHCenter|Qt::AlignTop</set>
+               </property>
+                  <layout class="QHBoxLayout" name="horizontalLayout_output">
+                   <property name="spacing">
+                    <number>4</number>
+                   </property>
                   <item>
-                   <widget class="QComboBox" name="ModelComboBox">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="maximumSize">
-                     <size>
-                      <width>16777215</width>
-                      <height>32</height>
-                     </size>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-              </layout>
-             </widget>
-             <widget class="QGroupBox" name="FeatureFolderGroupBox">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="title">
-               <string>Pre-encoded </string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignHCenter|Qt::AlignTop</set>
-              </property>
-              <layout class="QHBoxLayout" name="horizontalLayout_input" stretch="7,1,1">
-               <property name="spacing">
-                <number>1</number>
-               </property>
-               <property name="leftMargin">
-                <number>3</number>
-               </property>
-               <property name="topMargin">
-                <number>3</number>
-               </property>
-               <property name="rightMargin">
-                <number>3</number>
-               </property>
-               <property name="bottomMargin">
-                <number>3</number>
-               </property>
-               <item>
-                <widget class="QgsFileWidget" name="QgsFile_feature">
-                 <property name="toolTip">
-                  <string>Input or choose the cached feature folder to load</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_load_feature">
-                 <property name="toolTip">
-                  <string>Load the selected feature folder</string>
-                 </property>
-                 <property name="text">
-                  <string>Load</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_zoom_to_extent">
-                 <property name="toolTip">
-                  <string>Zoom to the current source extent</string>
-                 </property>
-                 <property name="text">
-                  <string>Zoom to</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </widget>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="Prompts">
+                 <widget class="QgsMapLayerComboBox" name="MapLayerComboBox">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                    <horstretch>1</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="pushButton_load_file">
+                  <property name="text">
+                   <string>Load/Create</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       <widget class="QWidget" name="Prompts">
        <attribute name="title">
         <string>Prompts</string>
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout_prompts">
         <item>
          <widget class="QFrame" name="Top">
-          <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,2,2,3,1">
+           <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,2,2,2,1">
            <property name="spacing">
             <number>1</number>
            </property>
@@ -364,101 +425,40 @@
              </layout>
             </widget>
            </item>
-           <item>
-            <widget class="QGroupBox" name="OutShapefileGroupBox">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="title">
-              <string>Output Layer or File</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
-             </property>
-             <layout class="QGridLayout" name="gridLayout_output" columnstretch="1,4" columnminimumwidth="1,2">
-              <property name="leftMargin">
-               <number>3</number>
+            <item>
+             <widget class="QGroupBox" name="gridGroupBox">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+              <property name="title">
+               <string>Vectorization Mode</string>
               </property>
-              <property name="topMargin">
-               <number>3</number>
+              <property name="alignment">
+               <set>Qt::AlignHCenter|Qt::AlignTop</set>
               </property>
-              <property name="rightMargin">
-               <number>3</number>
-              </property>
-              <property name="bottomMargin">
-               <number>3</number>
-              </property>
-              <property name="spacing">
-               <number>4</number>
-              </property>
-              <item row="0" column="0">
-               <widget class="QGroupBox" name="gridGroupBox">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="title">
-                 <string>Vectorization Mode</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignCenter</set>
-                </property>
-                <layout class="QGridLayout" name="gridLayout">
-                 <item row="0" column="0">
-                  <widget class="QComboBox" name="VectorizationModeComboBox">
-                   <property name="sizePolicy">
-                    <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                     <horstretch>0</horstretch>
-                     <verstretch>0</verstretch>
-                    </sizepolicy>
-                   </property>
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>0</height>
-                    </size>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QGroupBox" name="gridGroupBox_2">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="title">
-                 <string>Vector Layer</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignCenter</set>
-                </property>
-                <layout class="QGridLayout" name="gridLayout_4" columnstretch="2,1" columnminimumwidth="2,1">
-                 <item row="0" column="0">
-                  <widget class="QgsMapLayerComboBox" name="MapLayerComboBox"/>
-                 </item>
-                 <item row="0" column="1">
-                  <widget class="QPushButton" name="pushButton_load_file">
-                   <property name="text">
-                    <string>Load</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
+              <layout class="QGridLayout" name="gridLayout">
+               <item row="0" column="0">
+                <widget class="QComboBox" name="VectorizationModeComboBox">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>0</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
            <item>
             <widget class="QGroupBox" name="PolygonGroupBox">
              <property name="sizePolicy">
@@ -502,7 +502,7 @@
        <layout class="QVBoxLayout" name="verticalLayout_styles">
         <item>
          <widget class="QFrame" name="frame_styles">
-          <layout class="QHBoxLayout" name="horizontalLayout_5">
+           <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="1,1,1,1,1,1,1,1">
            <property name="spacing">
             <number>1</number>
            </property>
@@ -518,74 +518,134 @@
            <property name="bottomMargin">
             <number>3</number>
            </property>
-           <item>
-            <widget class="QGroupBox" name="groupBox_18">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="toolTip">
-              <string>Size of foreground and background points</string>
-             </property>
-             <property name="title">
-              <string>Point Size</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_10">
-              <item>
-               <widget class="QgsDoubleSpinBox" name="SpinBoxPtSize">
-                <property name="toolTip">
-                 <string>Size of foreground and background points</string>
-                </property>
-                <property name="decimals">
-                 <number>1</number>
-                </property>
-                <property name="minimum">
-                 <double>1.000000000000000</double>
-                </property>
-                <property name="maximum">
-                 <double>99.000000000000000</double>
-                </property>
-                <property name="singleStep">
-                 <double>0.500000000000000</double>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
-            <widget class="QGroupBox" name="groupBox_17">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="toolTip">
-              <string>Icon type of foreground and background points</string>
-             </property>
-             <property name="title">
-              <string>Point Type</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_11">
-              <item>
-               <widget class="QComboBox" name="comboBoxIconType">
-                <property name="toolTip">
-                 <string>Icon type of foreground and background points</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
+            <item>
+              <widget class="QGroupBox" name="groupBox_18">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>90</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Size of foreground and background points</string>
+               </property>
+               <property name="title">
+                <string>Point Size</string>
+               </property>
+              <property name="alignment">
+               <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_10">
+               <item>
+                 <widget class="QgsDoubleSpinBox" name="SpinBoxPtSize">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="minimumSize">
+                   <size>
+                    <width>0</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>90</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Size of foreground and background points</string>
+                  </property>
+                 <property name="decimals">
+                  <number>1</number>
+                 </property>
+                 <property name="minimum">
+                  <double>1.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>99.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.500000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+              <widget class="QGroupBox" name="groupBox_17">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>90</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Icon type of foreground and background points</string>
+               </property>
+               <property name="title">
+                <string>Point Type</string>
+               </property>
+              <property name="alignment">
+               <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_11">
+               <item>
+                 <widget class="QComboBox" name="comboBoxIconType">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="minimumSize">
+                   <size>
+                    <width>0</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>90</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Icon type of foreground and background points</string>
+                  </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_9">
              <property name="sizePolicy">
@@ -595,7 +655,7 @@
               </sizepolicy>
              </property>
              <property name="title">
-              <string>Foreground Point</string>
+               <string>Foreground Point Color</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignHCenter|Qt::AlignTop</set>
@@ -616,7 +676,7 @@
               </sizepolicy>
              </property>
              <property name="title">
-              <string>Background Point</string>
+               <string>Background Point Color</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignHCenter|Qt::AlignTop</set>

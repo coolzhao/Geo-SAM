@@ -3,6 +3,7 @@ from .config import (
     Settings as Settings,
     save_user_settings as save_user_settings,
 )
+from .split_tab_panel import SplitTabPanel as SplitTabPanel
 from .UI import (
     load_encoder_copilot_ui as load_encoder_copilot_ui,
     load_selector_ui as load_selector_ui,

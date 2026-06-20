@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 import time
 from pathlib import Path
 from typing import Any, Literal
@@ -44,6 +43,7 @@ from .geosam_runtime import (
     chip_extent_rectangles_for_source,
     sanitize_path_component,
 )
+from .i18n import current_locale_name, translate
 from .model_manager import (
     create_model_spec_from_checkpoint,
     get_model_checkpoint_path,
@@ -57,11 +57,12 @@ UNIT_DEGREES = 6
 EncodingMemoryStrategy = Literal["balanced", "low_memory"]
 ENCODING_MEMORY_STRATEGIES: tuple[tuple[EncodingMemoryStrategy, str], ...] = (
     ("balanced", "Balanced"),
-    ("low_memory", "Low memory"),
+    ("low_memory", "Low Memory"),
 )
 BALANCED_MEMORY_FLUSH_INTERVAL = 16
 
 logger = logging.getLogger(__name__)
+REQUIRED_MARK_HTML = '<span style="color:#d93025">*</span>'
 
 
 class SamProcessingAlgorithm(QgsProcessingAlgorithm):
@@ -82,9 +83,29 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     BATCH_SIZE = "BATCH_SIZE"
     CUDA_ID = "CUDA_ID"
 
+    def _required_text(self, translated_text: str) -> str:
+        """Return rich text marking a required parameter.
+
+        Parameters
+        ----------
+        translated_text : str
+            Already translated label text.
+
+        Returns
+        -------
+        str
+            Rich-text label with a red required marker.
+
+        """
+        return f"{translated_text} {REQUIRED_MARK_HTML}"
+
     def flags(self) -> Any:
         """Return processing flags for the algorithm."""
         return super().flags() | QgsProcessingAlgorithm.Flag.FlagNoThreading
+
+    def _memory_strategy_options(self) -> list[str]:
+        """Return translated memory-strategy labels."""
+        return [translate(label) for _strategy, label in ENCODING_MEMORY_STRATEGIES]
 
     def initAlgorithm(self, config: dict[str, Any] | None = None) -> None:
         """Define processing inputs."""
@@ -92,7 +113,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 name=self.INPUT,
-                description=self.tr("Input raster layer or image file path"),
+                description=self._required_text(
+                    self.tr("Input raster layer or image file path")
+                ),
             )
         )
         self.addParameter(
@@ -149,7 +172,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 name=self.STRIDE,
-                description=self.tr("Sliding-window stride."),
+                description=self.tr("Sliding-window stride"),
                 type=QgsProcessingParameterNumber.Type.Integer,
                 defaultValue=512,
                 minValue=1,
@@ -160,7 +183,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterEnum(
                 name=self.MEMORY_STRATEGY,
                 description=self.tr("Encoding memory strategy"),
-                options=[label for _strategy, label in ENCODING_MEMORY_STRATEGIES],
+                options=self._memory_strategy_options(),
                 defaultValue=0,
             )
         )
@@ -183,7 +206,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.CUDA,
-                self.tr("Use GPU if CUDA is available."),
+                self.tr("Use GPU if CUDA is available"),
                 defaultValue=True,
             )
         )
@@ -191,8 +214,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterNumber(
                 name=self.BATCH_SIZE,
                 description=self.tr(
-                    "Batch size placeholder. GeoSAM currently encodes one chip "
-                    "at a time."
+                    "Batch size placeholder. GeoSAM currently encodes one chip at a time"
                 ),
                 type=QgsProcessingParameterNumber.Type.Integer,
                 defaultValue=1,
@@ -203,7 +225,9 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.LOAD,
-                self.tr("Load output features in Geo-SAM tool after processing"),
+                self.tr(
+                    "Load output features in Geo-SAM tool after processing"
+                ),
                 defaultValue=True,
             )
         )
@@ -755,7 +779,7 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
     def tr(self, string: str) -> str:
         """Return a translated string."""
-        return QCoreApplication.translate("Processing", string)
+        return QCoreApplication.translate("SamProcessingAlgorithm", string)
 
     def createInstance(self):
         """Create the processing algorithm instance."""
@@ -779,10 +803,19 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
 
     def shortHelpString(self) -> str:
         """Return the algorithm help text."""
-        help_path = encoder_help
-        if not os.path.exists(help_path):
+        help_path = Path(encoder_help)
+        locale_name = current_locale_name().replace("-", "_")
+        locale_candidates = tuple(dict.fromkeys((locale_name, locale_name.split("_")[0])))
+        for locale_candidate in locale_candidates:
+            localized_help_path = help_path.with_name(
+                f"{help_path.stem}_{locale_candidate}{help_path.suffix}"
+            )
+            if localized_help_path.exists():
+                help_path = localized_help_path
+                break
+        if not help_path.exists():
             return self.tr("Generate reusable image features using GeoSAM.")
-        with open(help_path) as help_file:
+        with help_path.open(encoding="utf-8") as help_file:
             return help_file.read()
 
     def icon(self):

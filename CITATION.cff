@@ -8,7 +8,7 @@ authors:
 - family-names: "Liu"
   given-names: "Lin"
 title: "Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation"
-version: 1.1.0
+version: 2.0.0
 doi: 10.5281/zenodo.8191039
 date-released: 2023-7-27
 url: "https://doi.org/10.5281/zenodo.8191039"

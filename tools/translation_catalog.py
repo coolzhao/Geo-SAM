@@ -9,6 +9,7 @@ from __future__ import annotations
 from qgis.PyQt.QtCore import QCoreApplication
 
 DYNAMIC_USER_TEXT = (
+    QCoreApplication.translate("QObject", "%1 [optional]"),
     QCoreApplication.translate("GeoSAM", "Warning"),
     QCoreApplication.translate("GeoSAM", "Geo-SAM"),
     QCoreApplication.translate("GeoSAM", "Note:"),
@@ -22,6 +23,28 @@ DYNAMIC_USER_TEXT = (
     QCoreApplication.translate("GeoSAM", "Geo-SAM managed"),
     QCoreApplication.translate("GeoSAM", "QGIS runtime or Geo-SAM"),
     QCoreApplication.translate("GeoSAM", "QGIS runtime"),
+    QCoreApplication.translate("GeoSAM", "Geo SAM Toolbar"),
+    QCoreApplication.translate("GeoSAM", "Geo-SAM Segmentation"),
+    QCoreApplication.translate("GeoSAM", "Geo-SAM Image Encoder"),
+    QCoreApplication.translate("GeoSAM", "Geo-SAM Encoder Copilot"),
+    QCoreApplication.translate("GeoSAM", "Geo-SAM Settings"),
+    QCoreApplication.translate(
+        "GeoSAM", "Geo-SAM Segmentation: Use it to label landforms"
+    ),
+    QCoreApplication.translate(
+        "GeoSAM",
+        "Geo-SAM Image Encoder: Use it to encode/preprocess image before labeling",
+    ),
+    QCoreApplication.translate(
+        "GeoSAM", "Encoder Copilot: Assist you in optimizing your Encoder Settings"
+    ),
+    QCoreApplication.translate(
+        "GeoSAM", "Geo-SAM Settings: Manage dependencies, models, cache, and help"
+    ),
+    QCoreApplication.translate("GeoSAM", "Geo-SAM Tools"),
+    QCoreApplication.translate("GeoSAM", "Segmentation"),
+    QCoreApplication.translate("GeoSAM", "Encoder Copilot"),
+    QCoreApplication.translate("GeoSAM", "Image Encoder"),
     QCoreApplication.translate("GeoSAM", "Model Not Downloaded"),
     QCoreApplication.translate("GeoSAM", "Input Required"),
     QCoreApplication.translate("GeoSAM", "Model Required"),
@@ -30,6 +53,9 @@ DYNAMIC_USER_TEXT = (
     QCoreApplication.translate("GeoSAM", "Invalid Feature Folder"),
     QCoreApplication.translate("GeoSAM", "Feature Folder Failed"),
     QCoreApplication.translate("GeoSAM", "Patch Preview Failed"),
+    QCoreApplication.translate("GeoSAM", "Balanced"),
+    QCoreApplication.translate("GeoSAM", "Fastest"),
+    QCoreApplication.translate("GeoSAM", "Low Memory"),
     QCoreApplication.translate(
         "GeoSAM",
         "The selected model is not downloaded yet.\n"
@@ -65,10 +91,6 @@ DYNAMIC_USER_TEXT = (
         "GeoSAM",
         "Project crs has been changed to the layer crs temporarily. "
         "It will be reset to the original crs when this widget is closed.",
-    ),
-    QCoreApplication.translate(
-        "GeoSAM",
-        "RealTime Layer takes precedence. Clear it to use the feature folder.",
     ),
     QCoreApplication.translate(
         "GeoSAM",
@@ -123,4 +145,17 @@ DYNAMIC_USER_TEXT = (
         "Output Shapefile is not specified. A temporal layer 'polygon_sam' is "
         "created, remember to save it before quit.",
     ),
+    QCoreApplication.translate(
+        "SamProcessingAlgorithm", "Input raster layer or image file path"
+    ),
+    QCoreApplication.translate("Selector", "Cross"),
+    QCoreApplication.translate("Selector", "X"),
+    QCoreApplication.translate("Selector", "Box"),
+    QCoreApplication.translate("Selector", "Circle"),
+    QCoreApplication.translate("Selector", "Double Triangle"),
+    QCoreApplication.translate("Selector", "Triangle"),
+    QCoreApplication.translate("Selector", "Rhombus"),
+    QCoreApplication.translate("Selector", "Inverted Triangle"),
+    QCoreApplication.translate("Selector", "Pixel-Level"),
+    QCoreApplication.translate("Selector", "Simplified"),
 )

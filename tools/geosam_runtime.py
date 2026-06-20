@@ -45,10 +45,10 @@ from .online_tile_export import (
 )
 from .plugin_settings import (
     clear_cache,
-    cleanup_cache,
     get_cache_directory,
     initialize_rasterio_proj_data,
     load_plugin_settings,
+    trim_cache_if_needed,
 )
 
 if TYPE_CHECKING:
@@ -333,6 +333,23 @@ class _ModelSessionRegistry:
             )
         return self._feature_engines[key]
 
+    def get_loaded_model_ids(self) -> set[str]:
+        """Return model identifiers that have at least one cached engine.
+
+        Returns
+        -------
+        set[str]
+            Model ids with active engines in the registry.
+
+        """
+        loaded: set[str] = set()
+        for store_name in ("_online_engines", "_feature_engines"):
+            store = getattr(self, store_name)
+            for key in store:
+                model_id = key.split("||", maxsplit=1)[0]
+                loaded.add(model_id)
+        return loaded
+
     def release(self, *, model_id: str | None = None) -> int:
         """Release cached engines and return the number removed."""
         removed_count = 0
@@ -531,6 +548,18 @@ def release_online_runtime_hot_cache(
     if removed_count > 0:
         _flush_torch_memory()
     return removed_count
+
+
+def get_loaded_model_ids() -> set[str]:
+    """Return model identifiers currently loaded in memory.
+
+    Returns
+    -------
+    set[str]
+        Model ids with active engines in the session registry.
+
+    """
+    return MODEL_SESSIONS.get_loaded_model_ids()
 
 
 def release_runtime_models(*, model_id: str | None = None) -> int:
@@ -1067,7 +1096,7 @@ def _save_persistent_query_cache_entry(
         "feature_path": str(encoded_path),
     }
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-    cleanup_cache()
+    trim_cache_if_needed()
 
 
 def prepare_realtime_raster_query(

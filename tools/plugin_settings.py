@@ -449,6 +449,7 @@ def _default_plugin_settings() -> dict[str, Any]:
     settings.setdefault("clear_cache_on_plugin_close", True)
     settings.setdefault("selected_model_id", "")
     settings.setdefault("show_boundary", True)
+    settings.setdefault("image_source_mode", "realtime")
     settings.setdefault("default_minimum_pixels", 0)
     settings.setdefault("performance_mode", "balanced")
     settings.setdefault("preview_mode", True)
@@ -1594,13 +1595,17 @@ def get_cache_size_bytes(path: Path | None = None) -> int:
     )
 
 
-def cleanup_cache() -> int:
-    """Trim cache files until the configured maximum size is respected.
+def trim_cache_if_needed() -> int:
+    """Delete the oldest half of cache files when the max size is exceeded.
+
+    Checks the current cache size against the configured maximum.  When the
+    limit is reached, files are sorted by modification time (oldest first)
+    and the older half is removed.
 
     Returns
     -------
     int
-        Number of removed cache files.
+        Number of removed cache files, or 0 when no trimming was needed.
 
     """
     settings = load_plugin_settings()
@@ -1610,22 +1615,26 @@ def cleanup_cache() -> int:
 
     max_size_bytes = int(settings["cache_max_size_mb"]) * 1024 * 1024
     current_size = get_cache_size_bytes(cache_dir)
-    removed_count = 0
     if current_size <= max_size_bytes:
-        return removed_count
+        return 0
 
     files = sorted(
-        (file_path for file_path in cache_dir.rglob("*") if file_path.is_file()),
-        key=lambda file_path: file_path.stat().st_mtime,
+        (p for p in cache_dir.rglob("*") if p.is_file()),
+        key=lambda p: p.stat().st_mtime,
     )
-    for file_path in files:
-        file_size = file_path.stat().st_size
-        file_path.unlink()
-        current_size -= file_size
-        removed_count += 1
-        if current_size <= max_size_bytes:
-            break
-    return removed_count
+    if not files:
+        return 0
+
+    # Delete the oldest half of the files (by count).
+    remove_count = max(1, len(files) // 2)
+    removed = 0
+    for file_path in files[:remove_count]:
+        try:
+            file_path.unlink()
+            removed += 1
+        except OSError:
+            pass
+    return removed
 
 
 def clear_cache() -> int:

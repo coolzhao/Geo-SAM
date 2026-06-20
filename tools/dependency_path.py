@@ -83,7 +83,7 @@ def register_plugin_managed_dependency_path(*, create: bool = False) -> Path:
     dependency_path_text = str(dependency_path)
     if dependency_path_text not in sys.path:
         sys.path.insert(0, dependency_path_text)
-    importlib.invalidate_caches()
+        importlib.invalidate_caches()
     return dependency_path
 
 

@@ -4,6 +4,7 @@ rasters/**/*.aux.xml
 .vscode/settings.json
 .tmp.driveupload/*
 docs/build
+docs/.venv
 models
 .cache
 .deps

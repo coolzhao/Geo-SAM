@@ -35,6 +35,7 @@ from qgis.gui import QgisInterface, QgsFileWidget, QgsMapToolPan
 from ..ui import (
     DefaultSettings,
     Settings,
+    SplitTabPanel,
     load_encoder_copilot_ui,
     load_selector_ui,
     save_user_settings,
@@ -90,6 +91,9 @@ if TYPE_CHECKING:
 
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 logger = logging.getLogger(__name__)
+
+SOURCE_MODE_REALTIME = 0
+SOURCE_MODE_FEATURE = 1
 
 
 def _open_raster_dataset(raster_path: str) -> DatasetReader:
@@ -481,6 +485,24 @@ class Selector(QDockWidget):
 
             self.wdg_sel = load_selector_ui(self.iface.mainWindow())
 
+            # Replace QTabWidget with SplitTabPanel (left: IO + Prompts, right: Styles + Options)
+            tab_widget = self.wdg_sel.tabWidget
+            pages = [tab_widget.widget(i) for i in range(tab_widget.count())]
+            left_labels = [self.tr("Input / Output"), self.tr("Prompts")]
+            right_labels = [self.tr("Styles"), self.tr("Options")]
+            split_panel = SplitTabPanel(
+                pages,
+                left_count=2,
+                left_labels=left_labels,
+                right_labels=right_labels,
+                parent=tab_widget.parent(),
+            )
+            layout = self.wdg_sel.verticalLayout_root
+            layout.replaceWidget(tab_widget, split_panel)
+            tab_widget.deleteLater()
+            # Preserve initial page (Prompts = index 1)
+            split_panel.set_current_page(1)
+
             ######### Setting default parameters for items #########
             self.wdg_sel.MapLayerComboBox.setFilters(
                 QgsMapLayerProxyModel.Filter.PolygonLayer
@@ -490,11 +512,11 @@ class Selector(QDockWidget):
             self.wdg_sel.MapLayerComboBox.setAdditionalLayers([None])
             self.wdg_sel.VectorizationModeComboBox.clear()
             self.wdg_sel.VectorizationModeComboBox.addItem(
-                "Pixel-Level",
+                self.tr("Pixel-Level"),
                 "pixel_level",
             )
             self.wdg_sel.VectorizationModeComboBox.addItem(
-                "Simplified",
+                self.tr("Simplified"),
                 "simplified",
             )
             self.wdg_sel.VectorizationModeComboBox.setCurrentIndex(
@@ -519,6 +541,22 @@ class Selector(QDockWidget):
                 QgsFileWidget.StorageMode.GetDirectory
             )
             self.wdg_sel.QgsFile_feature.setFilePath("")
+
+            # image-source mode selector (dropdown swaps the controls below)
+            self.wdg_sel.SourceModeComboBox.setCurrentIndex(SOURCE_MODE_REALTIME)
+            self.wdg_sel.SourceStack.setCurrentIndex(SOURCE_MODE_REALTIME)
+            self.wdg_sel.SourceModeComboBox.currentIndexChanged.connect(
+                self._on_source_mode_changed
+            )
+            self.wdg_sel.SourceModeComboBox.setToolTip(
+                self.tr(
+                    "Image Layer: pick an image layer and model, "
+                    "the tool computes SAM features on the fly.\n"
+                    "Feature File: load a previously saved feature "
+                    "folder to skip encoding, useful when segmenting the same "
+                    "image repeatedly."
+                )
+            )
 
             # set button checkable
             self.wdg_sel.pushButton_fg.setCheckable(True)
@@ -659,6 +697,11 @@ class Selector(QDockWidget):
     def refresh_runtime_controls(self):
         """Refresh model and source selectors from persisted settings."""
         settings = load_plugin_settings()
+        mode_value = str(settings.get("image_source_mode", "realtime"))
+        mode_index = (
+            SOURCE_MODE_FEATURE if mode_value == "feature" else SOURCE_MODE_REALTIME
+        )
+        self._set_source_mode(mode_index)
         model_index = self.wdg_sel.ModelComboBox.findData(
             settings.get("selected_model_id", "")
         )
@@ -668,8 +711,35 @@ class Selector(QDockWidget):
             self.wdg_sel.ModelComboBox.setCurrentIndex(0)
         self._update_model_source_controls()
 
+    def _current_source_mode(self) -> int:
+        """Return the active image-source mode index."""
+        return self.wdg_sel.SourceModeComboBox.currentIndex()
+
+    def _set_source_mode(self, index: int) -> None:
+        """Select a source mode without emitting the change signal.
+
+        Parameters
+        ----------
+        index : int
+            ``SOURCE_MODE_REALTIME`` or ``SOURCE_MODE_FEATURE``.
+
+        """
+        combo = self.wdg_sel.SourceModeComboBox
+        if combo.currentIndex() != index:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(index)
+            combo.blockSignals(False)
+        self.wdg_sel.SourceStack.setCurrentIndex(index)
+
+    def _on_source_mode_changed(self, index: int) -> None:
+        """React to user-driven image-source mode dropdown changes."""
+        self.wdg_sel.SourceStack.setCurrentIndex(index)
+        mode = "feature" if index == SOURCE_MODE_FEATURE else "realtime"
+        save_plugin_settings({"image_source_mode": mode})
+        self._update_model_source_controls()
+
     def _update_model_source_controls(self) -> None:
-        """Reflect the active image-source mode in the model selector widgets."""
+        """Reflect the active image-source mode in the selector widgets."""
         using_feature_cache = (
             self.runtime_source_kind == "feature"
             and self.runtime_feature_summary is not None
@@ -678,21 +748,6 @@ class Selector(QDockWidget):
             using_feature_cache and self.runtime_feature_summary.model_id is not None
         )
         self.wdg_sel.ModelComboBox.setEnabled(not feature_model_is_locked)
-        feature_group_box = getattr(self.wdg_sel, "FeatureFolderGroupBox", None)
-        model_group_box = getattr(self.wdg_sel, "groupBox_model", None)
-        if model_group_box is not None:
-            title = self.tr("Live Encoding")
-            if using_feature_cache and self.runtime_feature_summary is not None:
-                model_id = self.runtime_feature_summary.model_id
-                if model_id is not None:
-                    title = self.tr(
-                        "Live Encoding (feature mode uses {model_id})"
-                    ).format(model_id=model_id)
-                else:
-                    title = self.tr("Live Encoding (select model for feature mode)")
-            model_group_box.setTitle(title)
-        if feature_group_box is not None:
-            feature_group_box.setTitle(self.tr("Pre-encoded"))
 
     def on_model_changed(self):
         """Persist the selected model and validate checkpoint availability."""
@@ -719,6 +774,8 @@ class Selector(QDockWidget):
             if self.wdg_sel.QgsFile_feature.filePath().strip():
                 self.load_feature()
             return
+        self._set_source_mode(SOURCE_MODE_REALTIME)
+        save_plugin_settings({"image_source_mode": "realtime"})
         self.clear_layers(clear_extent=True)
         self._activate_runtime_from_inputs()
 
@@ -1021,16 +1078,19 @@ class Selector(QDockWidget):
             )
 
     def _activate_runtime_from_inputs(self):
-        """Load the current runtime source from the selector inputs."""
+        """Load the current runtime source from the selector inputs.
+
+        The active image-source mode decides which input takes priority:
+        feature mode prefers the feature folder, realtime mode prefers the
+        image layer and falls back to a lingering feature folder when no
+        layer is selected.
+        """
         realtime_layer = self.wdg_sel.RealTimeLayerComboBox.currentLayer()
         feature_path = self.wdg_sel.QgsFile_feature.filePath().strip()
-        if realtime_layer is not None and feature_path:
-            MessageTool.MessageBar(
-                "Geo-SAM",
-                "RealTime Layer takes precedence. Clear it to use the feature folder.",
-                level="warning",
-                duration=10,
-            )
+        if self._current_source_mode() == SOURCE_MODE_FEATURE:
+            if feature_path:
+                return self._set_runtime_for_feature_folder(feature_path)
+            return None
         if realtime_layer is not None:
             return self._set_runtime_for_layer(realtime_layer)
         if feature_path:
@@ -2471,6 +2531,8 @@ class Selector(QDockWidget):
         """Load feature"""
         self.feature_dir = self.wdg_sel.QgsFile_feature.filePath()
         if self.feature_dir is not None and os.path.exists(self.feature_dir):
+            self._set_source_mode(SOURCE_MODE_FEATURE)
+            save_plugin_settings({"image_source_mode": "feature"})
             self.clear_layers(clear_extent=True)
             try:
                 if self.wdg_sel.RealTimeLayerComboBox.currentLayer() is not None:
