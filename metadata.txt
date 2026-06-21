@@ -7,9 +7,14 @@ qgisMinimumVersion=3.20
 qgisMaximumVersion=4.99
 author=Zhuoyi Zhao (Joey), Chengyan Fan (Fancy) 
 email=fanchengyan@outlook.com
-tags=raster, vector, segmentation, segment-anything, labeling
+tags=raster, vector, segmentation, segment-anything, labeling, SAM, SAM2, SAM3, ultralytics, AI, machine learning, deep learning, computer vision, geospatial, GIS
 icon=ui/icons/geo_sam_tool.svg
 hasProcessingProvider=yes
+homepage=https://github.com/coolzhao/Geo-SAM
+repository=https://github.com/coolzhao/Geo-SAM
+tracker=https://github.com/coolzhao/Geo-SAM/issues
+experimental=False
+deprecated=False
 about=Segment, delineate, and label landforms in large geospatial raster images at millisecond speeds — all within QGIS. Powered by Meta's Segment Anything Model (SAM) with support for SAM, SAM 2, SAM 2.1, and SAM 3 model families. Key features:
 
     - Real-time Segmentation — SAM predictions that follow your mouse cursor in real time on modern CPUs
