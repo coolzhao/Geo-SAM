@@ -1,14 +1,17 @@
 {
     "fg_color": "#0000ff",
     "bg_color": "#ff0000",
+    "pt_size": 1.0,
+    "icon_type": "Circle",
     "bbox_color": "#0000ff",
     "extent_color": "#ff0000",
     "prompt_color": "#3bba00",
     "preview_color": "#00ff00",
-    "load_demo": true,
     "show_boundary": true,
-    "max_polygon_only": false,
-    "default_minimum_pixels": 0,
-    "pt_size": 1,
-    "icon_type": "Circle"
+    "max_polygon_only": true,
+    "selected_model_id": "sam2.1_b",
+    "clear_cache_on_plugin_close": true,
+    "performance_mode": "balanced",
+    "preview_render_mode": "pixel_level",
+    "preview_mode": true
 }

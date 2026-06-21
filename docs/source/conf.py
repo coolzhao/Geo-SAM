@@ -7,83 +7,96 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Geo-SAM"
-copyright = "2023-2025, Joey, Fancy"
+copyright = "2023-2026, Joey, Fancy"
 author = "Joey, Fancy"
-release = "v1.3.2"
-
+release = "v2.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "myst_nb",
-    # "myst_parser",
+    "myst_parser",
     "sphinx.ext.autodoc",
+    "sphinxcontrib.video",
     "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.todo",
-    "sphinx_copybutton",
     "sphinx_design",
-    "sphinx.ext.intersphinx",
-    "sphinxcontrib.youtube",
+    "sphinx_copybutton",
 ]
+
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
 }
 
-myst_enable_extensions = ["colon_fence"]
-myst_url_schemes = ["http", "https", "mailto"]
-suppress_warnings = ["mystnb.unknown_mime_type"]
-nb_execution_mode = "off"
-autodoc_inherit_docstrings = True
-# templates_path = ['_templates']
 exclude_patterns = []
+
+# -- MyST extensions ---------------------------------------------------------
+# Enable Markdown features used by sphinx-design and rich docs.
+
+myst_enable_extensions = [
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "fieldlist",
+    "html_admonition",
+    "html_image",
+    "linkify",
+    "replacements",
+    "smartquotes",
+    "strikethrough",
+    "substitution",
+    "tasklist",
+]
+
+myst_heading_anchors = 3
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
-html_css_files = ["custom.css"]
 
-# hide the side 
-html_sidebars = {
-    "installation": [],
-    "more": [],
+video_enforce_extra_source = True
+
+# -- Theme options -----------------------------------------------------------
+# https://pydata-sphinx-theme.readthedocs.io/en/stable/user_guide/layout.html
+
+html_theme_options = {
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/coolzhao/Geo-SAM",
+            "icon": "fab fa-github",
+        },
+        {
+            "name": "Documentation",
+            "url": "https://geo-sam.readthedocs.io/en/latest/",
+            "icon": "fas fa-book",
+        },
+    ],
+    "use_edit_page_button": True,
+    "show_toc_level": 2,
+    "navigation_with_keys": True,
 }
 
 html_context = {
-    "github_url": "https://github.com",  # or your GitHub Enterprise site
     "github_user": "coolzhao",
     "github_repo": "Geo-SAM",
     "github_version": "main",
     "doc_path": "docs/source",
 }
 
+# -- Copybutton options ------------------------------------------------------
+# Strip the prompt characters when copying code blocks.
 
-html_theme_options = {
-    "show_toc_level": 2,
-    "show_nav_level": 2,
-    "use_edit_page_button": True,
-    "header_links_before_dropdown": 10,
-    "icon_links": [
-        {
-            "name": "GitHub",
-            "url": "https://github.com/coolzhao/Geo-SAM",
-            "icon": "fa-brands fa-square-github",
-            "type": "fontawesome",
-        },
-        {
-            "name": "PyPI",
-            "url": "https://pypi.org/project/GeoSAM-Image-Encoder",
-            "icon": "fa-brands fa-python",
-            "type": "fontawesome",
-        },
-    ],
-    "announcement": "<a href='https://geo-sam.readthedocs.io/en/latest/blog/2024/05-02_crash_on_QGIS.html'>Geo-SAM Crash on Latest QGIS in Linux!</a>",
-    # "announcement": "<a href='blog/2024/05-02_crash_on_QGIS.html'>GeoSAM crash on QGIS 3.34/3.36!</a>",
+copybutton_prompt_text = r">>> |\.\.\. |\$ "
+copybutton_prompt_is_regexp = True
+
+# -- Intersphinx options -----------------------------------------------------
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
 }
-
-video_enforce_extra_source = True

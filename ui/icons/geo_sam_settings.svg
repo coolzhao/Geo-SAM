@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gearGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#19486A"/>
+      <stop offset="100%" stop-color="#2E7D6B"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="#F5F7FA"/>
+  <path
+    fill="url(#gearGradient)"
+    d="M28.7 7.6h6.6l1.7 5.9a19.8 19.8 0 0 1 5.2 2.2l5.5-2.7 4.7 4.7-2.7 5.5a19.8 19.8 0 0 1 2.2 5.2l5.9 1.7v6.6l-5.9 1.7a19.8 19.8 0 0 1-2.2 5.2l2.7 5.5-4.7 4.7-5.5-2.7a19.8 19.8 0 0 1-5.2 2.2l-1.7 5.9h-6.6L27 50.5a19.8 19.8 0 0 1-5.2-2.2l-5.5 2.7-4.7-4.7 2.7-5.5a19.8 19.8 0 0 1-2.2-5.2L6.2 34v-6.6l5.9-1.7a19.8 19.8 0 0 1 2.2-5.2l-2.7-5.5 4.7-4.7 5.5 2.7a19.8 19.8 0 0 1 5.2-2.2z"
+  />
+  <circle cx="32" cy="32" r="11.5" fill="#F5F7FA"/>
+  <circle cx="32" cy="32" r="6.8" fill="url(#gearGradient)"/>
+</svg>

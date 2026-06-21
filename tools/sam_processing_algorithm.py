@@ -1,21 +1,20 @@
-import hashlib
-import os
+"""QGIS processing algorithm for building GeoSAM feature caches."""
+
+from __future__ import annotations
+
+import json
+import logging
+import math
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Literal
 
-import numpy as np
-import pandas as pd
-import rasterio
-import torch
-from pyproj import CRS
-from pyproj.aoi import AreaOfInterest
-from pyproj.database import query_utm_crs_info
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsGeometry,
     QgsProcessingAlgorithm,
+    QgsProcessingContext,
     QgsProcessingException,
     QgsProcessingFeedback,
     QgsProcessingParameterBand,
@@ -24,7 +23,6 @@ from qgis.core import (
     QgsProcessingParameterDefinition,
     QgsProcessingParameterEnum,
     QgsProcessingParameterExtent,
-    QgsProcessingParameterFile,
     QgsProcessingParameterFolderDestination,
     QgsProcessingParameterNumber,
     QgsProcessingParameterRange,
@@ -32,47 +30,47 @@ from qgis.core import (
     QgsRasterBandStats,
     QgsRectangle,
 )
-from qgis.gui import QgsDockWidget, QgsFileWidget
+from qgis.gui import QgsFileWidget
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtWidgets import QAction, QDockWidget
 from qgis.utils import iface
-from segment_anything import sam_model_registry
-from segment_anything.modeling import Sam
-from torch import Tensor
-from torch.utils.data import DataLoader
-from torchgeo.datasets import BoundingBox, stack_samples
-from torchgeo.samplers import Units
 
 from ..docs import encoder_help
 from ..ui.icons import QIcon_EncoderTool
-from .torchgeo_sam import SamTestGridGeoSampler, SamTestRasterDataset
+from .geosam_backend import configure_geosam_qgis_runtime
+from .geosam_runtime import (
+    _flush_torch_memory,
+    chip_extent_rectangles_for_source,
+    sanitize_path_component,
+)
+from .i18n import current_locale_name, translate
+from .model_manager import (
+    create_model_spec_from_checkpoint,
+    get_model_checkpoint_path,
+    get_model_display_items,
+    get_model_status_rows,
+)
 
 # 0 for meters, 6 for degrees, 9 for unknown
 UNIT_METERS = 0
 UNIT_DEGREES = 6
+EncodingMemoryStrategy = Literal["balanced", "low_memory"]
+ENCODING_MEMORY_STRATEGIES: tuple[tuple[EncodingMemoryStrategy, str], ...] = (
+    ("balanced", "Balanced"),
+    ("low_memory", "Low Memory"),
+)
+BALANCED_MEMORY_FLUSH_INTERVAL = 16
+
+logger = logging.getLogger(__name__)
+REQUIRED_MARK_HTML = '<span style="color:#d93025">*</span>'
 
 
 class SamProcessingAlgorithm(QgsProcessingAlgorithm):
-    """
-    This is an example algorithm that takes a vector layer and
-    creates a new identical one.
-
-    It is meant to be used as an example of how to create your own
-    algorithms and explain methods and variables used to do it. An
-    algorithm like this will be available in all elements, and there
-    is not need for additional work.
-
-    All Processing algorithms should extend the QgsProcessingAlgorithm
-    class.
-    """
-
-    # Constants used to refer to parameters and outputs. They will be
-    # used when calling the algorithm from another algorithm, or when
-    # calling from the QGIS console.
+    """Build a GeoSAM-compatible feature cache from a raster layer."""
 
     INPUT = "INPUT"
-    CKPT = "CKPT"
     MODEL_TYPE = "MODEL_TYPE"
+    MEMORY_STRATEGY = "MEMORY_STRATEGY"
     BANDS = "BANDS"
     STRIDE = "STRIDE"
     EXTENT = "EXTENT"
@@ -85,26 +83,47 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
     BATCH_SIZE = "BATCH_SIZE"
     CUDA_ID = "CUDA_ID"
 
-    def initAlgorithm(self, config=None):
-        """
-        Here we define the inputs and output of the algorithm, along
-        with some other properties.
-        """
+    def _required_text(self, translated_text: str) -> str:
+        """Return rich text marking a required parameter.
 
+        Parameters
+        ----------
+        translated_text : str
+            Already translated label text.
+
+        Returns
+        -------
+        str
+            Rich-text label with a red required marker.
+
+        """
+        return f"{translated_text} {REQUIRED_MARK_HTML}"
+
+    def flags(self) -> Any:
+        """Return processing flags for the algorithm."""
+        return super().flags() | QgsProcessingAlgorithm.Flag.FlagNoThreading
+
+    def _memory_strategy_options(self) -> list[str]:
+        """Return translated memory-strategy labels."""
+        return [translate(label) for _strategy, label in ENCODING_MEMORY_STRATEGIES]
+
+    def initAlgorithm(self, config: dict[str, Any] | None = None) -> None:
+        """Define processing inputs."""
+        del config
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 name=self.INPUT,
-                description=self.tr("Input raster layer or image file path"),
+                description=self._required_text(
+                    self.tr("Input raster layer or image file path")
+                ),
             )
         )
-
         self.addParameter(
             QgsProcessingParameterBand(
                 name=self.BANDS,
                 description=self.tr(
-                    "Select no more than 3 bands (preferably in RGB order, default to first 3 available bands)"
+                    "Select no more than 3 bands (preferably in RGB order)."
                 ),
-                # defaultValue=[1, 2, 3],
                 parentLayerParameterName=self.INPUT,
                 optional=True,
                 allowMultiple=True,
@@ -116,524 +135,380 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             description=self.tr("Target CRS (default to original CRS)"),
             optional=True,
         )
-
         res_param = QgsProcessingParameterNumber(
             name=self.RESOLUTION,
             description=self.tr(
                 "Target resolution in meters (default to native resolution)"
             ),
-            type=QgsProcessingParameterNumber.Double,
+            type=QgsProcessingParameterNumber.Type.Double,
             optional=True,
             minValue=0,
             maxValue=100000,
         )
-
-        # expression for scaling the raster values to [0,255]
         range_param = QgsProcessingParameterRange(
             name=self.RANGE,
             description=self.tr(
-                "Data value range to be rescaled to [0, 255] (default to [min, max] of the values)"
-            ),  # inside processing extent
-            type=QgsProcessingParameterNumber.Double,
+                "Data value range rescaled to [0, 255] (optional fixed range)."
+            ),
+            type=QgsProcessingParameterNumber.Type.Double,
             defaultValue=None,
             optional=True,
         )
-
         cuda_id_param = QgsProcessingParameterNumber(
             name=self.CUDA_ID,
-            # large images will be sampled into patches in a grid-like fashion
-            description=self.tr(
-                "CUDA Device ID (choose which GPU to use, default to device 0)"
-            ),
-            type=QgsProcessingParameterNumber.Integer,
+            description=self.tr("CUDA device id (default to 0)"),
+            type=QgsProcessingParameterNumber.Type.Integer,
             defaultValue=0,
             minValue=0,
             maxValue=9,
         )
-
         self.addParameter(
             QgsProcessingParameterExtent(
                 name=self.EXTENT,
-                description=self.tr("Processing extent (default to the entire image)"),
+                description=self.tr("Processing extent (default to entire image)"),
                 optional=True,
             )
         )
-
         self.addParameter(
             QgsProcessingParameterNumber(
                 name=self.STRIDE,
-                # large images will be sampled into patches in a grid-like fashion
-                description=self.tr(
-                    "Stride (large image will be sampled into overlapped patches)"
-                ),
-                type=QgsProcessingParameterNumber.Integer,
+                description=self.tr("Sliding-window stride"),
+                type=QgsProcessingParameterNumber.Type.Integer,
                 defaultValue=512,
                 minValue=1,
                 maxValue=1024,
             )
         )
-
         self.addParameter(
-            QgsProcessingParameterFile(
-                name=self.CKPT,
-                description=self.tr("SAM checkpoint path (download in advance)"),
-                extension="pth",
+            QgsProcessingParameterEnum(
+                name=self.MEMORY_STRATEGY,
+                description=self.tr("Encoding memory strategy"),
+                options=self._memory_strategy_options(),
+                defaultValue=0,
             )
         )
 
-        self.model_type_options = ["vit_h", "vit_l", "vit_b"]
+        self.model_options = get_model_display_items()
         self.addParameter(
             QgsProcessingParameterEnum(
                 name=self.MODEL_TYPE,
-                description=self.tr(
-                    "SAM model type (b for base, l for large, h for huge)"
-                ),
-                options=self.model_type_options,
-                defaultValue=1,  # 'vit_l'
+                description=self.tr("GeoSAM model"),
+                options=[label for _model_id, label in self.model_options],
+                defaultValue=8,
             )
         )
-
         self.addParameter(
             QgsProcessingParameterFolderDestination(
                 self.OUTPUT,
-                self.tr(
-                    "Output directory (choose the location that the image features will be saved)"
-                ),
+                self.tr("Output feature-cache directory"),
             )
         )
-
         self.addParameter(
             QgsProcessingParameterBoolean(
-                self.CUDA, self.tr("Use GPU if CUDA is available."), defaultValue=True
+                self.CUDA,
+                self.tr("Use GPU if CUDA is available"),
+                defaultValue=True,
             )
         )
-
         self.addParameter(
             QgsProcessingParameterNumber(
                 name=self.BATCH_SIZE,
-                # large images will be sampled into patches in a grid-like fashion
                 description=self.tr(
-                    "Batch size (take effect if choose to use GPU and CUDA is available)"
+                    "Batch size placeholder. GeoSAM currently encodes one chip at a time"
                 ),
-                type=QgsProcessingParameterNumber.Integer,
+                type=QgsProcessingParameterNumber.Type.Integer,
                 defaultValue=1,
                 minValue=1,
                 maxValue=1024,
             )
         )
-
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.LOAD,
-                self.tr("Load output features in Geo-SAM tool after processing"),
+                self.tr(
+                    "Load output features in Geo-SAM tool after processing"
+                ),
                 defaultValue=True,
             )
         )
 
-        for param in (crs_param, res_param, range_param, cuda_id_param):
+        memory_strategy_param = self.parameterDefinition(self.MEMORY_STRATEGY)
+        for param in (
+            crs_param,
+            res_param,
+            range_param,
+            cuda_id_param,
+            memory_strategy_param,
+        ):
             param.setFlags(
-                param.flags() | QgsProcessingParameterDefinition.FlagAdvanced
+                param.flags() | QgsProcessingParameterDefinition.Flag.FlagAdvanced
             )
-            self.addParameter(param)
+            if param is not memory_strategy_param:
+                self.addParameter(param)
 
-        # self.addOutput()
+    def processAlgorithm(
+        self,
+        parameters: dict[str, Any],
+        context: QgsProcessingContext,
+        feedback: QgsProcessingFeedback,
+    ) -> dict[str, Any]:
+        """Run the cache-building workflow."""
+        configure_geosam_qgis_runtime(
+            feedback=feedback,
+            transform_context=context.transformContext(),
+        )
+        try:
+            from geosam import BoundingBox, RasterDataset, build_model_adapter
+        except ModuleNotFoundError as exc:
+            raise QgsProcessingException(
+                self.tr(
+                    "GeoSAM dependencies are not installed yet. "
+                    "Open Geo-SAM Settings and install dependencies first."
+                )
+            ) from exc
 
-    def processAlgorithm(self, parameters, context, feedback):
-        """
-        Here is where the processing itself takes place.
-        """
-
-        self.iPatch = 0
         self.feature_dir = ""
+        self.iPatch = 0
+        self.load_feature = False
 
-        rlayer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
-        if rlayer is None:
+        raster_layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if raster_layer is None:
             raise QgsProcessingException(
                 self.invalidRasterError(parameters, self.INPUT)
             )
 
-        self.selected_bands = self.parameterAsInts(parameters, self.BANDS, context)
-
-        if len(self.selected_bands) == 0:
-            max_band = min(3, rlayer.bandCount())
-            self.selected_bands = list(range(1, max_band + 1))
-
-        if len(self.selected_bands) > 3:
+        selected_bands = self.parameterAsInts(parameters, self.BANDS, context)
+        if len(selected_bands) == 0:
+            selected_bands = list(range(1, min(3, raster_layer.bandCount()) + 1))
+        if len(selected_bands) > 3:
             raise QgsProcessingException(
-                self.tr("Please choose no more than three bands!")
+                self.tr("Please choose no more than three bands.")
             )
-        if max(self.selected_bands) > rlayer.bandCount():
+        if max(selected_bands) > raster_layer.bandCount():
             raise QgsProcessingException(
-                self.tr("The chosen bands exceed the largest band number!")
+                self.tr("The chosen bands exceed the largest band number.")
             )
 
-        ckpt_path = self.parameterAsFile(parameters, self.CKPT, context)
-        model_type_idx = self.parameterAsEnum(parameters, self.MODEL_TYPE, context)
+        model_index = self.parameterAsEnum(parameters, self.MODEL_TYPE, context)
+        memory_strategy_index = self.parameterAsEnum(
+            parameters,
+            self.MEMORY_STRATEGY,
+            context,
+        )
         stride = self.parameterAsInt(parameters, self.STRIDE, context)
-        res = self.parameterAsDouble(parameters, self.RESOLUTION, context)
-        crs = self.parameterAsCrs(parameters, self.CRS, context)
+        resolution = self.parameterAsDouble(parameters, self.RESOLUTION, context)
+        target_crs = self.parameterAsCrs(parameters, self.CRS, context)
         extent = self.parameterAsExtent(parameters, self.EXTENT, context)
         self.load_feature = self.parameterAsBoolean(parameters, self.LOAD, context)
-        self.use_gpu = self.parameterAsBoolean(parameters, self.CUDA, context)
+        use_gpu = self.parameterAsBoolean(parameters, self.CUDA, context)
         batch_size = self.parameterAsInt(parameters, self.BATCH_SIZE, context)
         range_value = self.parameterAsRange(parameters, self.RANGE, context)
-        output_dir = self.parameterAsString(parameters, self.OUTPUT, context)
-        self.cuda_id = self.parameterAsInt(parameters, self.CUDA_ID, context)
+        output_dir = Path(self.parameterAsString(parameters, self.OUTPUT, context))
+        cuda_id = self.parameterAsInt(parameters, self.CUDA_ID, context)
 
-        rlayer_data_provider = rlayer.dataProvider()
+        if batch_size != 1:
+            feedback.pushWarning(
+                self.tr(
+                    "GeoSAM currently encodes one chip at a time. "
+                    "Batch size is ignored."
+                )
+            )
 
-        # handle crs
-        if crs is None or not crs.isValid():
-            crs = rlayer.crs()
-            # feedback.pushInfo(
-            #     f'Layer CRS unit is {crs.mapUnits()}')  # 0 for meters, 6 for degrees, 9 for unknown
-            # feedback.pushInfo(
-            #     f'whether the CRS is a geographic CRS (using lat/lon coordinates) {crs.isGeographic()}')
-            # if crs.mapUnits() == Qgis.DistanceUnit.Degrees:
-            #     crs = self.estimate_utm_crs(rlayer.extent())
+        model_id = self.model_options[model_index][0]
+        memory_strategy = self._memory_strategy_from_index(memory_strategy_index)
+        checkpoint_path = get_model_checkpoint_path(model_id)
+        if not checkpoint_path.exists():
+            self._raise_missing_model_error(model_id=model_id)
 
-        # target crs should use meters as units
-        # if crs.mapUnits() != Qgis.DistanceUnit.Meters:
-        #     feedback.pushInfo(
-        #         f'Layer CRS unit is {crs.mapUnits()}')
-        #     feedback.pushInfo(
-        #         f'whether the CRS is a geographic CRS (using lat/lon coordinates) {crs.isGeographic()}')
-        #     raise QgsProcessingException(
-        #         self.tr("Only support CRS with the units as meters")
-        #     )
+        device = self._select_device(use_gpu=use_gpu, cuda_id=cuda_id)
+        model_spec = create_model_spec_from_checkpoint(
+            checkpoint_path,
+            model_id=model_id,
+            device=device,
+        )
+        adapter = build_model_adapter(model_spec)
+        if not model_spec.resolved_supports_feature_reuse:
+            close_method = getattr(adapter, "close", None)
+            if callable(close_method):
+                close_method()
+            msg = self.tr("The selected model does not support reusable features.")
+            logger.error(msg)
+            raise QgsProcessingException(msg)
 
-        if rlayer.crs().mapUnits() == UNIT_DEGREES:  # Qgis.DistanceUnit.Degrees:
-            layer_units = "degrees"
-        else:
-            layer_units = "meters"
-        # if res is not provided, get res info from rlayer
-        if np.isnan(res) or res == 0:
-            res = rlayer.rasterUnitsPerPixelX()  # rasterUnitsPerPixelY() is negative
+        if target_crs is None or not target_crs.isValid():
+            target_crs = raster_layer.crs()
+
+        layer_units = (
+            "degrees" if raster_layer.crs().mapUnits() == UNIT_DEGREES else "meters"
+        )
+        if math.isnan(resolution) or resolution == 0:
+            resolution = raster_layer.rasterUnitsPerPixelX()
             target_units = layer_units
         else:
-            # when given res in meters by users, convert crs to utm if the original crs unit is degree
-            if crs.mapUnits() != UNIT_METERS:  # Qgis.DistanceUnit.Meters:
-                if (
-                    rlayer.crs().mapUnits() == UNIT_DEGREES
-                ):  # Qgis.DistanceUnit.Degrees:
-                    # estimate utm crs based on layer extent
-                    crs = self.estimate_utm_crs(rlayer.extent())
+            if target_crs.mapUnits() != UNIT_METERS:
+                if raster_layer.crs().mapUnits() == UNIT_DEGREES:
+                    target_crs = self.estimate_utm_crs(raster_layer.extent())
                 else:
                     raise QgsProcessingException(
-                        f"Resampling of image with the CRS of {crs.authid()} in meters is not supported."
+                        self.tr(
+                            "Resampling to meters is only supported when the "
+                            "target CRS is metric or can be estimated from a "
+                            "geographic raster."
+                        )
                     )
             target_units = "meters"
-            # else:
-            #     res = (rlayer_extent.xMaximum() -
-            #            rlayer_extent.xMinimum()) / rlayer.width()
-        self.res = res
 
-        # handle extent
-        if extent.isNull():
-            extent = (
-                rlayer.extent()
-            )  # QgsProcessingUtils.combineLayerExtents(layers, crs, context)
-            extent_crs = rlayer.crs()
-        else:
-            if extent.isEmpty():
-                raise QgsProcessingException(
-                    self.tr("The extent for processing can not be empty!")
-                )
-            extent_crs = self.parameterAsExtentCrs(parameters, self.EXTENT, context)
-        # if extent crs != target crs, convert it to target crs
-        if extent_crs != crs:
-            transform = QgsCoordinateTransform(
-                extent_crs, crs, context.transformContext()
-            )
-            # extent = transform.transformBoundingBox(extent)
-            # to ensure coverage of the transformed extent
-            # convert extent to polygon, transform polygon, then get boundingBox of the new polygon
-            extent_polygon = QgsGeometry.fromRect(extent)
-            extent_polygon.transform(transform)
-            extent = extent_polygon.boundingBox()
-            extent_crs = crs
-
-        # check intersects between extent and rlayer_extent
-        if rlayer.crs() != crs:
-            transform = QgsCoordinateTransform(
-                rlayer.crs(), crs, context.transformContext()
-            )
-            rlayer_extent = transform.transformBoundingBox(rlayer.extent())
-        else:
-            rlayer_extent = rlayer.extent()
-        if not rlayer_extent.intersects(extent):
-            raise QgsProcessingException(
-                self.tr(
-                    "The extent for processing is not intersected with the input image!"
-                )
-            )
-
-        model_type = self.model_type_options[model_type_idx]
-        if model_type not in os.path.basename(ckpt_path):
-            raise QgsProcessingException(
-                self.tr("Model type does not match the checkpoint")
-            )
-
-        img_width_in_extent = round((extent.xMaximum() - extent.xMinimum()) / self.res)
-        img_height_in_extent = round((extent.yMaximum() - extent.yMinimum()) / self.res)
-        # handle value range
-        if (not np.isnan(range_value[0])) and (not np.isnan(range_value[1])):
-            feedback.pushInfo(
-                f"Input data value range to be rescaled: {range_value} (set by user)"
-            )
-        else:
-            if extent_crs == rlayer.crs():
-                stat_extent = extent
-            else:
-                transform = QgsCoordinateTransform(
-                    extent_crs, rlayer.crs(), context.transformContext()
-                )
-                stat_extent = transform.transformBoundingBox(extent)
-            start_time = time.time()
-            # set sample size to limit statistic time
-            sample_size = min(int(1e8), img_height_in_extent * img_width_in_extent)
-            min_values = []
-            max_values = []
-            for band in self.selected_bands:
-                band_stats = rlayer_data_provider.bandStatistics(
-                    bandNo=band,
-                    stats=QgsRasterBandStats.All,
-                    extent=stat_extent,
-                    sampleSize=sample_size,
-                )
-                min_values.append(band_stats.minimumValue)
-                max_values.append(band_stats.maximumValue)
-            range_value[0] = min(min_values)
-            range_value[1] = max(max_values)
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            feedback.pushInfo(
-                f"Input data value range to be rescaled: {range_value} (automatically set based on min-max value of input image inside the processing extent.)"
-            )
-            feedback.pushInfo(f"Band statistics took time {elapsed_time:.3f}s")
-
-        if range_value[0] >= range_value[1]:
-            raise QgsProcessingException(
-                self.tr(
-                    "Data value range is wrongly set or the image is with constant values."
-                )
-            )
-
-        # Send some information to the user
-        feedback.pushInfo(f"Layer path: {rlayer_data_provider.dataSourceUri()}")
-        # feedback.pushInfo(
-        #     f'Layer band scale: {rlayer_data_provider.bandScale(self.selected_bands[0])}')
-        feedback.pushInfo(f"Layer name: {rlayer.name()}")
-        if rlayer.crs().authid():
-            feedback.pushInfo(f"Layer CRS: {rlayer.crs().authid()}")
-        else:
-            feedback.pushInfo(f"Layer CRS in WKT format: {rlayer.crs().toWkt()}")
-        feedback.pushInfo(
-            f"Layer pixel size: {rlayer.rasterUnitsPerPixelX()}, {rlayer.rasterUnitsPerPixelY()} {layer_units}"
+        source_path = raster_layer.dataProvider().dataSourceUri()
+        target_crs_text = target_crs.authid() or target_crs.toWkt()
+        dataset = RasterDataset(
+            source_path,
+            indexes=selected_bands,
+            crs=target_crs_text,
+            res=resolution,
         )
 
-        feedback.pushInfo(f"Bands selected: {self.selected_bands}")
-
-        if crs.authid():
-            feedback.pushInfo(f"Target CRS: {crs.authid()}")
-        else:
-            feedback.pushInfo(f"Target CRS in WKT format: {crs.toWkt()}")
-        # feedback.pushInfo('Band number is {}'.format(rlayer.bandCount()))
-        # feedback.pushInfo('Band name is {}'.format(rlayer.bandName(1)))
-        feedback.pushInfo(f"Target resolution: {self.res} {target_units}")
-        # feedback.pushInfo('Layer display band name is {}'.format(
-        #     rlayer.dataProvider().displayBandName(1)))
-        feedback.pushInfo(
-            (
-                f"Processing extent: minx:{extent.xMinimum():.6f}, maxx:{extent.xMaximum():.6f},"
-                f"miny:{extent.yMinimum():.6f}, maxy:{extent.yMaximum():.6f}"
-            )
+        extent_value, extent_crs_text = self._resolve_processing_extent(
+            parameters=parameters,
+            context=context,
+            raster_layer=raster_layer,
+            target_crs=target_crs,
+            extent=extent,
         )
-        feedback.pushInfo(
-            (
-                f"Processing image size: (width {img_width_in_extent}, "
-                f"height {img_height_in_extent})"
-            )
-        )
-
-        # feedback.pushInfo(
-        #     f'SAM Image Size: {self.sam_model.image_encoder.img_size}')
-
-        rlayer_path = rlayer.dataProvider().dataSourceUri()
-        rlayer_dir = os.path.dirname(rlayer_path)
-        rlayer_name = os.path.basename(rlayer_path)
-
-        SamTestRasterDataset.filename_glob = rlayer_name
-        SamTestRasterDataset.all_bands = [
-            rlayer.bandName(i_band) for i_band in range(1, rlayer.bandCount() + 1)
-        ]
-        # currently only support rgb bands
-        input_bands = [rlayer.bandName(i_band) for i_band in self.selected_bands]
-        # ensure only three bands are used, less than three bands will be broadcasted to three bands
-        input_bands = (input_bands * 3)[0:3]
-
-        if crs == rlayer.crs():
-            rlayer_ds = SamTestRasterDataset(
-                root=rlayer_dir, crs=None, res=self.res, bands=input_bands, cache=False
-            )
-        else:
-            rlayer_ds = SamTestRasterDataset(
-                root=rlayer_dir,
-                crs=crs.toWkt(),
-                res=self.res,
-                bands=input_bands,
-                cache=False,
-            )
-        # \n raster_ds crs: {str(CRS(rlayer_ds.crs))}, \
-        feedback.pushInfo(
-            f"\n RasterDataset info: \
-            \n filename_glob: {rlayer_ds.filename_glob}, \
-            \n all bands: {rlayer_ds.all_bands}, \
-            \n input bands: {rlayer_ds.bands}, \
-            \n resolution: {rlayer_ds.res}, \
-            \n bounds: {rlayer_ds.index.bounds}, \
-            \n num: {len(rlayer_ds.index)}\n"
-        )
-
-        # feedback.pushInfo(f'raster dataset crs: {rlayer_ds.crs}')
-
-        extent_bbox = BoundingBox(
-            minx=extent.xMinimum(),
-            maxx=extent.xMaximum(),
-            miny=extent.yMinimum(),
-            maxy=extent.yMaximum(),
-            mint=rlayer_ds.index.bounds[4],
-            maxt=rlayer_ds.index.bounds[5],
-        )
-
-        self.sam_model = self.initialize_sam(
-            model_type=model_type, sam_ckpt_path=ckpt_path
-        )
-
-        ds_sampler = SamTestGridGeoSampler(
-            rlayer_ds,
-            size=self.sam_model.image_encoder.img_size,
+        chip_rectangles = chip_extent_rectangles_for_source(
+            source_path,
+            bands=selected_bands,
+            crs=target_crs_text,
+            res=resolution,
+            extent=extent_value,
+            extent_crs=extent_crs_text,
+            chip_size=int(max(model_spec.resolved_imgsz)),
             stride=stride,
-            roi=extent_bbox,
-            units=Units.PIXELS,
-        )  # Units.CRS or Units.PIXELS
-
-        if len(ds_sampler) == 0:
-            self.load_feature = False
-            feedback.pushWarning(
-                "\n !!!No available patch sample inside the chosen extent!!! \n"
+        )
+        if len(chip_rectangles) == 0:
+            raise QgsProcessingException(
+                self.tr("No available patch sample inside the chosen extent.")
             )
-            # return {'Input layer dir': rlayer_dir, 'Sample num': len(ds_sampler.res),
-            #         'Sample size': len(ds_sampler.size), 'Sample stride': len(ds_sampler.stride)}
 
-        feedback.pushInfo(
-            f"SAM model initialized. \n \
-              SAM model type:  {model_type}"
+        value_range = self._normalize_value_range(
+            raster_layer=raster_layer,
+            selected_bands=selected_bands,
+            range_value=range_value,
+            extent=extent,
+            extent_crs=self.parameterAsExtentCrs(parameters, self.EXTENT, context),
+            context=context,
+            feedback=feedback,
         )
-        if torch.cuda.is_available() and self.use_gpu:
-            feedback.pushInfo(
-                f"Device type: {self.sam_model.device} on {torch.cuda.get_device_name(self.sam_model.device)}"
+        output_dir = output_dir / sanitize_path_component(raster_layer.name())
+        output_dir.mkdir(parents=True, exist_ok=True)
+        features_dir = output_dir / "features"
+        features_dir.mkdir(parents=True, exist_ok=True)
+
+        feedback.pushInfo(self.tr("Layer path: {path}").format(path=source_path))
+        feedback.pushInfo(self.tr("Layer name: {name}").format(name=raster_layer.name()))
+        feedback.pushInfo(
+            self.tr("Bands selected: {bands}").format(bands=selected_bands)
+        )
+        feedback.pushInfo(
+            self.tr("Target CRS: {crs}").format(
+                crs=target_crs.authid() or target_crs.toWkt()
             )
-        else:
-            batch_size = 1
-            feedback.pushInfo(f"Device type: {self.sam_model.device}")
-
+        )
         feedback.pushInfo(
-            f"Patch size: {ds_sampler.patch_size} \n \
-            Batch size: {batch_size}"
+            self.tr("Target resolution: {resolution} {units}").format(
+                resolution=resolution, units=target_units
+            )
         )
-        ds_dataloader = DataLoader(
-            rlayer_ds,
-            batch_size=batch_size,
-            sampler=ds_sampler,
-            collate_fn=stack_samples,
-        )
-
-        feedback.pushInfo(f"Patch sample num: {len(ds_sampler)}")
-        feedback.pushInfo(f"Total batch num: {len(ds_dataloader)}")
+        feedback.pushInfo(self.tr("Device type: {device}").format(device=device or "cpu"))
         feedback.pushInfo(
-            "--------------------------------------------------------------"
+            self.tr("GeoSAM model: {model}").format(
+                model=self.model_options[model_index][1]
+            )
+        )
+        feedback.pushInfo(
+            self.tr("Checkpoint path: {path}").format(path=checkpoint_path)
+        )
+        feedback.pushInfo(
+            self.tr("Memory strategy: {strategy}").format(strategy=memory_strategy)
+        )
+        feedback.pushInfo(
+            self.tr("Patch size: {size}").format(size=model_spec.resolved_imgsz)
+        )
+        feedback.pushInfo(
+            self.tr("Patch sample count: {count}").format(count=len(chip_rectangles))
         )
 
-        elapsed_time_list = []
-        total = 100 / len(ds_dataloader) if len(ds_dataloader) else 0
-        for current, batch in enumerate(ds_dataloader):
-            start_time = time.time()
-            # Stop the algorithm if cancel button has been clicked
-            if feedback.isCanceled():
-                self.load_feature = False
-                feedback.pushWarning(
-                    self.tr("\n !!!Processing is canceled by user!!! \n")
+        rows: list[dict[str, Any]] = []
+        total = 100 / len(chip_rectangles)
+        start_time = time.time()
+        try:
+            for index, rectangle in enumerate(chip_rectangles):
+                if feedback.isCanceled():
+                    self.load_feature = False
+                    feedback.pushWarning(self.tr("Processing canceled by user."))
+                    break
+
+                chip_bounds = BoundingBox(
+                    rectangle[0],
+                    rectangle[1],
+                    rectangle[2],
+                    rectangle[3],
+                    crs=dataset.crs,
                 )
-                break
-            feedback.pushInfo(f"Batch no. {current + 1} loaded")
-            feedback.pushInfo("img_shape: " + str(batch["img_shape"][0]))
-            feedback.pushInfo("patch_size: " + str(batch["image"].shape))
-
-            self.batch_input = self.rescale_img(
-                batch_input=batch["image"], range_value=range_value
-            )
-
-            if not self.get_sam_feature(self.batch_input, feedback):
-                self.load_feature = False
-                break
-
-            end_time = time.time()
-            # get the execution time of sam predictor, ms
-            elapsed_time = end_time - start_time
-            elapsed_time_list.append(elapsed_time)
-            time_spent = sum(elapsed_time_list)
-            time_remain = (time_spent / (current + 1)) * (
-                len(ds_dataloader) - current - 1
-            )
-            feedback.pushInfo("feature_shape:" + str(self.features.shape))
-
-            # TODO: show gpu usage info
-            # if torch.cuda.is_available() and self.use_gpu:
-            #     gpu_mem_used = torch.cuda.max_memory_reserved(self.sam_model.device) / (1024 ** 3)
-            #     # gpu_mem_free = torch.cuda.mem_get_info(self.sam_model.device)[0] / (1024 ** 3)
-            #     gpu_mem_total = torch.cuda.mem_get_info(self.sam_model.device)[1] / (1024 ** 3)
-            #     feedback.pushInfo(
-            #         f'GPU memory usage: {gpu_mem_used:.2f}GB / {gpu_mem_total:.2f}GB')
-            #     feedback.pushInfo(str(torch.cuda.memory_summary(self.sam_model.device)))
-
-            feedback.pushInfo(
-                f"SAM encoder executed with {elapsed_time:.3f}s \n \
-                  Time spent: {time_spent:.3f}s"
-            )
-            if time_remain <= 60:
-                feedback.pushInfo(f"Estimated time remaining: {time_remain:.3f}s")
-            else:
-                time_remain_m, time_remain_s = divmod(int(time_remain), 60)
-                time_remain_h, time_remain_m = divmod(time_remain_m, 60)
-                feedback.pushInfo(
-                    f"Estimated time remaining: {time_remain_h:d}h:{time_remain_m:02d}m:{time_remain_s:02d}s"
+                sample = dataset[chip_bounds]
+                model_image = sample.to_model_image(value_range=value_range)
+                encoded = adapter.encode_image(model_image)
+                chip_id = f"chip_{index:06d}"
+                feature_path = features_dir / f"{chip_id}.pt"
+                encoded.save(feature_path)
+                rows.append(
+                    self._manifest_row(
+                        sample=sample,
+                        encoded=encoded,
+                        chip_id=chip_id,
+                        feature_path=feature_path,
+                    )
                 )
+                del encoded, model_image, sample
+                self._release_encoding_memory(
+                    memory_strategy=memory_strategy,
+                    chip_index=index,
+                )
+                self.iPatch += 1
+                feedback.setProgress(int((index + 1) * total))
+        finally:
+            close_method = getattr(adapter, "close", None)
+            if callable(close_method):
+                close_method()
+            _flush_torch_memory()
 
-            self.feature_dir = self.save_sam_feature(
-                output_dir, batch, self.features, extent_bbox, model_type, feedback
+        if len(rows) == 0:
+            raise QgsProcessingException(self.tr("No feature cache was written."))
+
+        import geopandas as gpd
+
+        manifest = gpd.GeoDataFrame(rows, geometry="geometry", crs=dataset.crs)
+        manifest_path = output_dir / "manifest.parquet"
+        manifest.to_parquet(manifest_path)
+        elapsed_time = time.time() - start_time
+        feedback.pushInfo(
+            self.tr("GeoSAM encoding completed in {seconds:.3f}s.").format(
+                seconds=elapsed_time
             )
-
-            feedback.pushInfo(
-                "--------------------------------------------------------------"
-            )
-            # Update the progress bar
-            feedback.setProgress(int((current + 1) * total))
-
+        )
+        self.feature_dir = str(output_dir)
         return {
             "Output feature path": self.feature_dir,
             "Patch samples saved": self.iPatch,
-            "Feature folder loaded": self.load_feature,
+            "Feature folder loaded": False,
         }
 
-    # used to handle any thread-sensitive cleanup which is required by the algorithm.
-    def postProcessAlgorithm(self, context, feedback) -> Dict[str, Any]:
-        if torch.cuda.is_available() and self.use_gpu:
-            if hasattr(self, "sam_model"):
-                del self.sam_model
-            if hasattr(self, "batch_input"):
-                del self.batch_input
-            torch.cuda.empty_cache()
+    def postProcessAlgorithm(
+        self,
+        context: QgsProcessingContext,
+        feedback: QgsProcessingFeedback,
+    ) -> dict[str, Any]:
+        """Optionally load the generated cache into the plugin UI."""
+        del context
         if self.load_feature and self.feature_dir:
             self.load_feature = self.load_feature_dir(feedback=feedback)
         return {
@@ -642,258 +517,307 @@ class SamProcessingAlgorithm(QgsProcessingAlgorithm):
             "Feature folder loaded": self.load_feature,
         }
 
-    def load_feature_dir(self, feedback: QgsProcessingFeedback) -> bool:
-        sam_tool_action: QAction = iface.mainWindow().findChild(
-            QAction, "mActionGeoSamTool"
-        )
-        if sam_tool_action:
-            sam_tool_action.trigger()
-            start_time = time.time()
-            while True:
-                if feedback.isCanceled():
-                    feedback.pushInfo(self.tr("Loading feature is canceled by user."))
-                    return False
-                sam_tool_widget: QgsDockWidget = iface.mainWindow().findChild(
-                    QDockWidget, "GeoSAM"
-                )
-                current_time = time.time()
-                elapsed_time = (current_time - start_time) * 1000
-                if sam_tool_widget:
-                    feedback.pushInfo("\n GeoSAM widget found")
-                    load_feature_widget: QgsFileWidget = sam_tool_widget.QgsFile_feature
-                    load_feature_widget.setFilePath(self.feature_dir)
-                    sam_tool_widget.pushButton_load_feature.click()  # try sender
-                    feedback.pushInfo(
-                        # f"features in {self.feature_dir} loaded in {elapsed_time:.3f} ms \n"
-                        f"features in {sam_tool_widget.QgsFile_feature.filePath()} loaded in {elapsed_time:.3f} ms \n"
-                    )
-                    return True
-                # try 3 seconds
-                if elapsed_time > 3000:
-                    feedback.pushInfo(
-                        f"\n GeoSAM widget not found {elapsed_time:.3f} ms \n"
-                    )
-                    return False
-        else:
-            feedback.pushInfo("\n GeoSAM tool action not found. \n")
-            return False
-
-    def initialize_sam(self, model_type: str, sam_ckpt_path: str) -> Sam:
-        sam_model = sam_model_registry[model_type](checkpoint=sam_ckpt_path)
-        if torch.cuda.is_available() and self.use_gpu:
-            if self.cuda_id + 1 > torch.cuda.device_count():
-                self.cuda_id = torch.cuda.device_count() - 1
-            cuda_device = f"cuda:{self.cuda_id}"
-            sam_model.to(device=cuda_device)
-        return sam_model
-
-    @torch.no_grad()
-    def get_sam_feature(
-        self, batch_input: Tensor, feedback: QgsProcessingFeedback
-    ) -> bool:
-        # TODO: if the input image are all zero(batch_input.any()), directly return features with all zero and give a message
-        # should know the shape of the feature in advance
-        batch_input = batch_input.to(device=self.sam_model.device)
-        batch_input = (
-            batch_input - self.sam_model.pixel_mean
-        ) / self.sam_model.pixel_std
-        # batch_input = sam_model.preprocess(batch_input)
+    @staticmethod
+    def _select_device(*, use_gpu: bool, cuda_id: int) -> str | None:
+        """Resolve the preferred inference device string."""
+        if not use_gpu:
+            return None
         try:
-            features = self.sam_model.image_encoder(batch_input)
-        except RuntimeError as inst:
-            # torch.cuda.OutOfMemoryError
-            if "CUDA out of memory" in inst.args[0]:
-                feedback.pushWarning(
-                    "\n !!!CUDA out of memory, try to choose a smaller batch size or smaller version of SAM model.!!!"
-                )
-                feedback.pushWarning(
-                    f"Error type: {type(inst).__name__}, context: {inst} \n"
-                )
-            # raise QgsProcessingException(
-            #     f'Error type: {type(inst).__name__}, context: {inst}')
-            return False
-        except Exception as err:
-            raise QgsProcessingException(f"Unexpected {err=}, {type(err)=}")
-        # batch_input = batch_input.to(device='cpu')
-        # torch.cuda.empty_cache()
-        self.features = features.cpu().numpy()
-        return True
+            import torch
+        except (ImportError, OSError):
+            return None
+        if torch.cuda.is_available():
+            if cuda_id + 1 > torch.cuda.device_count():
+                cuda_id = torch.cuda.device_count() - 1
+            return f"cuda:{cuda_id}"
+        if torch.backends.mps.is_available():
+            return "mps"
+        return None
 
-    def rescale_img(self, batch_input: Tensor, range_value: List[float]) -> Tensor:
-        "rescale input image to [0,255]"
-        range_min = range_value[0]
-        range_max = range_value[1]
-        batch_output = (batch_input - range_min) * 255 / (range_max - range_min)
-        return batch_output
+    @staticmethod
+    def _memory_strategy_from_index(index: int) -> EncodingMemoryStrategy:
+        """Return the memory strategy selected by a processing enum index.
 
-    def save_sam_feature(
+        Parameters
+        ----------
+        index : int
+            Processing enum index selected by the user.
+
+        Returns
+        -------
+        EncodingMemoryStrategy
+            Normalized memory strategy value.
+        """
+        if 0 <= index < len(ENCODING_MEMORY_STRATEGIES):
+            return ENCODING_MEMORY_STRATEGIES[index][0]
+        return "balanced"
+
+    def _raise_missing_model_error(self, *, model_id: str) -> None:
+        """Raise a user-facing error when the selected model is not downloaded.
+
+        Parameters
+        ----------
+        model_id : str
+            Selected GeoSAM model identifier.
+
+        Raises
+        ------
+        QgsProcessingException
+            Always raised with the missing model guidance.
+        """
+        downloaded_labels = [
+            f"{row['label']} ({row['model_id']})"
+            for row in get_model_status_rows()
+            if row["downloaded"]
+        ]
+        downloaded_text = (
+            ", ".join(downloaded_labels) if downloaded_labels else self.tr("none")
+        )
+        msg = self.tr(
+            "The selected GeoSAM model is not downloaded yet. "
+            "Choose one of the downloaded models, or open Geo-SAM Settings, "
+            "download the selected model, and retry. "
+            f"Selected model: {model_id}. Downloaded models: {downloaded_text}."
+        )
+        logger.error(msg)
+        raise QgsProcessingException(msg)
+
+    @staticmethod
+    def _release_encoding_memory(
+        *,
+        memory_strategy: EncodingMemoryStrategy,
+        chip_index: int,
+    ) -> None:
+        """Release temporary memory according to the selected encoding strategy.
+
+        Parameters
+        ----------
+        memory_strategy : {"balanced", "low_memory"}
+            Memory cleanup policy selected for the encoder run.
+        chip_index : int
+            Zero-based encoded chip index.
+        """
+        if memory_strategy == "balanced":
+            if (chip_index + 1) % BALANCED_MEMORY_FLUSH_INTERVAL == 0:
+                _flush_torch_memory()
+            return
+        _flush_torch_memory()
+
+    def _resolve_processing_extent(
         self,
-        export_dir_str: str,
-        data_batch: Tensor,
-        feature: np.ndarray,
-        extent: BoundingBox,
-        model_type: str,
-        feedback: QgsProcessingFeedback,
-    ) -> str:
-        export_dir = Path(export_dir_str)
-        extent_list = [extent.minx, extent.miny, extent.maxx, extent.maxy]
-        extent_str = (
-            "_".join(map("{:.6f}".format, extent_list)) + f"_res_{self.res:.6f}"
-        )
-        extent_hash = hashlib.sha256(extent_str.encode("utf-8")).hexdigest()
-
-        bands_str = "_".join([str(band) for band in self.selected_bands])
-        # one image file encoding situation
-        filepath = Path(data_batch["path"][0])
-        export_dir_sub = (
-            export_dir
-            / filepath.stem
-            / f"sam_feat_{model_type}_bands_{bands_str}_{extent_hash[0:16]}"
-        )
-        export_dir_sub.mkdir(parents=True, exist_ok=True)
-        # iterate over batch_size dimension
-        feedback.pushInfo(f" Exporting features to {export_dir_sub}")
-        band_num = feature.shape[-3]
-        height = feature.shape[-2]
-        width = feature.shape[-1]
-        for idx in range(feature.shape[-4]):
-            bbox = data_batch["bbox"][idx]
-            rio_transform = rasterio.transform.from_bounds(
-                bbox.minx, bbox.miny, bbox.maxx, bbox.maxy, width, height
-            )  # west, south, east, north, width, height
-            bbox_list = [bbox.minx, bbox.miny, bbox.maxx, bbox.maxy]
-            bbox_str = "_".join(map("{:.6f}".format, bbox_list))
-            #  Unicode-objects must be encoded before hashing with hashlib and
-            #  because strings in Python 3 are Unicode by default (unlike Python 2),
-            #  you'll need to encode the string using the .encode method.
-            bbox_hash = hashlib.sha256(bbox_str.encode("utf-8")).hexdigest()
-            feature_tiff = export_dir_sub / f"sam_feat_{model_type}_{bbox_hash}.tif"
-            feature_csv = export_dir_sub / f"{export_dir_sub.name}.csv"
-            with rasterio.open(
-                feature_tiff,
-                mode="w",
-                driver="GTiff",
-                height=height,
-                width=width,
-                count=band_num,
-                dtype="float32",
-                crs=data_batch["crs"][idx],
-                transform=rio_transform,
-            ) as feature_dataset:
-                # index start from 1, feature[idx, :, :, :] = feature[idx, ...], later is faster
-                feature_dataset.write(feature[idx, ...], range(1, band_num + 1))
-                # pr_mask_dataset.set_band_description(1, '')
-                tags = {
-                    "img_shape": data_batch["img_shape"][idx],
-                    "input_shape": data_batch["input_shape"][idx],
-                    "model_type": model_type,
-                }
-                feature_dataset.update_tags(**tags)
-                # feature_res = feature_dataset.res[0]
-                feature_crs = feature_dataset.crs
-
-            index_df = pd.DataFrame(
-                columns=[
-                    "minx",
-                    "maxx",
-                    "miny",
-                    "maxy",
-                    "mint",
-                    "maxt",
-                    "filepath",
-                    "crs",
-                    "res",
-                ],
-                index=[self.iPatch],
+        *,
+        parameters: dict[str, Any],
+        context: QgsProcessingContext,
+        raster_layer,
+        target_crs: QgsCoordinateReferenceSystem,
+        extent: QgsRectangle,
+    ) -> tuple[tuple[float, float, float, float] | None, str]:
+        """Resolve processing extent and its CRS text."""
+        if extent.isNull():
+            return None, target_crs.authid() or target_crs.toWkt()
+        if extent.isEmpty():
+            raise QgsProcessingException(
+                self.tr("The processing extent cannot be empty.")
             )
-            index_df["filepath"] = [feature_tiff.name]
-            index_df["minx"] = [bbox.minx]
-            index_df["maxx"] = [bbox.maxx]
-            index_df["miny"] = [bbox.miny]
-            index_df["maxy"] = [bbox.maxy]
-            index_df["mint"] = [bbox.mint]
-            index_df["maxt"] = [bbox.maxt]
-            index_df["crs"] = [str(feature_crs)]
-            index_df["res"] = [self.res]
-            index_df["model_type"] = [model_type]
-            # append data frame to CSV file, index=False
-            index_df.to_csv(
-                feature_csv, mode="a", header=not feature_csv.exists(), index=True
+        extent_crs = self.parameterAsExtentCrs(parameters, self.EXTENT, context)
+        if extent_crs is None or not extent_crs.isValid():
+            extent_crs = raster_layer.crs()
+
+        if extent_crs != target_crs:
+            transform = QgsCoordinateTransform(
+                extent_crs,
+                target_crs,
+                context.transformContext(),
             )
-            self.iPatch += 1
-
-        return str(export_dir_sub)
-
-    def estimate_utm_crs(self, extent: QgsRectangle):
-        utm_crs_list = query_utm_crs_info(
-            datum_name="WGS 84",
-            area_of_interest=AreaOfInterest(
-                west_lon_degree=extent.xMinimum(),
-                south_lat_degree=extent.yMinimum(),
-                east_lon_degree=extent.xMaximum(),
-                north_lat_degree=extent.yMaximum(),
+            extent_polygon = QgsGeometry.fromRect(extent)
+            extent_polygon.transform(transform)
+            extent = extent_polygon.boundingBox()
+            extent_crs = target_crs
+        return (
+            (
+                extent.xMinimum(),
+                extent.yMinimum(),
+                extent.xMaximum(),
+                extent.yMaximum(),
             ),
+            extent_crs.authid() or extent_crs.toWkt(),
         )
-        utm_crs = CRS.from_epsg(utm_crs_list[0].code)
-        utm_crs = QgsCoordinateReferenceSystem(str(utm_crs))
-        return utm_crs
 
-    def tr(self, string):
-        """
-        Returns a translatable string with the self.tr() function.
-        """
-        return QCoreApplication.translate("Processing", string)
+    def _normalize_value_range(
+        self,
+        *,
+        raster_layer,
+        selected_bands: list[int],
+        range_value: list[float],
+        extent: QgsRectangle,
+        extent_crs,
+        context: QgsProcessingContext,
+        feedback: QgsProcessingFeedback,
+    ) -> tuple[float, float] | None:
+        """Resolve a fixed value range when one is requested."""
+        if (
+            len(range_value) >= 2
+            and not math.isnan(range_value[0])
+            and not math.isnan(range_value[1])
+        ):
+            if range_value[0] >= range_value[1]:
+                raise QgsProcessingException(
+                    self.tr("Data value range is invalid or constant.")
+                )
+            feedback.pushInfo(
+                f"Input data value range to be rescaled: {range_value} (user)"
+            )
+            return (float(range_value[0]), float(range_value[1]))
+
+        if extent.isNull():
+            stat_extent = raster_layer.extent()
+        elif extent_crs == raster_layer.crs() or extent_crs is None:
+            stat_extent = extent
+        else:
+            transform = QgsCoordinateTransform(
+                extent_crs,
+                raster_layer.crs(),
+                context.transformContext(),
+            )
+            stat_extent = transform.transformBoundingBox(extent)
+
+        min_values: list[float] = []
+        max_values: list[float] = []
+        provider = raster_layer.dataProvider()
+        for band in selected_bands:
+            band_stats = provider.bandStatistics(
+                bandNo=band,
+                stats=QgsRasterBandStats.Stats.All,
+                extent=stat_extent,
+                sampleSize=min(int(1e8), raster_layer.width() * raster_layer.height()),
+            )
+            min_values.append(float(band_stats.minimumValue))
+            max_values.append(float(band_stats.maximumValue))
+        if len(min_values) == 0:
+            return None
+        resolved_range = (min(min_values), max(max_values))
+        feedback.pushInfo(
+            "Input data value range to be rescaled: "
+            f"{resolved_range} (computed from raster statistics)"
+        )
+        if resolved_range[0] >= resolved_range[1]:
+            return None
+        return resolved_range
+
+    @staticmethod
+    def _manifest_row(
+        *,
+        sample,
+        encoded,
+        chip_id: str,
+        feature_path: Path,
+    ) -> dict[str, Any]:
+        """Build one manifest row."""
+        return {
+            "feature_path": str(feature_path),
+            "chip_id": chip_id,
+            "source_path": sample.source_path,
+            "checkpoint_path": encoded.checkpoint_path,
+            "model_type": encoded.model_type,
+            "transform": json.dumps(list(sample.transform)[:6]),
+            "shape": json.dumps(list(sample.shape)),
+            "crs": sample.crs.to_string(),
+            "dst_shape": json.dumps(list(encoded.dst_shape)),
+            "chip_center_x": sample.bbox.center[0],
+            "chip_center_y": sample.bbox.center[1],
+            "geometry": sample.bbox.to_geometry(),
+        }
+
+    def load_feature_dir(self, feedback: QgsProcessingFeedback) -> bool:
+        """Open the Geo-SAM widget and load the generated feature folder."""
+        sam_tool_action: QAction = iface.mainWindow().findChild(
+            QAction,
+            "mActionGeoSamTool",
+        )
+        if sam_tool_action is None:
+            feedback.pushInfo(self.tr("Geo-SAM tool action not found."))
+            return False
+
+        sam_tool_action.trigger()
+        start_time = time.time()
+        while True:
+            if feedback.isCanceled():
+                feedback.pushInfo(self.tr("Loading feature is canceled by user."))
+                return False
+            sam_tool_widget: QDockWidget = iface.mainWindow().findChild(
+                QDockWidget,
+                "GeoSAM",
+            )
+            elapsed_time = (time.time() - start_time) * 1000
+            if sam_tool_widget:
+                load_feature_widget: QgsFileWidget = sam_tool_widget.QgsFile_feature
+                load_feature_widget.setFilePath(self.feature_dir)
+                sam_tool_widget.pushButton_load_feature.click()
+                loaded_message = self.tr(
+                    "GeoSAM widget found and features loaded in {milliseconds:.3f} ms."
+                ).format(
+                    milliseconds=elapsed_time
+                )
+                feedback.pushInfo(loaded_message)
+                return True
+            if elapsed_time > 3000:
+                feedback.pushInfo(
+                    self.tr("GeoSAM widget not found after {milliseconds:.3f} ms.").format(
+                        milliseconds=elapsed_time
+                    )
+                )
+                return False
+
+    @staticmethod
+    def estimate_utm_crs(extent: QgsRectangle) -> QgsCoordinateReferenceSystem:
+        """Estimate a metric UTM CRS from a geographic extent."""
+        center_x = (extent.xMinimum() + extent.xMaximum()) / 2.0
+        center_y = (extent.yMinimum() + extent.yMaximum()) / 2.0
+        zone = int((center_x + 180.0) / 6.0) + 1
+        epsg_code = 32600 + zone if center_y >= 0 else 32700 + zone
+        return QgsCoordinateReferenceSystem(f"EPSG:{epsg_code}")
+
+    def tr(self, string: str) -> str:
+        """Return a translated string."""
+        return QCoreApplication.translate("SamProcessingAlgorithm", string)
 
     def createInstance(self):
+        """Create the processing algorithm instance."""
         return SamProcessingAlgorithm()
 
-    def name(self):
-        """
-        Returns the algorithm name, used for identifying the algorithm. This
-        string should be fixed for the algorithm, and must not be localised.
-        The name should be unique within each provider. Names should contain
-        lowercase alphanumeric characters only and no spaces or other
-        formatting characters.
-        """
+    def name(self) -> str:
+        """Return the provider-internal algorithm name."""
         return "geo_sam_encoder"
 
-    def displayName(self):
-        """
-        Returns the translated algorithm name, which should be used for any
-        user-visible display of the algorithm name.
-        """
+    def displayName(self) -> str:
+        """Return the user-facing algorithm name."""
         return self.tr("Geo-SAM Image Encoder")
 
-    def group(self):
-        """
-        Returns the name of the group this algorithm belongs to. This string
-        should be localised.
-        """
+    def group(self) -> str:
+        """Return the algorithm group label."""
         return self.tr("")
 
-    def groupId(self):
-        """
-        Returns the unique ID of the group this algorithm belongs to. This
-        string should be fixed for the algorithm, and must not be localised.
-        The group id should be unique within each provider. Group id should
-        contain lowercase alphanumeric characters only and no spaces or other
-        formatting characters.
-        """
+    def groupId(self) -> str:
+        """Return the algorithm group id."""
         return ""
 
-    def shortHelpString(self):
-        """
-        Returns a localised short helper string for the algorithm. This string
-        should provide a basic description about what the algorithm does and the
-        parameters and outputs associated with it..
-        """
-        file = encoder_help
-        if not os.path.exists(file):
-            return self.tr("Generate image features using SAM image encoder.")
-        with open(file) as help_file:
-            help_str = help_file.read()
-        return help_str
-        # return self.tr("Generate image features using SAM image encoder.")
+    def shortHelpString(self) -> str:
+        """Return the algorithm help text."""
+        help_path = Path(encoder_help)
+        locale_name = current_locale_name().replace("-", "_")
+        locale_candidates = tuple(dict.fromkeys((locale_name, locale_name.split("_")[0])))
+        for locale_candidate in locale_candidates:
+            localized_help_path = help_path.with_name(
+                f"{help_path.stem}_{locale_candidate}{help_path.suffix}"
+            )
+            if localized_help_path.exists():
+                help_path = localized_help_path
+                break
+        if not help_path.exists():
+            return self.tr("Generate reusable image features using GeoSAM.")
+        with help_path.open(encoding="utf-8") as help_file:
+            return help_file.read()
 
     def icon(self):
+        """Return the algorithm icon."""
         return QIcon_EncoderTool
