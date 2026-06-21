@@ -1,13 +1,54 @@
 [general]
 name=Geo SAM
 description=Segment Landform with Segment-Anything AI Model (SAM)
-about=This tool uses SAM model to help segment landforms
 category=Raster
 version=2.0
 qgisMinimumVersion=3.20
 qgisMaximumVersion=4.99
-author=Joey, Fancy
-email=joey_fancy@cryolab.com
+author=Zhuoyi Zhao (Joey), Chengyan Fan (Fancy) 
+email=fanchengyan@outlook.com
 tags=raster, vector, segmentation, segment-anything, labeling
 icon=ui/icons/geo_sam_tool.svg
 hasProcessingProvider=yes
+about=Segment, delineate, and label landforms in large geospatial raster images at millisecond speeds — all within QGIS. Powered by Meta's Segment Anything Model (SAM) with support for SAM, SAM 2, SAM 2.1, and SAM 3 model families. Key features:
+
+    - Real-time Segmentation — SAM predictions that follow your mouse cursor in real time on modern CPUs
+    - Plugin-managed dependencies — one-click install, no manual pip commands
+    - In-app model management — download and manage SAM checkpoints in the plugin without leaving QGIS
+    - Online tile layer support — segment directly from XYZ / WMS / WMTS layers
+    - Multi-language UI — 中文, 日本語, 한국어, Français, Русский, العربية, Deutsch, Español, Português
+    - Works with QGIS 3.x and 4.x
+
+changelog=Version 2.0 — ground-up rewrite built on the geosam core library:
+
+      Architecture:
+      - Full backend rewrite — replaced in-plugin SAM implementation with the geosam core library
+      - SAM backend switched to Ultralytics — model loading and inference now use the ultralytics SAM stack
+      - Plugin-managed dependencies — installed into a plugin-private directory per QGIS runtime, no manual pip commands
+
+      New Features:
+      - Live Encoding mode — segment directly from a raster layer without pre-encoding; features are encoded on the fly via QGIS background tasks and cached for fast re-queries
+      - Pre-encoded mode — use Image Encoder to generate reusable feature files for repeated segmentation of the same image
+      - Online tile layer support — XYZ and WMS tile layers can be used in live-encoding mode
+      - SAM2 and SAM3 model support — added the SAM2 and SAM3 model family alongside the original SAM
+      - Vectorization mode — choose between Pixel-Level and Simplified polygon output
+      - Max Polygon Only mode — keep only the largest polygon from the current mask
+      - Unified Settings dialog — four tabs (Dependencies, Model Management, Cache, Help)
+      - In-app Model Management — download, delete, and unload SAM checkpoints with Ultralytics + ModelScope fallback
+      - Feature cache management — configurable cache directory, maximum size, performance mode (Balanced / Fastest / Low Memory)
+      - Split-panel UI — Segmentation dock widget with Input/Output + Prompts on the left, Styles + Options on the right
+      - Multi-language UI — translated into 中文, 日本語, 한국어, Français, Русский, العربية, Deutsch, Español, and Português
+
+      Improvements:
+      - PyQt6 / QGIS 4 compatibility
+      - Faster prompt response via feature cache reuse
+      - Better memory management (Balanced vs Low Memory strategies)
+      - Preserved polygon holes when saving SAM results
+      - Tab key cycles prompt types; keyboard shortcuts work even when widget is not focused
+      - Preview Mode — SAM predictions follow the mouse cursor in real time
+
+      Removed:
+      - torchgeo and segment_anything as runtime dependencies
+      - Minimum Pixels parameter from the Segmentation tool UI
+      - Load Demo option (demo image no longer auto-loaded)
+      - Manual pip dependency installation (replaced by Settings dialog)

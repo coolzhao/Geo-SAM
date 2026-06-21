@@ -19,10 +19,11 @@ no pre-encoding step is required.
 Click the **Geo-SAM Segmentation** icon in the toolbar. The dock widget
 appears with a **split-panel layout**:
 
-| Left Panel | Right Panel |
-|---|---|
-| **Input / Output** tab | **Styles** tab |
-| **Prompts** tab | **Options** tab |
+```{image} ../img/ui_geo_sam.png
+:alt: Plugin menu
+:width: 100%
+:align: center
+```
 
 ## Input / Output Tab
 

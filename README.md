@@ -86,13 +86,8 @@ for a 5-minute walkthrough.
   <img src="docs/source/img/try_geo_sam.gif" width="700" title="try_geo_sam">
 </p>
 
-- ``Preview Mode`` Demo (**Run SAM following the mouse cursor**)
 
-<p align="center">
-  <img src="docs/source/img/PreviewModeDemo.gif" width="700" title="preview_mode">
-</p>
-
-- Image Encoder Demo (QGIS plugin part)
+- Image Encoder Demo (Old version, still available in the "Pre-encoded mode" since Geo-SAM v2.0)
 
 <p align="center">
   <img src="docs/source/img/encoder_demo.gif" width="700" title="encoder_demo">
@@ -106,7 +101,7 @@ for a 5-minute walkthrough.
 
 ## Citation
 
-> Zhao, Zhuoyi, Fan, Chengyan, & Liu, Lin. (2023). Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation (2.0). Zenodo. <https://doi.org/10.5281/zenodo.8191039>
+> Zhao, Zhuoyi, Fan, Chengyan, & Liu, Lin. (2023). Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation (1.0). Zenodo. <https://doi.org/10.5281/zenodo.8191039>
 
 ```bibtex
 @software{zhao_zhuoyi_2023_8191039,
@@ -114,7 +109,7 @@ for a 5-minute walkthrough.
   title        = {{Geo SAM: A QGIS plugin using Segment Anything Model (SAM) to accelerate geospatial image segmentation}},
   year         = 2023,
   publisher    = {Zenodo},
-  version      = {2.0},
+  version      = {1.0},
   doi          = {10.5281/zenodo.8191039},
   url          = {https://doi.org/10.5281/zenodo.8191039}
 }
