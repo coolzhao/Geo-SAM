@@ -63,12 +63,12 @@ Would you like to open Model Management and download it now?</source>
     <message>
         <location filename="../tools/widgetTool.py" line="2778"/>
         <source>Raster</source>
-        <translation >Ráster</translation>
+        <translation>Ráster</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2784"/>
         <source>Extent</source>
-        <translation >Extensión</translation>
+        <translation>Extensión</translation>
     </message>
 </context>
 <context>
@@ -181,7 +181,7 @@ Would you like to open Model Management and download it now?</source>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Please choose a RealTime Layer or a Feature folder first.</source>
-        <translation>Primero elija una capa en tiempo real o una carpeta de caché de características</translation>
+        <translation type="obsolete">Primero elija una capa en tiempo real o una carpeta de caché de características</translation>
     </message>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
@@ -659,6 +659,11 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../ui/Selector.ui" line="679"/>
         <source>BG Color</source>
         <translation>Color BG</translation>
+    </message>
+    <message>
+        <location filename="../tools/translation_catalog.py" line="11"/>
+        <source>Please choose a Live Encoding layer or a Feature folder first.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1460,7 +1465,7 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
     <message>
         <location filename="../tools/widgetTool.py" line="1207"/>
         <source>Loaded realtime layer &apos;{layer}&apos;.</source>
-        <translation>Capa en tiempo real cargada '{layer}'</translation>
+        <translation type="obsolete">Capa en tiempo real cargada '{layer}'</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2473"/>
@@ -1576,6 +1581,11 @@ Would you like to open Model Management and download it now?</source>
         <location filename="../tools/widgetTool.py" line="1266"/>
         <source>Model Not Downloaded</source>
         <translation>Modelo no descargado</translation>
+    </message>
+    <message>
+        <location filename="../tools/widgetTool.py" line="1207"/>
+        <source>Loaded live encoding layer &apos;{layer}&apos;.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

@@ -63,12 +63,12 @@ Voulez-vous ouvrir la gestion des modèles et le télécharger maintenant</trans
     <message>
         <location filename="../tools/widgetTool.py" line="2778"/>
         <source>Raster</source>
-        <translation >Raster</translation>
+        <translation>Raster</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2784"/>
         <source>Extent</source>
-        <translation >Emprise *</translation>
+        <translation>Emprise *</translation>
     </message>
 </context>
 <context>
@@ -181,7 +181,7 @@ Voulez-vous ouvrir la gestion des modèles et le télécharger maintenant</trans
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Please choose a RealTime Layer or a Feature folder first.</source>
-        <translation>Veuillez d’abord choisir une couche temps réel ou un dossier de cache de caractéristiques</translation>
+        <translation type="obsolete">Veuillez d’abord choisir une couche temps réel ou un dossier de cache de caractéristiques</translation>
     </message>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
@@ -659,6 +659,11 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../ui/Selector.ui" line="679"/>
         <source>BG Color</source>
         <translation>Couleur BG</translation>
+    </message>
+    <message>
+        <location filename="../tools/translation_catalog.py" line="11"/>
+        <source>Please choose a Live Encoding layer or a Feature folder first.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1460,7 +1465,7 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
     <message>
         <location filename="../tools/widgetTool.py" line="1207"/>
         <source>Loaded realtime layer &apos;{layer}&apos;.</source>
-        <translation>Couche temps réel chargée '{layer}'</translation>
+        <translation type="obsolete">Couche temps réel chargée '{layer}'</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2473"/>
@@ -1576,6 +1581,11 @@ Voulez-vous ouvrir la gestion des modèles et le télécharger maintenant</trans
         <location filename="../tools/widgetTool.py" line="1266"/>
         <source>Model Not Downloaded</source>
         <translation>Modèle non téléchargé</translation>
+    </message>
+    <message>
+        <location filename="../tools/widgetTool.py" line="1207"/>
+        <source>Loaded live encoding layer &apos;{layer}&apos;.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

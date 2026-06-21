@@ -449,7 +449,7 @@ def _default_plugin_settings() -> dict[str, Any]:
     settings.setdefault("clear_cache_on_plugin_close", True)
     settings.setdefault("selected_model_id", "")
     settings.setdefault("show_boundary", True)
-    settings.setdefault("image_source_mode", "realtime")
+    settings.setdefault("image_source_mode", "live_encoding")
     settings.setdefault("default_minimum_pixels", 0)
     settings.setdefault("performance_mode", "balanced")
     settings.setdefault("preview_mode", True)

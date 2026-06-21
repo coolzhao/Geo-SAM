@@ -63,12 +63,12 @@ Möchten Sie jetzt die Modellverwaltung öffnen und es herunterladen</translatio
     <message>
         <location filename="../tools/widgetTool.py" line="2778"/>
         <source>Raster</source>
-        <translation >Raster</translation>
+        <translation>Raster</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2784"/>
         <source>Extent</source>
-        <translation >Ausdehnung *</translation>
+        <translation>Ausdehnung *</translation>
     </message>
 </context>
 <context>
@@ -181,7 +181,7 @@ Möchten Sie jetzt die Modellverwaltung öffnen und es herunterladen</translatio
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Please choose a RealTime Layer or a Feature folder first.</source>
-        <translation>Bitte wählen Sie zuerst einen Echtzeit-Layer oder einen Feature-Cache-Ordner aus</translation>
+        <translation type="obsolete">Bitte wählen Sie zuerst einen Echtzeit-Layer oder einen Feature-Cache-Ordner aus</translation>
     </message>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
@@ -659,6 +659,11 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../ui/Selector.ui" line="679"/>
         <source>BG Color</source>
         <translation>BG-Farbe</translation>
+    </message>
+    <message>
+        <location filename="../tools/translation_catalog.py" line="11"/>
+        <source>Please choose a Live Encoding layer or a Feature folder first.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1460,7 +1465,7 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
     <message>
         <location filename="../tools/widgetTool.py" line="1207"/>
         <source>Loaded realtime layer &apos;{layer}&apos;.</source>
-        <translation>Geladener Echtzeit-Layer „{layer}“</translation>
+        <translation type="obsolete">Geladener Echtzeit-Layer „{layer}“</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2473"/>
@@ -1576,6 +1581,11 @@ Möchten Sie jetzt die Modellverwaltung öffnen und es herunterladen</translatio
         <location filename="../tools/widgetTool.py" line="1266"/>
         <source>Model Not Downloaded</source>
         <translation>Modell nicht heruntergeladen</translation>
+    </message>
+    <message>
+        <location filename="../tools/widgetTool.py" line="1207"/>
+        <source>Loaded live encoding layer &apos;{layer}&apos;.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

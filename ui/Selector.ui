@@ -119,8 +119,8 @@
                  <property name="currentIndex">
                   <number>0</number>
                  </property>
-                 <widget class="QWidget" name="page_realtime">
-                  <layout class="QHBoxLayout" name="horizontalLayout_realtime">
+                 <widget class="QWidget" name="page_live_encoding">
+                  <layout class="QHBoxLayout" name="horizontalLayout_live_encoding">
                    <property name="spacing">
                     <number>4</number>
                    </property>
@@ -137,7 +137,7 @@
                     <number>0</number>
                    </property>
                     <item>
-                     <widget class="QLabel" name="label_realtime_model">
+                     <widget class="QLabel" name="label_live_encoding_model">
                        <property name="text">
                         <string>Model</string>
                        </property>
@@ -154,14 +154,14 @@
                      </widget>
                     </item>
                     <item>
-                     <widget class="QLabel" name="label_realtime_layer">
+                     <widget class="QLabel" name="label_live_encoding_layer">
                        <property name="text">
                         <string>Layer</string>
                        </property>
                      </widget>
                     </item>
                     <item>
-                     <widget class="QgsMapLayerComboBox" name="RealTimeLayerComboBox">
+                     <widget class="QgsMapLayerComboBox" name="LiveEncodingLayerComboBox">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                         <horstretch>1</horstretch>
@@ -171,7 +171,7 @@
                      </widget>
                     </item>
                    <item>
-                    <widget class="QPushButton" name="pushButton_zoom_to_realtime_extent">
+                    <widget class="QPushButton" name="pushButton_zoom_to_live_encoding_extent">
                      <property name="toolTip">
                       <string>Zoom to the selected image layer extent</string>
                      </property>

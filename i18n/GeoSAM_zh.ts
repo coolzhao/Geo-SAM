@@ -63,12 +63,12 @@ Would you like to open Model Management and download it now?</source>
     <message>
         <location filename="../tools/widgetTool.py" line="2778"/>
         <source>Raster</source>
-        <translation >栅格影像</translation>
+        <translation>栅格影像</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2784"/>
         <source>Extent</source>
-        <translation >范围</translation>
+        <translation>范围</translation>
     </message>
 </context>
 <context>
@@ -181,7 +181,7 @@ Would you like to open Model Management and download it now?</source>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Please choose a RealTime Layer or a Feature folder first.</source>
-        <translation>请先选择实时图层或特征文件夹</translation>
+        <translation type="obsolete">请先选择实时图层或特征文件夹</translation>
     </message>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
@@ -634,6 +634,11 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../ui/Selector.ui" line="205"/>
         <source>Feature File</source>
         <translation>特征文件</translation>
+    </message>
+    <message>
+        <location filename="../tools/translation_catalog.py" line="11"/>
+        <source>Please choose a Live Encoding layer or a Feature folder first.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1442,7 +1447,7 @@ Pre-encoded feature cache: load a previously saved feature folder to skip encodi
     <message>
         <location filename="../tools/widgetTool.py" line="1207"/>
         <source>Loaded realtime layer &apos;{layer}&apos;.</source>
-        <translation>已加载实时图层“{layer}”</translation>
+        <translation type="obsolete">已加载实时图层“{layer}”</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2473"/>
@@ -1567,6 +1572,11 @@ Would you like to open Model Management and download it now?</source>
         <location filename="../tools/widgetTool.py" line="1266"/>
         <source>Model Not Downloaded</source>
         <translation>模型未下载</translation>
+    </message>
+    <message>
+        <location filename="../tools/widgetTool.py" line="1207"/>
+        <source>Loaded live encoding layer &apos;{layer}&apos;.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

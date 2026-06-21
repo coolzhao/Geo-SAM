@@ -92,7 +92,7 @@ if TYPE_CHECKING:
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 logger = logging.getLogger(__name__)
 
-SOURCE_MODE_REALTIME = 0
+SOURCE_MODE_LIVE_ENCODING = 0
 SOURCE_MODE_FEATURE = 1
 
 
@@ -527,11 +527,11 @@ class Selector(QDockWidget):
                     ),
                 )
             )
-            self.wdg_sel.RealTimeLayerComboBox.setFilters(
+            self.wdg_sel.LiveEncodingLayerComboBox.setFilters(
                 QgsMapLayerProxyModel.Filter.RasterLayer
             )
-            self.wdg_sel.RealTimeLayerComboBox.setAllowEmptyLayer(True)
-            self.wdg_sel.RealTimeLayerComboBox.setAdditionalLayers([None])
+            self.wdg_sel.LiveEncodingLayerComboBox.setAllowEmptyLayer(True)
+            self.wdg_sel.LiveEncodingLayerComboBox.setAdditionalLayers([None])
             if self.wdg_sel.ModelComboBox.count() == 0:
                 self.wdg_sel.ModelComboBox.addItem("", "")
                 for model_id, label in get_model_display_items():
@@ -543,8 +543,8 @@ class Selector(QDockWidget):
             self.wdg_sel.QgsFile_feature.setFilePath("")
 
             # image-source mode selector (dropdown swaps the controls below)
-            self.wdg_sel.SourceModeComboBox.setCurrentIndex(SOURCE_MODE_REALTIME)
-            self.wdg_sel.SourceStack.setCurrentIndex(SOURCE_MODE_REALTIME)
+            self.wdg_sel.SourceModeComboBox.setCurrentIndex(SOURCE_MODE_LIVE_ENCODING)
+            self.wdg_sel.SourceStack.setCurrentIndex(SOURCE_MODE_LIVE_ENCODING)
             self.wdg_sel.SourceModeComboBox.currentIndexChanged.connect(
                 self._on_source_mode_changed
             )
@@ -589,12 +589,12 @@ class Selector(QDockWidget):
             self.wdg_sel.pushButton_load_file.clicked.connect(self.load_vector_file)
 
             self.wdg_sel.pushButton_load_feature.clicked.connect(self.load_feature)
-            self.wdg_sel.pushButton_zoom_to_realtime_extent.clicked.connect(
+            self.wdg_sel.pushButton_zoom_to_live_encoding_extent.clicked.connect(
                 self.zoom_to_extent
             )
             self.wdg_sel.pushButton_zoom_to_extent.clicked.connect(self.zoom_to_extent)
-            self.wdg_sel.RealTimeLayerComboBox.layerChanged.connect(
-                self.on_realtime_layer_changed
+            self.wdg_sel.LiveEncodingLayerComboBox.layerChanged.connect(
+                self.on_live_encoding_layer_changed
             )
             self.wdg_sel.ModelComboBox.currentIndexChanged.connect(
                 self.on_model_changed
@@ -697,9 +697,9 @@ class Selector(QDockWidget):
     def refresh_runtime_controls(self):
         """Refresh model and source selectors from persisted settings."""
         settings = load_plugin_settings()
-        mode_value = str(settings.get("image_source_mode", "realtime"))
+        mode_value = str(settings.get("image_source_mode", "live_encoding"))
         mode_index = (
-            SOURCE_MODE_FEATURE if mode_value == "feature" else SOURCE_MODE_REALTIME
+            SOURCE_MODE_FEATURE if mode_value == "feature" else SOURCE_MODE_LIVE_ENCODING
         )
         self._set_source_mode(mode_index)
         model_index = self.wdg_sel.ModelComboBox.findData(
@@ -721,7 +721,7 @@ class Selector(QDockWidget):
         Parameters
         ----------
         index : int
-            ``SOURCE_MODE_REALTIME`` or ``SOURCE_MODE_FEATURE``.
+            ``SOURCE_MODE_LIVE_ENCODING`` or ``SOURCE_MODE_FEATURE``.
 
         """
         combo = self.wdg_sel.SourceModeComboBox
@@ -734,7 +734,7 @@ class Selector(QDockWidget):
     def _on_source_mode_changed(self, index: int) -> None:
         """React to user-driven image-source mode dropdown changes."""
         self.wdg_sel.SourceStack.setCurrentIndex(index)
-        mode = "feature" if index == SOURCE_MODE_FEATURE else "realtime"
+        mode = "feature" if index == SOURCE_MODE_FEATURE else "live_encoding"
         save_plugin_settings({"image_source_mode": mode})
         self._update_model_source_controls()
 
@@ -765,17 +765,17 @@ class Selector(QDockWidget):
             return
         self._prompt_missing_model_download(model_id, source="selected")
 
-    def on_realtime_layer_changed(self):
-        """React to realtime layer changes and rebuild the runtime context."""
+    def on_live_encoding_layer_changed(self):
+        """React to live encoding layer changes and rebuild the runtime context."""
         self._reset_realtime_background_state()
         self.realtime_query_cache.clear()
         self.resume_preview_mode_after_cache_hit = False
-        if self.wdg_sel.RealTimeLayerComboBox.currentLayer() is None:
+        if self.wdg_sel.LiveEncodingLayerComboBox.currentLayer() is None:
             if self.wdg_sel.QgsFile_feature.filePath().strip():
                 self.load_feature()
             return
-        self._set_source_mode(SOURCE_MODE_REALTIME)
-        save_plugin_settings({"image_source_mode": "realtime"})
+        self._set_source_mode(SOURCE_MODE_LIVE_ENCODING)
+        save_plugin_settings({"image_source_mode": "live_encoding"})
         self.clear_layers(clear_extent=True)
         self._activate_runtime_from_inputs()
 
@@ -1081,18 +1081,18 @@ class Selector(QDockWidget):
         """Load the current runtime source from the selector inputs.
 
         The active image-source mode decides which input takes priority:
-        feature mode prefers the feature folder, realtime mode prefers the
+        feature mode prefers the feature folder, live encoding mode prefers the
         image layer and falls back to a lingering feature folder when no
         layer is selected.
         """
-        realtime_layer = self.wdg_sel.RealTimeLayerComboBox.currentLayer()
+        live_encoding_layer = self.wdg_sel.LiveEncodingLayerComboBox.currentLayer()
         feature_path = self.wdg_sel.QgsFile_feature.filePath().strip()
         if self._current_source_mode() == SOURCE_MODE_FEATURE:
             if feature_path:
                 return self._set_runtime_for_feature_folder(feature_path)
             return None
-        if realtime_layer is not None:
-            return self._set_runtime_for_layer(realtime_layer)
+        if live_encoding_layer is not None:
+            return self._set_runtime_for_layer(live_encoding_layer)
         if feature_path:
             return self._set_runtime_for_feature_folder(feature_path)
         return None
@@ -1192,21 +1192,21 @@ class Selector(QDockWidget):
         return self.runtime_source_kind
 
     def _set_runtime_for_layer(self, layer: QgsRasterLayer):
-        """Load realtime raster-layer runtime metadata and canvas tools."""
+        """Load live encoding raster-layer runtime metadata and canvas tools."""
         current_runtime_layer = getattr(self, "runtime_layer", None)
         if current_runtime_layer is None or current_runtime_layer.id() != layer.id():
             release_online_runtime_hot_cache()
         self.runtime_layer = layer
         self.runtime_feature_summary = None
         self._set_runtime_context(
-            source_kind="realtime",
+            source_kind="live_encoding",
             crs_text=layer.crs().authid() or layer.crs().toWkt(),
             extent=layer_extent_rectangle(layer),
             pixel_area=layer_pixel_area(layer),
         )
         MessageTool.MessageBar(
             "Geo-SAM",
-            self.tr("Loaded realtime layer '{layer}'.").format(layer=layer.name()),
+            self.tr("Loaded live encoding layer '{layer}'.").format(layer=layer.name()),
             level="success",
         )
         return self.runtime_source_kind
@@ -1218,7 +1218,7 @@ class Selector(QDockWidget):
         if self._activate_runtime_from_inputs() is not None:
             return True
         MessageTool.MessageBoxOK(
-            "Please choose a RealTime Layer or a Feature folder first.",
+            "Please choose a Live Encoding layer or a Feature folder first.",
             title="Input Required",
         )
         return False
@@ -1307,7 +1307,7 @@ class Selector(QDockWidget):
         if self.runtime_crs is None or not self.runtime_crs.isValid():
             msg = (
                 "The active input source does not have a valid CRS. "
-                "Reload the feature folder or realtime layer and try again."
+                "Reload the feature folder or live encoding layer and try again."
             )
             raise ValueError(msg)
         crs_text = self.runtime_crs.authid() or self.runtime_crs.toWkt()
@@ -1775,7 +1775,7 @@ class Selector(QDockWidget):
             a new realtime encoding pass.
         """
         if (
-            self.runtime_source_kind != "realtime"
+            self.runtime_source_kind != "live_encoding"
             or self.runtime_layer is None
             or not had_pressed_prompt
         ):
@@ -1813,7 +1813,7 @@ class Selector(QDockWidget):
             prompt is committed.
         """
         return (
-            self.runtime_source_kind == "realtime"
+            self.runtime_source_kind == "live_encoding"
             and self.preview_mode
             and not had_pressed_prompt
             and prepared_query is not None
@@ -2308,7 +2308,7 @@ class Selector(QDockWidget):
 
         query_started_at = perf_counter()
         prepared_query = None
-        if self.runtime_source_kind == "realtime" and self.runtime_layer is not None:
+        if self.runtime_source_kind == "live_encoding" and self.runtime_layer is not None:
             prepared_query = prepare_realtime_raster_query(
                 self.runtime_layer,
                 model_id,
@@ -2340,7 +2340,7 @@ class Selector(QDockWidget):
             return True
         try:
             if (
-                self.runtime_source_kind == "realtime"
+                self.runtime_source_kind == "live_encoding"
                 and self.runtime_layer is not None
             ):
                 result = query_raster_layer(
@@ -2359,7 +2359,7 @@ class Selector(QDockWidget):
                 )
             else:
                 MessageTool.MessageBoxOK(
-                    "Please choose a RealTime Layer or a Feature folder first.",
+                    "Please choose a Live Encoding layer or a Feature folder first.",
                     title="Input Required",
                 )
                 return False
@@ -2535,8 +2535,8 @@ class Selector(QDockWidget):
             save_plugin_settings({"image_source_mode": "feature"})
             self.clear_layers(clear_extent=True)
             try:
-                if self.wdg_sel.RealTimeLayerComboBox.currentLayer() is not None:
-                    self.wdg_sel.RealTimeLayerComboBox.setLayer(None)
+                if self.wdg_sel.LiveEncodingLayerComboBox.currentLayer() is not None:
+                    self.wdg_sel.LiveEncodingLayerComboBox.setLayer(None)
                 self._activate_runtime_from_inputs()
             except Exception as exc:
                 MessageTool.MessageBoxOK(

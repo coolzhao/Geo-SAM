@@ -52,7 +52,7 @@ There is no dedicated automated test suite in this repository today. At minimum:
 
 - run `ruff` and `py_compile`;
 - exercise the changed workflow in QGIS;
-- verify both realtime raster and feature-folder paths when touching `tools/geosam_runtime.py` or `tools/widgetTool.py`.
+- verify both live encoding raster and feature-folder paths when touching `tools/geosam_runtime.py` or `tools/widgetTool.py`.
 
 When adding tests later, place them in a top-level `tests/` package and name files `test_<module>.py`.
 

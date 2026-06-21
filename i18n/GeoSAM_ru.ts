@@ -63,12 +63,12 @@ Would you like to open Model Management and download it now?</source>
     <message>
         <location filename="../tools/widgetTool.py" line="2778"/>
         <source>Raster</source>
-        <translation >Растр</translation>
+        <translation>Растр</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2784"/>
         <source>Extent</source>
-        <translation >Охват *</translation>
+        <translation>Охват *</translation>
     </message>
 </context>
 <context>
@@ -181,7 +181,7 @@ Would you like to open Model Management and download it now?</source>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Please choose a RealTime Layer or a Feature folder first.</source>
-        <translation>Сначала выберите слой реального времени или папку кэша признаков</translation>
+        <translation type="obsolete">Сначала выберите слой реального времени или папку кэша признаков</translation>
     </message>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
@@ -659,6 +659,11 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../ui/Selector.ui" line="679"/>
         <source>BG Color</source>
         <translation>Цвет BG</translation>
+    </message>
+    <message>
+        <location filename="../tools/translation_catalog.py" line="11"/>
+        <source>Please choose a Live Encoding layer or a Feature folder first.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1460,7 +1465,7 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
     <message>
         <location filename="../tools/widgetTool.py" line="1207"/>
         <source>Loaded realtime layer &apos;{layer}&apos;.</source>
-        <translation>Загружен слой реального времени «{layer}»</translation>
+        <translation type="obsolete">Загружен слой реального времени «{layer}»</translation>
     </message>
     <message>
         <location filename="../tools/widgetTool.py" line="2473"/>
@@ -1576,6 +1581,11 @@ Would you like to open Model Management and download it now?</source>
         <location filename="../tools/widgetTool.py" line="1266"/>
         <source>Model Not Downloaded</source>
         <translation>Модель не загружена</translation>
+    </message>
+    <message>
+        <location filename="../tools/widgetTool.py" line="1207"/>
+        <source>Loaded live encoding layer &apos;{layer}&apos;.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

@@ -73,7 +73,7 @@ DYNAMIC_USER_TEXT = (
         "Open Geo-SAM Settings to download it.",
     ),
     QCoreApplication.translate(
-        "GeoSAM", "Please choose a RealTime Layer or a Feature folder first."
+        "GeoSAM", "Please choose a Live Encoding layer or a Feature folder first."
     ),
     QCoreApplication.translate("GeoSAM", "Please choose a SAM model first."),
     QCoreApplication.translate("GeoSAM", "No input source loaded."),

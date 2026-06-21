@@ -1,4 +1,4 @@
-"""Online tile export helpers for Geo-SAM realtime raster queries."""
+"""Online tile export helpers for Geo-SAM live encoding raster queries."""
 
 from __future__ import annotations
 
