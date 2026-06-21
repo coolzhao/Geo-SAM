@@ -55,14 +55,14 @@
               </property>
               <layout class="QGridLayout" name="gridLayout_4">
                <item row="0" column="0">
-                <widget class="QgsExtentGroupBox" name="ExtentGroupBox">
-                 <property name="sizePolicy">
+                 <widget class="QgsExtentGroupBox" name="ExtentGroupBox">
+                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                </widget>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                 </widget>
                </item>
               </layout>
              </widget>

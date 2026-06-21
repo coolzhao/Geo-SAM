@@ -20,6 +20,7 @@ from qgis.PyQt.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QShortcut,
+    QToolButton,
 )
 from qgis.core import (
     QgsApplication,
@@ -74,7 +75,6 @@ from .messageTool import MessageTool
 from .model_manager import (
     get_model_checkpoint_path,
     get_model_display_items,
-    infer_model_id_from_checkpoint_path,
 )
 from .plugin_settings import (
     format_missing_dependencies_message,
@@ -550,9 +550,9 @@ class Selector(QDockWidget):
             )
             self.wdg_sel.SourceModeComboBox.setToolTip(
                 self.tr(
-                    "Image Layer: pick an image layer and model, "
+                    "Live-Encoding: pick an image layer and model, "
                     "the tool computes SAM features on the fly.\n"
-                    "Feature File: load a previously saved feature "
+                    "Pre-Encoded: load a previously saved feature "
                     "folder to skip encoding, useful when segmenting the same "
                     "image repeatedly."
                 )
@@ -2774,6 +2774,25 @@ class EncoderCopilot(QDockWidget):
         if self.dockFirstOpen:
             self.wdg_copilot = load_encoder_copilot_ui(self.iface.mainWindow())
 
+            # required-field titles with red asterisk marker
+            self.wdg_copilot.label_raster_title.setText(
+                self.tr("Raster") + ' <span style="color:red;">*</span>'
+            )
+            self.wdg_copilot.label_raster_title.setTextFormat(
+                Qt.TextFormat.RichText
+            )
+            self.wdg_copilot.label_extent_title.setText(
+                self.tr("Extent") + ' <span style="color:red;">*</span>'
+            )
+            self.wdg_copilot.label_extent_title.setTextFormat(
+                Qt.TextFormat.RichText
+            )
+            self.wdg_copilot.label_extent_title.setFixedHeight(
+                self.wdg_copilot.label_extent_title.sizeHint().height()
+            )
+            self.wdg_copilot.extentRequiredLayout.setStretch(0, 0)
+            self.wdg_copilot.extentRequiredLayout.setStretch(1, 1)
+
             ########## connect functions to widget items ##########
             # upper part
             self.wdg_copilot.MapLayerComboBox.setFilters(
@@ -2783,6 +2802,10 @@ class EncoderCopilot(QDockWidget):
                 self.parse_raster_info
             )
             self.wdg_copilot.ExtentGroupBox.setMapCanvas(self.canvas)
+            self.wdg_copilot.ExtentGroupBox.setCollapsed(False)
+            collapse_btn = self.wdg_copilot.ExtentGroupBox.findChild(QToolButton)
+            if collapse_btn is not None:
+                collapse_btn.setVisible(False)
             self.wdg_copilot.ExtentGroupBox.extentChanged.connect(self.show_extents)
             self.wdg_copilot.BoxResolutionScale.valueChanged.connect(self.show_extents)
             self.wdg_copilot.BoxOverlap.valueChanged.connect(self.show_extents)
@@ -2796,11 +2819,6 @@ class EncoderCopilot(QDockWidget):
                 self.parse_min_max_value
             )
 
-            # bottom part
-            self.wdg_copilot.CheckpointFileWidget.fileChanged.connect(
-                self.parse_model_type
-            )
-
             # signal
             self.retrieve_range.connect(self.set_range_to_widget)
             self.retrieve_patch.connect(self.show_patch_extent_in_canvas)
@@ -2812,29 +2830,33 @@ class EncoderCopilot(QDockWidget):
 
             ########## set default values ##########
             # collapse group boxes
-            self.wdg_copilot.AdvancedParameterGroupBox.setCollapsed(True)
-            # checkpoint
-            self.wdg_copilot.CheckpointFileWidget.setFilter("*.pt")
-            self.wdg_copilot.CheckpointFileWidget.setStorageMode(
-                QgsFileWidget.StorageMode.GetFile
-            )
-            self.wdg_copilot.CheckpointFileWidget.setConfirmOverwrite(False)
+            self.wdg_copilot.AdvancedParameterGroupBox.setCollapsed(False)
 
-            if self.wdg_copilot.SAMModelComboBox.count() == 0:
-                self.wdg_copilot.SAMModelComboBox.addItem("", "")
+            if self.wdg_copilot.ModelComboBox.count() == 0:
+                self.wdg_copilot.ModelComboBox.addItem("", "")
                 for model_id, label in get_model_display_items():
-                    self.wdg_copilot.SAMModelComboBox.addItem(label, model_id)
+                    self.wdg_copilot.ModelComboBox.addItem(label, model_id)
 
-            self.wdg_copilot.SAMModelComboBox.setCurrentIndex(0)
+            settings = load_plugin_settings()
+            model_index = self.wdg_copilot.ModelComboBox.findData(
+                settings.get("selected_model_id", "")
+            )
+            if model_index <= 0:
+                model_index = self.wdg_copilot.ModelComboBox.findData("sam2.1_b")
+            if model_index > 0:
+                self.wdg_copilot.ModelComboBox.setCurrentIndex(model_index)
+            else:
+                self.wdg_copilot.ModelComboBox.setCurrentIndex(0)
 
             self.dockFirstOpen = False
-            # add widget to QGIS
-            # self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.wdg_copilot)
         else:
             pass
 
-        if not self.wdg_copilot.isUserVisible():
-            self.wdg_copilot.setUserVisible(True)
+        # show as a floating popup window instead of a docked panel
+        self.wdg_copilot.setFloating(True)
+        self.wdg_copilot.show()
+        self.wdg_copilot.raise_()
+        self.wdg_copilot.activateWindow()
 
     def set_range_to_widget(self, range: str):
         """Set range to widget"""
@@ -2986,25 +3008,23 @@ class EncoderCopilot(QDockWidget):
         return f"{xMin}, {xMax}, {yMin}, {yMax}"
 
     def get_checkpoint_path(self) -> str:
-        """Get checkpoint path from file widget"""
-        return self.wdg_copilot.CheckpointFileWidget.filePath()
+        """Resolve checkpoint path from the selected model.
 
-    def parse_model_type(self) -> None:
-        checkpoint_path = self.get_checkpoint_path()
-        if not checkpoint_path:
-            self.wdg_copilot.SAMModelComboBox.setCurrentIndex(0)
-            return
-        try:
-            model_id = infer_model_id_from_checkpoint_path(checkpoint_path)
-        except ValueError:
-            return
-        model_index = self.wdg_copilot.SAMModelComboBox.findData(model_id)
-        if model_index >= 0:
-            self.wdg_copilot.SAMModelComboBox.setCurrentIndex(model_index)
+        Returns
+        -------
+        str
+            Local checkpoint file path for the selected model, or an empty
+            string when no model is selected.
+
+        """
+        model_id = self.get_model_type()
+        if model_id is None:
+            return ""
+        return str(get_model_checkpoint_path(model_id))
 
     def get_model_type(self) -> str | None:
         """Get the GeoSAM model id from the combo box."""
-        model_type = self.wdg_copilot.SAMModelComboBox.currentData()
+        model_type = self.wdg_copilot.ModelComboBox.currentData()
         if model_type in ("", None):
             return None
         return str(model_type)

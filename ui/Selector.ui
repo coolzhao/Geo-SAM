@@ -39,8 +39,20 @@
        <attribute name="title">
          <string>Input / Output</string>
        </attribute>
-        <layout class="QVBoxLayout" name="verticalLayout_paths">
-         <item>
+         <layout class="QVBoxLayout" name="verticalLayout_paths">
+          <property name="leftMargin">
+           <number>3</number>
+          </property>
+          <property name="topMargin">
+           <number>3</number>
+          </property>
+          <property name="rightMargin">
+           <number>3</number>
+          </property>
+          <property name="bottomMargin">
+           <number>3</number>
+          </property>
+          <item>
           <widget class="QFrame" name="frameIORow">
              <layout class="QHBoxLayout" name="horizontalLayout_io" stretch="2,1">
              <property name="spacing">
@@ -70,7 +82,7 @@
                <string>Segmentation Input</string>
               </property>
               <property name="alignment">
-               <set>Qt::AlignHCenter|Qt::AlignTop</set>
+               <set>Qt::AlignCenter</set>
               </property>
                 <layout class="QHBoxLayout" name="horizontalLayout_paths">
                  <property name="spacing">
@@ -86,12 +98,12 @@
                  </property>
                  <item>
                   <property name="text">
-                   <string>Image Layer</string>
+                   <string>Live-Encoding</string>
                   </property>
                  </item>
                  <item>
                   <property name="text">
-                   <string>Feature File</string>
+                   <string>Pre-Encoded</string>
                   </property>
                  </item>
                 </widget>
@@ -139,12 +151,6 @@
                         <verstretch>0</verstretch>
                        </sizepolicy>
                       </property>
-                      <property name="maximumSize">
-                       <size>
-                        <width>16777215</width>
-                        <height>32</height>
-                       </size>
-                      </property>
                      </widget>
                     </item>
                     <item>
@@ -161,12 +167,6 @@
                         <horstretch>1</horstretch>
                         <verstretch>0</verstretch>
                        </sizepolicy>
-                      </property>
-                      <property name="maximumSize">
-                       <size>
-                        <width>16777215</width>
-                        <height>32</height>
-                       </size>
                       </property>
                      </widget>
                     </item>
@@ -258,7 +258,7 @@
                 <string>Segmentation Result</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignHCenter|Qt::AlignTop</set>
+                <set>Qt::AlignCenter</set>
                </property>
                   <layout class="QHBoxLayout" name="horizontalLayout_output">
                    <property name="spacing">
@@ -327,7 +327,7 @@
               <string>Add BBox</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QGridLayout" name="gridLayout_7">
               <item row="0" column="0">
@@ -358,7 +358,7 @@
               <string>Add Points</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QGridLayout" name="gridLayout_2">
               <item row="0" column="0">
@@ -399,7 +399,7 @@
               <string>Clear/Undo</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QGridLayout" name="gridLayout_6">
               <item row="0" column="0">
@@ -437,7 +437,7 @@
                <string>Vectorization Mode</string>
               </property>
               <property name="alignment">
-               <set>Qt::AlignHCenter|Qt::AlignTop</set>
+               <set>Qt::AlignCenter</set>
               </property>
               <layout class="QGridLayout" name="gridLayout">
                <item row="0" column="0">
@@ -474,7 +474,7 @@
               <string>Save Results</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QGridLayout" name="gridLayout_3">
               <item row="0" column="0">
@@ -545,7 +545,7 @@
                 <string>Point Size</string>
                </property>
               <property name="alignment">
-               <set>Qt::AlignHCenter|Qt::AlignTop</set>
+               <set>Qt::AlignCenter</set>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_10">
                <item>
@@ -615,7 +615,7 @@
                 <string>Point Type</string>
                </property>
               <property name="alignment">
-               <set>Qt::AlignHCenter|Qt::AlignTop</set>
+               <set>Qt::AlignCenter</set>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_11">
                <item>
@@ -655,10 +655,10 @@
               </sizepolicy>
              </property>
              <property name="title">
-               <string>Foreground Point Color</string>
+                <string>FG Color</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_2">
               <item>
@@ -676,10 +676,10 @@
               </sizepolicy>
              </property>
              <property name="title">
-               <string>Background Point Color</string>
+                <string>BG Color</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_7">
               <item>
@@ -700,7 +700,7 @@
               <string>BBox Color</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_8">
               <item>
@@ -721,7 +721,7 @@
               <string>Polygon Color</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
               <item>
@@ -742,7 +742,7 @@
               <string>Preview Color</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_4">
               <item>
@@ -763,7 +763,7 @@
               <string>Boundary Color</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignHCenter|Qt::AlignTop</set>
+              <set>Qt::AlignCenter</set>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_9">
               <item>
