@@ -1,105 +1,42 @@
-
 # Installation
 
-## Install QGIS
+Total steps: **5**
 
-You are suggested to install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html) since the plugin has mainly been tested on versions newer than QGIS 3.30 (QGIS 3.28 LTR should also work fine).
+- [Installation](#installation)
+  - [Step 1: Install QGIS](#step-1-install-qgis)
+  - [Step 2: Install the Geo-SAM Plugin](#step-2-install-the-geo-sam-plugin)
+  - [Step 3: Install Dependencies](#step-3-install-dependencies)
+  - [Step 4: Download a SAM Model](#step-4-download-a-sam-model)
+  - [Step 5: Start Using Geo-SAM](#step-5-start-using-geo-sam)
 
-## Install Library Dependencies
+---
 
-Some dependencies need to be installed into the Python environment in QGIS beforehand to use Geo-SAM. `PyTorch` is a fundamental dependency. If you want to install the GPU version of `PyTorch`, it is recommended to refer to the official website for installation: <https://pytorch.org/get-started/locally/#start-locally>
+## Step 1: Install QGIS
 
-After installing `PyTorch`, install `geosam` and the raster/vector IO dependencies used by the plugin. Below are tutorials for installing these dependencies on different operating systems.
+Install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html).
+Geo-SAM has been tested on QGIS 3.30+ (QGIS 3.28 LTR should also work).
 
-### For Windows Users
+:::{admonition} Alternative: install QGIS via conda
+:class: tip
+:collapsible:
 
-Open the **OSGeo4W Shell** ![OsGeo4WShell](img/OsGeo4WShell.png) application from the Start menu, which is a dedicated shell for the QGIS. Then run the following command to install the libraries.
-
-```bash
-pip3 install torch torchvision
-pip3 install geosam rasterio geopandas ultralytics
-```
-
-`Geo-SAM Encoder Tool` now supports using CUDA GPU to accelerate the encoding process. If your PC has dedicated CUDA GPUs, you can install the CUDA library first and then install the gpu-version pytorch using the following command (using CUDA version 11.7 as an example):
-
-```bash
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117 
-# or if you have installed the CPU version before.
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117 --force-reinstall
-```
-
-### For Mac or Linux Users
-
-Open your own terminal application, and change the directory to where the QGIS Python binary file locates.
+If you encounter issues with the official installer, you can install QGIS via
+conda:
 
 ```bash
-# Mac
-cd /Applications/QGIS.app/Contents/MacOS/bin
-# Linux (Please confirm the python env by "import qgis")
-cd /usr/bin
+conda create -n qgis python qgis -c conda-forge -y
+conda activate qgis
+qgis 
+# or 
+# conda run qgis (if multiple qgis installed)
 ```
+:::
 
-To confirm the QGIS Python environment:
+## Step 2: Install the Geo-SAM Plugin
 
-```bash
-./python3
->>> import qgis
-```
-
-Then install the libraries.
-
-```bash
-# !important, add ./ to avoid using your default Python in the system
-./pip3 install torch torchvision
-./pip3 install geosam rasterio geopandas ultralytics
-```
-
-For Linux users, if `pip3` is not found in `/usr/bin`, try the following commands:
-
-```bash
-sudo apt-get update
-sudo apt-get install python3-pip
-```
-
-For Linux users, if your computer got available CUDA GPUs and with CUDA library installed, the above commands should have helped you install the gpu-version pytorch. You can reach [pytorch official website](https://pytorch.org/get-started/locally/) for more information.
-
-## Install the Geo-SAM Plugin
-
-### Download the Plugin
-
-Download the `stable version`: [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/tag/v1.1.1), or the `dev version` (more features and capabilities, but not rigorous tested): [plugin zip file](https://github.com/coolzhao/Geo-SAM/releases/tag/v1.2.1-dev), unzip it, and rename the folder as `Geo-SAM` (be aware of undesired nested folders after unzipping).
-
-
-### Locate the QGIS Plugin folder
-
-In QGIS, Go to the menu `Settings` > `User Profiles` > `Open active profile folder.`  You'll be taken straight to the profile directory. Under the profile folder, you may find a `python` folder; the `plugins` folder should be right inside the `python` folder (create the `plugins` folder if it does not exist). Put the entire `Geo-SAM` folder inside the `plugins` folder, then restart QGIS. The directory tree structure should be the same as the following.
-
-```bash
-python
-└── plugins
-    └── Geo-SAM
-        ├── checkpoint
-        ├── docs
-        ├── ...
-        ├── tools
-        └── ui
-```
-
-Below are some general paths of the plugin folder for your reference.
-
-```bash
-# Windows
-%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins
-# Mac
-~/Library/Application\ Support/QGIS/QGIS3/profiles/default/python/plugins
-# Linux
-~/.local/share/QGIS/QGIS3/profiles/default/python/plugins
-```
-
-### Activate the Geo-SAM Plugin
-
-After restarting QGIS, go to the menu `Plugins` > `Manage and Install Plugins`, and under `Installed`, you may find the `Geo SAM` plugin; check it to activate the plugin.
-
+In QGIS, go to the menu **Plugins** > **Manage and Install Plugins**. Search
+for **Geo SAM** in the search bar, select it, and click **Install**. After
+installation, check the checkbox to activate the plugin.
 
 ```{image} img/Active_geo_sam.png
 :alt: Plugin menu
@@ -107,7 +44,8 @@ After restarting QGIS, go to the menu `Plugins` > `Manage and Install Plugins`, 
 :align: center
 ```
 
-After activating the Geo-SAM plugin, you may find the Geo SAM tools under the `Plugins` menu,
+After activating the Geo-SAM plugin, you will find the Geo-SAM tools under the
+**Plugins** menu,
 
 ```{image} img/Plugin_menu_geo_sam.png
 :alt: Plugin menu
@@ -115,10 +53,53 @@ After activating the Geo-SAM plugin, you may find the Geo SAM tools under the `P
 :align: center
 ```
 
-You may also find a new toolbar, including three icons.
+You will also see a new toolbar with four icons:
 
 ```{image} img/Toolbar_geo_sam.png
 :alt: Plugin toolbar
 :width: 33%
 :align: center
 ```
+
+| Name | Role | Description |
+|---|---|---|
+| **Geo-SAM Segmentation** | **Main Tool** | Interactive segmentation with points and bounding boxes |
+| **Geo-SAM Image Encoder** | **Auxiliary Tool** | Pre-encode raster images into reusable feature files |
+| **Geo-SAM Encoder Copilot** | **Auxiliary Tool** | Preview patch coverage before encoding |
+| **Geo-SAM Settings** | **Settings** | Manage dependencies, models, cache, and help |
+
+## Step 3: Install Dependencies
+
+Geo-SAM requires several Python packages (PyTorch, geosam, rasterio, etc.) to
+function. These are managed **directly inside the plugin** -- no manual `pip`
+commands are needed.
+
+1. Click the **Geo-SAM Settings** icon in the toolbar.
+2. Go to the **Dependencies** tab.
+3. Click **Install Missing** and wait for the installation to finish.
+4. **Restart QGIS** when prompted.
+
+```{admonition} First-time setup
+:class: tip
+
+Dependencies are installed into an isolated, plugin-private directory so they
+do not interfere with your QGIS Python environment.
+```
+
+See {doc}`Settings/dependencies` for details.
+
+## Step 4: Download a SAM Model
+
+A SAM model checkpoint is required for both image encoding and segmentation.
+
+1. Open **Geo-SAM Settings** and go to the **Model Management** tab.
+2. Select a model (e.g., **SAM2.1 Base** for a good balance of speed and
+   accuracy).
+3. Click **Download** and wait for the download to complete.
+
+See {doc}`Settings/models` for the full list of available models.
+
+## Step 5: Start Using Geo-SAM
+
+- **5-minute quickstart**: {doc}`Usage/quickstart`
+- **Full user guide**: {doc}`Usage/index`

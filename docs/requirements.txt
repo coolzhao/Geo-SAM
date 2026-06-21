@@ -1,6 +1,7 @@
-recommonmark
-sphinx==3.5.3
+sphinx>=7.0
 myst-parser
 sphinxcontrib-video
-sphinx_rtd_theme
-Jinja2<3.1
+pydata-sphinx-theme
+sphinx-design
+sphinx-copybutton
+linkify-it-py

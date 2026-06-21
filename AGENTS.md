@@ -37,7 +37,7 @@ Keep new plugin behavior in `tools/`, keep static assets in `ui/`, and avoid com
 
 - `uv run ruff check tools ui *.py`: lint Python sources.
 - `uv run python -m py_compile tools/*.py ui/*.py geo_sam_tool.py geo_sam_provider.py`: quick syntax validation.
-- `cd docs && make html`: build the Sphinx documentation into `docs/build/html`.
+- `cd docs && uv run make html`: build the Sphinx documentation into `docs/build/html`.
 - `python -m pip install geosam rasterio geopandas pyarrow ultralytics`: install runtime dependencies into the QGIS Python environment when needed.
 
 Run commands from the plugin root unless noted otherwise.

@@ -1,10 +1,15 @@
 # Geo SAM
 
-By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
+> 🎉 **GeoSAM is now on the [QGIS Official Plugin Repository](https://plugins.qgis.org/)!**
+> Install and update Geo-SAM directly from the QGIS Plugin Manager --
+> **Plugins > Manage and Install Plugins**, search for "Geo SAM", and click
+> Install. No manual download needed.
+
+By [Zhuoyi Zhao](https://github.com/coolzhao/) (Joey) and [Chengyan Fan](https://github.com/Fanchengyan) (Fancy) from [Cryosphere Lab](https://cryocuhk.github.io/), ESSC, CUHK.
 
 - [Geo SAM](#geo-sam)
   - [Introduction](#introduction)
-  - [What's New in v2.0](#whats-new-in-v20)
+  - [What's New in GeoSAM v2.0](#whats-new-in-geosam-v20)
   - [Installation and Usage](#installation-and-usage)
   - [Demos](#demos)
   - [Citation](#citation)
@@ -15,29 +20,27 @@ By Joey and [Fancy](https://github.com/Fanchengyan) from [Cryosphere Lab](https:
 Geo-SAM is a QGIS plugin that helps you segment, delineate, and label
 landforms efficiently in large geospatial raster images. It is built on the
 [Segment Anything Model](https://segment-anything.com/) (SAM) and uses the
-strategies of encoding image features in advance and trimming the SAM model.
-**The interactive segmentation algorithm performs real-time inference (at
-`millisecond` speeds) on a laptop CPU**, making it a convenient and efficient
-tool for remote sensing image analysis.
+strategies of encoding image features in advance and stripping the heavy image
+encoder from inference. **The interactive segmentation runs at `millisecond`
+speeds on a laptop CPU**, making it a convenient and efficient tool for remote
+sensing image analysis.
 
-Geo-SAM v2.0 provides two segmentation workflows:
+Since v2.0, Geo-SAM provides two segmentation workflows:
 
-- **Image Layer mode (real-time)** -- select a raster layer and a SAM model,
-  then start segmenting immediately. Features are encoded on the fly using
-  QGIS background tasks and cached for fast re-queries. No pre-encoding
-  required.
-- **Feature File mode (pre-encoded)** -- use the Image Encoder to generate
-  reusable feature files, then load them in the Segmentation tool. Best for
-  repeated segmentation of the same image.
+- **Live Encoding mode** -- select a raster layer and a SAM model, then start
+  segmenting. Features are encoded on the fly using QGIS background tasks and
+  cached for fast re-queries. No pre-encoding required.
+- **Pre-encoded mode** -- use the Image Encoder to generate reusable feature
+  files, then load them in the Segmentation tool. Best for repeated
+  segmentation of the same image.
 
 | ![Comparison of the workflow between Geo-SAM and the original SAM](docs/source/img/Geo_SAM.png) |
 |:--:|
-| *Comparison of the workflow between Geo-SAM and the original SAM. The original SAM encodes prompts and image simultaneously, while Geo-SAM encodes image features in advance and queries prompts in real-time (at `millisecond` speeds) by loading saved features.* |
+| *Comparison of the workflow between Geo-SAM and the original SAM. The original SAM encodes prompts and image simultaneously, while Geo-SAM encodes image features in advance and queries prompts at `millisecond` speeds by loading saved features.* |
 
-## What's New in v2.0
+## What's New in GeoSAM v2.0
 
-- **Real-time Image Layer segmentation** -- no pre-encoding needed for quick
-  exploration.
+- **Live Encoding mode** -- no pre-encoding needed for quick exploration.
 - **`geosam` core library backbone** -- replaces the internal implementation
   with a dedicated geospatial SAM library.
 - **SAM3 model support** -- SAM, SAM 2, SAM 2.1, and SAM 3 model families.
@@ -50,8 +53,10 @@ Geo-SAM v2.0 provides two segmentation workflows:
 - **Max Polygon Only mode** -- keep only the largest polygon from each mask.
 - **Split-panel UI** -- cleaner layout with Input/Output + Prompts on the
   left, Styles + Options on the right.
-- **Async preview pipeline** -- smoother real-time preview as you move the
-  mouse.
+- **Async preview pipeline** -- smoother preview as you move the mouse.
+- **Multi-language UI** -- the interface is translated into 中文, 日本語,
+  한국어, Français, Русский, العربية, Deutsch, Español, and Português,
+  following the QGIS locale setting automatically.
 
 See the [changelog](https://geo-sam.readthedocs.io/en/latest/changelog.html)
 for the full list of changes.
@@ -75,13 +80,13 @@ for a 5-minute walkthrough.
 
 ## Demos
 
-- Interactive Segmentation Demo (**millisecond-level response time after providing prompts**)
+- Live Encoding Demo (**millisecond-level response time after providing prompts**)
 
 <p align="center">
   <img src="docs/source/img/try_geo_sam.gif" width="700" title="try_geo_sam">
 </p>
 
-- ``Preview Mode`` Demo for Interactive Segmentation (**Execute SAM following the mouse cursor**)
+- ``Preview Mode`` Demo (**Run SAM following the mouse cursor**)
 
 <p align="center">
   <img src="docs/source/img/PreviewModeDemo.gif" width="700" title="preview_mode">
