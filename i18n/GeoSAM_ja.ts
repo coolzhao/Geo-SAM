@@ -663,7 +663,7 @@ Would you like to open the Dependencies page and install them now?</source>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Please choose a Live Encoding layer or a Feature folder first.</source>
-        <translation type="unfinished"></translation>
+        <translation>先にライブエンコードレイヤーまたは特徴フォルダーを選択してください</translation>
     </message>
 </context>
 <context>
@@ -1585,7 +1585,7 @@ Would you like to open Model Management and download it now?</source>
     <message>
         <location filename="../tools/widgetTool.py" line="1207"/>
         <source>Loaded live encoding layer &apos;{layer}&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>ライブエンコードレイヤー「{layer}」がロードされました</translation>
     </message>
 </context>
 <context>

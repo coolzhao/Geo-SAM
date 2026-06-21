@@ -663,7 +663,7 @@ Would you like to open the Dependencies page and install them now?</source>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Please choose a Live Encoding layer or a Feature folder first.</source>
-        <translation type="unfinished"></translation>
+        <translation>يرجى اختيار طبقة الترميز المباشر أو مجلد الصفات أولاً</translation>
     </message>
 </context>
 <context>
@@ -1585,7 +1585,7 @@ Would you like to open Model Management and download it now?</source>
     <message>
         <location filename="../tools/widgetTool.py" line="1207"/>
         <source>Loaded live encoding layer &apos;{layer}&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>تم تحميل طبقة الترميز المباشر «{layer}»</translation>
     </message>
 </context>
 <context>
