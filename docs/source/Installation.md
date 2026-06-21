@@ -14,7 +14,7 @@ Total steps: **5**
 ## Step 1: Install QGIS
 
 Install the latest version of [QGIS](https://www.qgis.org/en/site/forusers/download.html).
-Geo-SAM has been tested on QGIS 3.30+ (QGIS 3.28 LTR should also work).
+Geo-SAM has been tested on QGIS 3.x/4.x.
 
 :::{admonition} Alternative: install QGIS via conda
 :class: tip
