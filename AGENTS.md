@@ -65,3 +65,14 @@ PRs should include a clear summary, affected QGIS workflows, manual test steps, 
 ## Configuration & Safety Notes
 
 Do not commit machine-specific paths in `ui/config/user.json`. Keep defaults portable, and log context before raising errors in runtime code.
+
+## Release Branch Sync Strategy
+
+When syncing changes from `main` to release branches (e.g. `qgis-release/2.0`), **only propagate modified files; do not re-introduce files that have been deleted on the release branch.**
+
+The following paths are intentionally excluded from release branches and must never be synced back:
+
+- `AGENTS.md`
+- `docs/` (entire directory — documentation is hosted separately, not bundled in the plugin package)
+
+Use `git checkout main -- <file>` or selective cherry-pick to bring over only the files that actually changed. Avoid `git merge main` into release branches, as it will resurrect the deleted files.
