@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
 import json
 import logging
+import math
 import os
 import sys
 import weakref
@@ -1337,6 +1339,45 @@ class Selector(QDockWidget):
             return PromptSet(points=points, bbox=bbox)
         return points or bbox
 
+    def _current_view_pixel_size(self) -> tuple[tuple[float, float], str] | None:
+        """Return the current map canvas ground resolution and its CRS.
+
+        For online WMTS/XYZ layers the layer-reported pixel size reflects the
+        layer's coarse base resolution and is independent of the current zoom.
+        The canvas resolution, captured here in the caller thread, lets the
+        online tile export pick a zoom level that matches what the user is
+        actually viewing. ``None`` is returned when the resolution cannot be
+        read, in which case the export falls back to the layer-reported value.
+
+        Returns
+        -------
+        tuple[tuple[float, float], str] | None
+            ``(resolution_xy, crs_authid)`` where ``resolution_xy`` is the
+            canvas ground resolution in the canvas destination CRS units and
+            ``crs_authid`` identifies those units. ``online_tile_export``
+            converts the resolution to the tile CRS units because it alone
+            knows the target tile CRS.
+        """
+        canvas = getattr(self, "canvas", None)
+        if canvas is None:
+            return None
+        try:
+            map_settings = canvas.mapSettings()
+        except Exception:
+            return None
+        try:
+            resolution = float(map_settings.mapUnitsPerPixel())
+        except Exception:
+            return None
+        if not math.isfinite(resolution) or resolution <= 0:
+            return None
+        try:
+            crs = map_settings.destinationCrs()
+            crs_text = crs.authid() if crs is not None and crs.isValid() else ""
+        except Exception:
+            crs_text = ""
+        return (resolution, resolution), crs_text
+
     def _prompt_debug_summary(self) -> dict[str, Any]:
         """Return a serializable snapshot of the current prompt state."""
         point_items: list[dict[str, Any]] = []
@@ -2308,12 +2349,18 @@ class Selector(QDockWidget):
 
         query_started_at = perf_counter()
         prepared_query = None
+        view_resolution = (
+            self._current_view_pixel_size()
+            if self.runtime_source_kind == "live_encoding"
+            else None
+        )
         if self.runtime_source_kind == "live_encoding" and self.runtime_layer is not None:
             prepared_query = prepare_realtime_raster_query(
                 self.runtime_layer,
                 model_id,
                 query,
                 cache=self.realtime_query_cache,
+                view_resolution=view_resolution,
             )
         if self._should_defer_hover_realtime_query(
             had_pressed_prompt=had_pressed_prompt,
@@ -2348,6 +2395,7 @@ class Selector(QDockWidget):
                     model_id,
                     query,
                     cache=self.realtime_query_cache,
+                    view_resolution=view_resolution,
                 )
             elif self.runtime_source_kind == "feature":
                 result = query_feature_source(
@@ -2860,13 +2908,13 @@ class EncoderCopilot(QDockWidget):
 
     def set_range_to_widget(self, range: str):
         """Set range to widget"""
-        range = eval(range)
+        range = ast.literal_eval(range)
         self.wdg_copilot.MinValueBox.setValue(range[0])
         self.wdg_copilot.MaxValueBox.setValue(range[1])
         self.wdg_copilot.label_range_status.setText(self.tr("Done!"))
 
     def show_patch_extent_in_canvas(self, extents: str):
-        extents = eval(extents)
+        extents = ast.literal_eval(extents)
         num_patch = len(extents)
         idx = np.random.randint(0, num_patch, size=(int(num_patch / 10)))
         alphas = np.full(num_patch, 100)

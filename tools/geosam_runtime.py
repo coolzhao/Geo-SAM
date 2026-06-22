@@ -593,14 +593,16 @@ def describe_feature_source(feature_dir: str | Path) -> FeatureSourceSummary:
     """Load summary metadata for a GeoSAM feature folder."""
     configure_geosam_qgis_runtime()
     import geopandas as gpd
-    import pandas as pd
 
     manifest_path = resolve_feature_manifest_path(feature_dir)
     if manifest_path.suffix == ".pkl":
-        frame = pd.read_pickle(manifest_path)
-        frame = frame.set_crs(frame.crs or "EPSG:4326", allow_override=True)
-    else:
-        frame = gpd.read_parquet(manifest_path)
+        msg = (
+            f"Legacy pickle manifest detected: {manifest_path}. "
+            "Please regenerate the feature cache with the current Geo-SAM version."
+        )
+        logger.error(msg)
+        raise ValueError(msg)
+    frame = gpd.read_parquet(manifest_path)
 
     if len(frame) == 0:
         msg = f"Feature manifest is empty: {manifest_path}"
@@ -1105,6 +1107,7 @@ def prepare_realtime_raster_query(
     query,
     *,
     cache: RealtimeQueryCache | None = None,
+    view_resolution: tuple[tuple[float, float], str] | None = None,
 ) -> PreparedRealtimeRasterQuery | None:
     """Prepare a background query plan when realtime encoding is required.
 
@@ -1118,6 +1121,13 @@ def prepare_realtime_raster_query(
         GeoSAM query object.
     cache : RealtimeQueryCache | None, optional
         Realtime in-memory cache for the current session.
+    view_resolution : tuple[tuple[float, float], str] | None, optional
+        Current map canvas resolution as ``(resolution_xy, crs_authid)``
+        where ``resolution_xy`` is ``(x_size, y_size)`` in the canvas CRS
+        units and ``crs_authid`` identifies those units. Forwarded to the
+        online tile export plan so the exported zoom level reflects the
+        user's current view rather than the online layer's coarse base
+        resolution.
 
     Returns
     -------
@@ -1207,6 +1217,7 @@ def prepare_realtime_raster_query(
             model_id=model_id,
             chip_size=create_model_spec(model_id).resolved_imgsz,
             source_fingerprint=source_fingerprint,
+            view_resolution=view_resolution,
         )
         online_raster_cache_directory = _online_layer_raster_cache_directory(layer)
 
@@ -1625,7 +1636,13 @@ def _find_persistent_query_cache(
     )
 
 
-def _export_online_raster_source(layer: QgsRasterLayer, query, *, model_id: str) -> str:
+def _export_online_raster_source(
+    layer: QgsRasterLayer,
+    query,
+    *,
+    model_id: str,
+    view_resolution: tuple[tuple[float, float], str] | None = None,
+) -> str:
     """Export supported online tiles into the plugin cache as a GeoTIFF."""
     return export_online_tile_raster_source(
         layer,
@@ -1634,6 +1651,7 @@ def _export_online_raster_source(layer: QgsRasterLayer, query, *, model_id: str)
         chip_size=create_model_spec(model_id).resolved_imgsz,
         source_fingerprint=_layer_source_fingerprint(layer),
         cache_directory=_online_layer_raster_cache_directory(layer),
+        view_resolution=view_resolution,
     )
 
 
@@ -1668,6 +1686,7 @@ def query_raster_layer(
     query: BoundingBox | Points | PromptSet,
     *,
     cache: RealtimeQueryCache | None = None,
+    view_resolution: tuple[tuple[float, float], str] | None = None,
 ) -> QueryResult:
     """Run a query against a QGIS raster layer."""
     configure_geosam_qgis_runtime()
@@ -1783,7 +1802,9 @@ def query_raster_layer(
             continue
 
     try:
-        exported_source = _export_online_raster_source(layer, query, model_id=model_id)
+        exported_source = _export_online_raster_source(
+            layer, query, model_id=model_id, view_resolution=view_resolution
+        )
         release_online_runtime_hot_cache(
             keep_source_path=exported_source,
         )
