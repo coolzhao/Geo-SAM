@@ -1,4 +1,5 @@
 **/*.pyc
+__pycache__/
 rasters/**/*.aux.xml
 .DS_Store
 .vscode/settings.json
