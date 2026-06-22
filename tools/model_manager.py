@@ -5,10 +5,14 @@ from __future__ import annotations
 import gc
 import logging
 import sys
-import urllib.request
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
+from urllib.parse import urlparse
+
+from qgis.core import QgsBlockingNetworkRequest
+from qgis.PyQt.QtNetwork import QNetworkRequest
+from qgis.PyQt.QtCore import QUrl
 
 from .geosam_backend import configure_geosam_qgis_runtime
 from .plugin_settings import get_model_directory
@@ -17,6 +21,11 @@ if TYPE_CHECKING:
     from geosam.models import ModelSpec
 
 logger = logging.getLogger(__name__)
+
+try:
+    _HTTP_STATUS_ATTRIBUTE = QNetworkRequest.Attribute.HttpStatusCodeAttribute
+except AttributeError:
+    _HTTP_STATUS_ATTRIBUTE = QNetworkRequest.HttpStatusCodeAttribute
 
 _DATACLASS_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 _FROZEN_DATACLASS_KWARGS = {"frozen": True, **_DATACLASS_SLOTS_KWARGS}
@@ -388,6 +397,21 @@ def _download_model_with_ultralytics(model_id: str, target_path: Path) -> bool:
     return False
 
 
+def _validate_tile_url(url: str, context: str = "request") -> None:
+    """Reject URLs with unsafe or unsupported schemes.
+
+    Both ``http`` and ``https`` are permitted.  Qt's network stack
+    (used via :class:`QgsBlockingNetworkRequest`) honours the QGIS
+    proxy and SSL configuration.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError(
+            f"Unsupported URL scheme '{parsed.scheme}' for {context}. "
+            "Only 'http' and 'https' are permitted."
+        )
+
+
 def download_model(model_id: str) -> Path:
     """Download or copy a model checkpoint into the local store.
 
@@ -424,9 +448,26 @@ def download_model(model_id: str) -> Path:
         logger.error(msg)
         raise ValueError(msg)
 
+    _validate_tile_url(source, "model download")
+
     download_target = target_path.with_suffix(f"{target_path.suffix}.download")
     try:
-        urllib.request.urlretrieve(source, download_target)
+        req = QgsBlockingNetworkRequest()
+        qreq = QNetworkRequest(QUrl(source))
+        qreq.setRawHeader(b"User-Agent", b"Geo-SAM/QGIS Model Manager")
+        error = req.get(qreq, True)
+        if error != QgsBlockingNetworkRequest.NoError:
+            raise RuntimeError(
+                f"Network error {error} for {source}: {req.errorMessage()}"
+            )
+        reply = req.reply()
+        status_code = reply.attribute(_HTTP_STATUS_ATTRIBUTE)
+        data = bytes(reply.content())
+        if not data:
+            raise RuntimeError(
+                f"Empty response from {source} (HTTP {status_code})"
+            )
+        download_target.write_bytes(data)
         download_target.replace(target_path)
     except Exception as exc:
         if download_target.exists():

@@ -6,16 +6,19 @@ import hashlib
 import logging
 import math
 import sys
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 from qgis.PyQt.QtGui import QImage
+from qgis.PyQt.QtCore import QUrl
+from qgis.PyQt.QtNetwork import QNetworkRequest
 from qgis.core import (
+    QgsBlockingNetworkRequest,
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
+    QgsPointXY,
     QgsProject,
     QgsProviderRegistry,
     QgsRasterLayer,
@@ -26,6 +29,11 @@ from .geosam_backend import configure_geosam_qgis_runtime
 from .plugin_settings import rasterio_proj_data_environment
 
 logger = logging.getLogger(__name__)
+
+try:
+    _HTTP_STATUS_ATTRIBUTE = QNetworkRequest.Attribute.HttpStatusCodeAttribute
+except AttributeError:
+    _HTTP_STATUS_ATTRIBUTE = QNetworkRequest.HttpStatusCodeAttribute
 
 OnlineTileExportProgressCallback = Callable[[str, float], None]
 OnlineTileExportCancelCallback = Callable[[], bool]
@@ -75,6 +83,7 @@ class OnlineTileProviderInfo:
     tile_size: int
     y_origin: Literal["xyz", "tms"] = "xyz"
     tile_matrix_set: str | None = None
+    wmts_matrix_kind: Literal["default_square", "google_crs84_quad"] | None = None
     layer_name: str | None = None
     style_name: str | None = None
     image_format: str | None = None
@@ -136,6 +145,7 @@ def export_online_raster_source(
     chip_size: tuple[int, int],
     source_fingerprint: str,
     cache_directory: Path,
+    view_resolution: tuple[tuple[float, float], str] | None = None,
 ) -> str:
     """Export supported online tiles into the cache as a local GeoTIFF."""
     export_plan = prepare_online_raster_export_plan(
@@ -144,6 +154,7 @@ def export_online_raster_source(
         model_id=model_id,
         chip_size=chip_size,
         source_fingerprint=source_fingerprint,
+        view_resolution=view_resolution,
     )
     return export_online_raster_plan(
         export_plan,
@@ -159,6 +170,7 @@ def prepare_online_raster_export_plan(
     model_id: str,
     chip_size: tuple[int, int],
     source_fingerprint: str,
+    view_resolution: tuple[tuple[float, float], str] | None = None,
 ) -> OnlineTileExportPlan:
     """Prepare an online raster export plan on the main thread.
 
@@ -174,6 +186,14 @@ def prepare_online_raster_export_plan(
         GeoSAM chip size for the selected model.
     source_fingerprint : str
         Stable fingerprint used to namespace exported caches.
+    view_resolution : tuple[tuple[float, float], str] | None, optional
+        Current map canvas resolution as ``(resolution_xy, crs_authid)``
+        where ``resolution_xy`` is ``(x_size, y_size)`` in the canvas CRS
+        units and ``crs_authid`` identifies those units. When provided, the
+        resolution is converted to the tile CRS and preferred over the
+        layer-reported pixel size so that the exported tiles reflect the area
+        the user is actually viewing instead of the online layer's coarse
+        base resolution. ``None`` falls back to the layer-reported pixel size.
 
     Returns
     -------
@@ -186,6 +206,7 @@ def prepare_online_raster_export_plan(
         model_id=model_id,
         chip_size=chip_size,
         source_fingerprint=source_fingerprint,
+        view_resolution=view_resolution,
     )
 
 
@@ -474,6 +495,87 @@ def _resolve_pixel_size(layer: QgsRasterLayer) -> tuple[float, float]:
     )
 
 
+def _convert_view_resolution_to_tile_crs(
+    view_resolution: tuple[tuple[float, float], str] | None,
+    tile_crs: QgsCoordinateReferenceSystem,
+    query_extent: QgsRectangle,
+) -> tuple[float, float] | None:
+    """Convert canvas ground resolution to tile CRS units.
+
+    The canvas resolution is captured in the caller thread and expressed in
+    the canvas destination CRS units. This helper transforms the resolution
+    into the tile CRS units so it can be compared directly with tile
+    resolution tables.
+
+    Returns ``None`` when the resolution cannot be converted (e.g. because
+    the CRS is missing or invalid), signalling the caller to fall back to
+    the layer-reported pixel size.
+
+    Parameters
+    ----------
+    view_resolution : tuple[tuple[float, float], str] | None
+        ``(resolution_xy, crs_authid)`` from the map canvas.
+    tile_crs : QgsCoordinateReferenceSystem
+        Target tile CRS whose units the result must be expressed in.
+    query_extent : QgsRectangle
+        Query extent used as the reference location for the CRS transform.
+
+    Returns
+    -------
+    tuple[float, float] | None
+        ``(x_size, y_size)`` in tile CRS units, or ``None``.
+    """
+    if view_resolution is None:
+        return None
+
+    (res_x, res_y), canvas_crs_text = view_resolution
+    if res_x <= 0 or res_y <= 0:
+        return None
+
+    canvas_crs = QgsCoordinateReferenceSystem(canvas_crs_text)
+    if not canvas_crs.isValid():
+        return None
+
+    # Fast path: same CRS, no transform needed.
+    if canvas_crs_text and canvas_crs_text == tile_crs.authid():
+        return res_x, res_y
+
+    # Build a transform from canvas CRS → tile CRS.
+    transform = QgsCoordinateTransform(canvas_crs, tile_crs, QgsProject.instance())
+    if not transform.isValid():
+        return None
+
+    # Use the centre of the query extent as the reference location.
+    # Transform two points separated by a small delta in canvas CRS
+    # to measure the corresponding ground distance in tile CRS.
+    centre = QgsPointXY(query_extent.center())
+    delta_pixels = 100.0
+    delta_x = res_x * delta_pixels
+    delta_y = res_y * delta_pixels
+
+    pt_x = QgsPointXY(centre.x() + delta_x, centre.y())
+    pt_y = QgsPointXY(centre.x(), centre.y() + delta_y)
+
+    try:
+        t_centre = transform.transform(centre)
+        t_pt_x = transform.transform(pt_x)
+        t_pt_y = transform.transform(pt_y)
+    except Exception:
+        logger.debug(
+            "Canvas→tile CRS transform failed; falling back to layer pixel size.",
+            exc_info=True,
+        )
+        return None
+
+    tile_res_x = abs(t_pt_x.x() - t_centre.x()) / delta_pixels
+    tile_res_y = abs(t_pt_y.y() - t_centre.y()) / delta_pixels
+
+    if tile_res_x > 0 and tile_res_y > 0 and math.isfinite(tile_res_x) and math.isfinite(tile_res_y):
+        return tile_res_x, tile_res_y
+
+    return None
+
+
 def _resolve_online_tile_provider(layer: QgsRasterLayer) -> OnlineTileProviderInfo:
     """Resolve supported tile-provider metadata from a raster layer."""
     provider_type = layer.providerType()
@@ -526,28 +628,207 @@ def _resolve_online_tile_provider(layer: QgsRasterLayer) -> OnlineTileProviderIn
         logger.error(msg)
         raise OnlineRasterTileMetadataError(msg)
 
-    if tile_matrix_set.lower() not in {"googlemapscompatible", "webmercatorquad", "epsg:3857"}:
-        msg = (
-            "Geo-SAM currently supports WMTS tile export only for Web Mercator "
-            "matrix sets such as GoogleMapsCompatible."
-        )
-        logger.error("%s Matrix set=%s", msg, tile_matrix_set)
-        raise OnlineRasterUnsupportedProviderError(msg)
+    wmts_crs = _resolve_wmts_crs(decoded_uri, tile_matrix_set, layer)
+    wmts_matrix_kind = _resolve_wmts_matrix_kind(tile_matrix_set)
 
     return OnlineTileProviderInfo(
         provider_kind="wmts",
         provider_type=provider_type,
         source_uri=source_uri,
         url_template=url_template,
-        crs_text=decoded_uri.get("crs", WEB_MERCATOR_CRS_TEXT),
+        crs_text=wmts_crs,
         min_zoom=0,
         max_zoom=22,
-        tile_size=WEB_MERCATOR_TILE_SIZE,
+        tile_size=wmts_tile_size(decoded_uri),
         tile_matrix_set=tile_matrix_set,
+        wmts_matrix_kind=wmts_matrix_kind,
         layer_name=decoded_uri.get("layers") or decoded_uri.get("layer"),
         style_name=decoded_uri.get("styles") or decoded_uri.get("style"),
         image_format=decoded_uri.get("format"),
     )
+
+
+def _resolve_wmts_matrix_kind(
+    tile_matrix_set: str,
+) -> Literal["default_square", "google_crs84_quad"]:
+    """Return the grid profile used by a WMTS tile matrix set."""
+    normalized_matrix_set = tile_matrix_set.strip().lower().replace(" ", "")
+    if normalized_matrix_set in {"wgs84", "googlecrs84quad"}:
+        return "google_crs84_quad"
+    return "default_square"
+
+
+def _resolve_wmts_crs(
+    decoded_uri: dict[str, str],
+    tile_matrix_set: str,
+    layer: QgsRasterLayer,
+) -> str:
+    """Determine the CRS for a WMTS tile matrix set.
+
+    Tries the ``crs`` entry in the decoded URI first, then attempts to parse
+    *tile_matrix_set* as an EPSG-style identifier, and finally falls back to
+    the layer CRS.
+    """
+    crs_value = (decoded_uri.get("crs") or "").strip()
+    if crs_value:
+        return crs_value
+
+    candidate = tile_matrix_set.strip()
+    if _looks_like_crs_identifier(candidate):
+        return candidate
+
+    layer_crs = layer.crs()
+    if layer_crs.isValid():
+        return layer_crs.authid() or layer_crs.toWkt()
+
+    return WEB_MERCATOR_CRS_TEXT
+
+
+def _looks_like_crs_identifier(value: str) -> bool:
+    """Return True when *value* probably names a coordinate reference system."""
+    lowered = value.lower()
+    return (
+        lowered.startswith("epsg:")
+        or lowered.startswith("esri:")
+        or lowered.startswith("urn:")
+        or lowered == "crs84"
+        or lowered == "crs83"
+    )
+
+
+def wmts_tile_size(decoded_uri: dict[str, str]) -> int:
+    """Determine the WMTS tile size from provider metadata."""
+    tile_size_str = (decoded_uri.get("tileWidth") or decoded_uri.get("tile_dimensions") or "").strip()
+    if tile_size_str:
+        try:
+            return int(tile_size_str)
+        except ValueError:
+            pass
+    return WEB_MERCATOR_TILE_SIZE
+
+
+def _is_web_mercator_crs(crs_text: str) -> bool:
+    """Return True when *crs_text* identifies a Web Mercator CRS."""
+    lowered = crs_text.lower().replace(" ", "")
+    return lowered in {"epsg:3857", "epsg:900913", "epsg:3785", "epsg:3587", "epsg:102100", "epsg:102113"}
+
+
+def _wmts_matrix_dimensions(
+    provider: OnlineTileProviderInfo,
+    zoom: int,
+) -> tuple[int, int]:
+    """Return WMTS matrix width and height for one zoom level."""
+    if provider.provider_kind != "wmts":
+        return 2**zoom, 2**zoom
+    if provider.wmts_matrix_kind == "google_crs84_quad":
+        return 2 ** (zoom + 1), 2**zoom
+    return 2**zoom, 2**zoom
+
+
+def _crs_tile_resolution(
+    provider: OnlineTileProviderInfo,
+    crs_bounds: QgsRectangle,
+    zoom: int,
+    tile_size: int,
+) -> float:
+    """Ground resolution at *zoom* for a CRS whose extent is *crs_bounds*."""
+    extent_width = float(crs_bounds.width())
+    if extent_width <= 0:
+        raise OnlineRasterTileMetadataError("CRS bounding box width is zero or negative")
+    matrix_width, _ = _wmts_matrix_dimensions(provider, zoom)
+    return extent_width / (tile_size * matrix_width)
+
+
+def _crs_zoom_for_resolution(
+    provider: OnlineTileProviderInfo,
+    crs_bounds: QgsRectangle,
+    resolution: float,
+    tile_size: int,
+    min_zoom: int,
+    max_zoom: int,
+) -> int:
+    """Find the zoom level whose resolution best matches *resolution*."""
+    extent_width = float(crs_bounds.width())
+    if extent_width <= 0:
+        raise OnlineRasterTileMetadataError("CRS bounding box width is zero or negative")
+    best_zoom = min_zoom
+    best_delta = math.inf
+    for zoom in range(min_zoom, max_zoom + 1):
+        zoom_resolution = _crs_tile_resolution(provider, crs_bounds, zoom, tile_size)
+        resolution_delta = abs(zoom_resolution - resolution)
+        if resolution_delta < best_delta:
+            best_zoom = zoom
+            best_delta = resolution_delta
+    return best_zoom
+
+
+def _crs_tile_bounds(
+    provider: OnlineTileProviderInfo,
+    tile_x: int,
+    tile_y: int,
+    zoom: int,
+    *,
+    crs_bounds: QgsRectangle,
+    tile_size: int,
+) -> tuple[float, float, float, float]:
+    """Return CRS bounds for a tile identified by (*tile_x*, *tile_y*)."""
+    matrix_width, matrix_height = _wmts_matrix_dimensions(provider, zoom)
+    tile_span_x = float(crs_bounds.width()) / matrix_width
+    tile_span_y = float(crs_bounds.height()) / matrix_height
+    left = float(crs_bounds.xMinimum()) + tile_x * tile_span_x
+    right = left + tile_span_x
+    top = float(crs_bounds.yMaximum()) - tile_y * tile_span_y
+    bottom = top - tile_span_y
+    return left, bottom, right, top
+
+
+def _crs_tile_range(
+    provider: OnlineTileProviderInfo,
+    rectangle: QgsRectangle,
+    *,
+    zoom: int,
+    crs_bounds: QgsRectangle,
+    tile_size: int,
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Return tile column and row ranges covering *rectangle*."""
+    _ = tile_size
+    matrix_width, matrix_height = _wmts_matrix_dimensions(provider, zoom)
+    tile_span_x = float(crs_bounds.width()) / matrix_width
+    tile_span_y = float(crs_bounds.height()) / matrix_height
+    max_column_index = matrix_width - 1
+    max_row_index = matrix_height - 1
+    min_col = int(
+        math.floor((float(rectangle.xMinimum()) - float(crs_bounds.xMinimum())) / tile_span_x)
+    )
+    max_col = int(
+        math.floor((float(rectangle.xMaximum()) - float(crs_bounds.xMinimum())) / tile_span_x)
+    )
+    min_row = int(
+        math.floor((float(crs_bounds.yMaximum()) - float(rectangle.yMaximum())) / tile_span_y)
+    )
+    max_row = int(
+        math.floor((float(crs_bounds.yMaximum()) - float(rectangle.yMinimum())) / tile_span_y)
+    )
+    return (
+        (max(min_col, 0), min(max_col, max_column_index)),
+        (max(min_row, 0), min(max_row, max_row_index)),
+    )
+
+
+def _crs_valid_bounds(crs: QgsCoordinateReferenceSystem) -> QgsRectangle:
+    """Return the valid geographic bounds for *crs*.
+
+    Falls back to the Web Mercator world extent when ``bounds()`` is empty.
+    """
+    bounds = crs.bounds()
+    if bounds.isEmpty() or bounds.isNull():
+        return QgsRectangle(
+            -WEB_MERCATOR_HALF_WORLD,
+            -WEB_MERCATOR_HALF_WORLD,
+            WEB_MERCATOR_HALF_WORLD,
+            WEB_MERCATOR_HALF_WORLD,
+        )
+    return QgsRectangle(bounds)
 
 
 def _web_mercator_zoom_for_pixel_size(
@@ -647,30 +928,44 @@ def _prepare_online_tile_export(
     model_id: str,
     chip_size: tuple[int, int],
     source_fingerprint: str,
+    view_resolution: tuple[tuple[float, float], str] | None = None,
 ) -> OnlineTileExportPlan:
     """Prepare a tile export plan for a supported online raster layer."""
     provider = _resolve_online_tile_provider(layer)
     query_extent = _rectangle_for_query_bounds(layer, query)
-    current_pixel_size = _resolve_pixel_size(layer)
     layer_crs = layer.crs()
     tile_crs = QgsCoordinateReferenceSystem(provider.crs_text)
     if not tile_crs.isValid():
         msg = "Geo-SAM could not determine a valid tile CRS for the active online layer."
         logger.error(msg)
         raise OnlineRasterTileMetadataError(msg)
-    if tile_crs.authid() not in {WEB_MERCATOR_CRS_TEXT, "EPSG:900913"}:
-        msg = (
-            "Geo-SAM currently supports online tile export only for Web Mercator "
-            "XYZ/WMTS layers."
-        )
-        logger.error("%s Tile CRS=%s", msg, tile_crs.authid() or tile_crs.toWkt())
-        raise OnlineRasterUnsupportedProviderError(msg)
 
-    current_zoom_level = _web_mercator_zoom_for_pixel_size(
-        current_pixel_size,
-        min_zoom=provider.min_zoom,
-        max_zoom=provider.max_zoom,
+    current_pixel_size = _convert_view_resolution_to_tile_crs(
+        view_resolution, tile_crs, query_extent,
     )
+    if current_pixel_size is None:
+        current_pixel_size = _resolve_pixel_size(layer)
+
+    use_web_mercator = _is_web_mercator_crs(provider.crs_text)
+
+    # ---- zoom level ----
+    if use_web_mercator:
+        current_zoom_level = _web_mercator_zoom_for_pixel_size(
+            current_pixel_size,
+            min_zoom=provider.min_zoom,
+            max_zoom=provider.max_zoom,
+        )
+    else:
+        tile_crs_bounds = _crs_valid_bounds(tile_crs)
+        current_zoom_level = _crs_zoom_for_resolution(
+            provider,
+            tile_crs_bounds,
+            resolution=max(current_pixel_size[0], current_pixel_size[1]),
+            tile_size=provider.tile_size,
+            min_zoom=provider.min_zoom,
+            max_zoom=provider.max_zoom,
+        )
+
     usable_chip_height = max(chip_size[0] - 2 * ONLINE_QUERY_REFRESH_MARGIN_PIXELS, 1)
     usable_chip_width = max(chip_size[1] - 2 * ONLINE_QUERY_REFRESH_MARGIN_PIXELS, 1)
     required_resolution = max(
@@ -678,19 +973,41 @@ def _prepare_online_tile_export(
         float(query_extent.height()) / usable_chip_height,
         max(current_pixel_size[0], current_pixel_size[1]),
     )
-    max_zoom_for_query = int(
-        math.floor(
-            math.log2(WEB_MERCATOR_INITIAL_RESOLUTION / max(required_resolution, 1e-9))
+    if use_web_mercator:
+        max_zoom_for_query = int(
+            math.floor(
+                math.log2(WEB_MERCATOR_INITIAL_RESOLUTION / max(required_resolution, 1e-9))
+            )
         )
-    )
+    else:
+        tile_crs_bounds = _crs_valid_bounds(tile_crs)
+        max_zoom_for_query = _crs_zoom_for_resolution(
+            provider,
+            tile_crs_bounds,
+            resolution=required_resolution,
+            tile_size=provider.tile_size,
+            min_zoom=provider.min_zoom,
+            max_zoom=provider.max_zoom,
+        )
+
     zoom_level = max(
         provider.min_zoom,
         min(current_zoom_level, max_zoom_for_query, provider.max_zoom),
     )
-    export_pixel_size = (
-        _web_mercator_resolution_for_zoom(zoom_level),
-        _web_mercator_resolution_for_zoom(zoom_level),
-    )
+
+    # ---- resolution ----
+    if use_web_mercator:
+        zoom_res = _web_mercator_resolution_for_zoom(zoom_level)
+    else:
+        tile_crs_bounds = _crs_valid_bounds(tile_crs)
+        zoom_res = _crs_tile_resolution(
+            provider,
+            tile_crs_bounds,
+            zoom_level,
+            provider.tile_size,
+        )
+    export_pixel_size = (zoom_res, zoom_res)
+
     export_extent_layer_crs = _export_extent_for_query(
         query_extent,
         pixel_size=export_pixel_size,
@@ -701,11 +1018,24 @@ def _prepare_online_tile_export(
         source_crs=layer_crs,
         destination_crs=tile_crs,
     )
-    tile_column_range, tile_row_range = _web_mercator_tile_range(
-        export_extent_tile_crs,
-        zoom=zoom_level,
-        tile_size=provider.tile_size,
-    )
+
+    # ---- tile range ----
+    if use_web_mercator:
+        tile_column_range, tile_row_range = _web_mercator_tile_range(
+            export_extent_tile_crs,
+            zoom=zoom_level,
+            tile_size=provider.tile_size,
+        )
+    else:
+        tile_crs_bounds = _crs_valid_bounds(tile_crs)
+        tile_column_range, tile_row_range = _crs_tile_range(
+            provider,
+            export_extent_tile_crs,
+            zoom=zoom_level,
+            crs_bounds=tile_crs_bounds,
+            tile_size=provider.tile_size,
+        )
+
     tile_count_x = tile_column_range[1] - tile_column_range[0] + 1
     tile_count_y = tile_row_range[1] - tile_row_range[0] + 1
     output_width = tile_count_x * provider.tile_size
@@ -803,6 +1133,23 @@ def _tile_request_url(
     )
 
 
+def _validate_tile_url(url: str) -> None:
+    """Reject tile URLs with unsafe or unsupported schemes.
+
+    Both ``http`` and ``https`` are permitted because many public WMTS
+    services still operate over plain HTTP.  Qt's network stack (used via
+    :class:`QgsBlockingNetworkRequest`) honours the QGIS proxy and SSL
+    configuration, so plain-text transport does not weaken the plugin
+    security posture.
+    """
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError(
+            f"Unsupported URL scheme '{parsed.scheme}' for tile request. "
+            "Only 'http' and 'https' are permitted."
+        )
+
+
 def _download_tile_array(
     provider: OnlineTileProviderInfo,
     *,
@@ -819,16 +1166,26 @@ def _download_tile_array(
         tile_column=tile_column,
         tile_row=tile_row,
     )
-    request = urllib.request.Request(
-        tile_url,
-        headers={"User-Agent": "Geo-SAM/QGIS Tile Export"},
-    )
+    _validate_tile_url(tile_url)
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            tile_bytes = response.read()
+        req = QgsBlockingNetworkRequest()
+        qreq = QNetworkRequest(QUrl(tile_url))
+        qreq.setRawHeader(b"User-Agent", b"Geo-SAM/QGIS Tile Export")
+        error = req.get(qreq, True)
+        if error != QgsBlockingNetworkRequest.NoError:
+            raise RuntimeError(
+                f"Network error {error} for {tile_url}: {req.errorMessage()}"
+            )
+        reply = req.reply()
+        status_code = reply.attribute(_HTTP_STATUS_ATTRIBUTE)
+        tile_bytes = bytes(reply.content())
+        if not tile_bytes:
+            raise RuntimeError(
+                f"Empty response from {tile_url} (HTTP {status_code})"
+            )
     except Exception as exc:
         msg = f"Failed to download online tile z={zoom} x={tile_column} y={tile_row}."
-        logger.error("%s %s", msg, exc)
+        logger.error("%s URL=%s error=%s", msg, tile_url, exc)
         raise OnlineRasterTileDownloadError(msg) from exc
 
     image = QImage()
@@ -938,18 +1295,39 @@ def _export_online_tiles_to_geotiff(
                     float(downloaded_tile_count / total_tile_count * 20.0),
                 )
 
-    left, _, _, top = _web_mercator_tile_bounds(
-        export_plan.tile_column_range[0],
-        export_plan.tile_row_range[0],
-        export_plan.tile_zoom,
-        tile_size=tile_size,
-    )
-    _, bottom, right, _ = _web_mercator_tile_bounds(
-        export_plan.tile_column_range[1],
-        export_plan.tile_row_range[1],
-        export_plan.tile_zoom,
-        tile_size=tile_size,
-    )
+    # Compute mosaic geographic bounds in the output CRS.
+    tile_crs = QgsCoordinateReferenceSystem(export_plan.output_crs_text)
+    if _is_web_mercator_crs(export_plan.output_crs_text):
+        left, _, _, top = _web_mercator_tile_bounds(
+            export_plan.tile_column_range[0],
+            export_plan.tile_row_range[0],
+            export_plan.tile_zoom,
+            tile_size=tile_size,
+        )
+        _, bottom, right, _ = _web_mercator_tile_bounds(
+            export_plan.tile_column_range[1],
+            export_plan.tile_row_range[1],
+            export_plan.tile_zoom,
+            tile_size=tile_size,
+        )
+    else:
+        tile_crs_bounds = _crs_valid_bounds(tile_crs)
+        left, _, _, top = _crs_tile_bounds(
+            export_plan.provider,
+            export_plan.tile_column_range[0],
+            export_plan.tile_row_range[0],
+            export_plan.tile_zoom,
+            crs_bounds=tile_crs_bounds,
+            tile_size=tile_size,
+        )
+        _, bottom, right, _ = _crs_tile_bounds(
+            export_plan.provider,
+            export_plan.tile_column_range[1],
+            export_plan.tile_row_range[1],
+            export_plan.tile_zoom,
+            crs_bounds=tile_crs_bounds,
+            tile_size=tile_size,
+        )
     logger.info(
         "Exporting online tiles for layer '%s' kind=%s zoom=%s cols=%s rows=%s",
         layer_name,
