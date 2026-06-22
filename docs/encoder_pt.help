@@ -1,0 +1,26 @@
+Esta ferramenta serve para pré-processar imagens geoespaciais e gerar características de imagem com o codificador de imagens do SAM
+
+As características geradas podem depois ser usadas na ferramenta Geo-SAM para rotular formas de relevo com prompts de pontos e prompts de caixa delimitadora
+
+Depois de selecionar a camada raster ou o ficheiro de imagem que pretende processar, deve também escolher as bandas adequadas
+O SAM suporta nativamente apenas imagens RGB de três bandas, mas esta ferramenta também suporta imagens de uma ou duas bandas, pelo que pode experimentar imagens em tons de cinzento ou índices espectrais como NDVI
+
+Como o SAM só suporta imagens de entrada com tamanho fixo, as imagens pequenas são redimensionadas para o tamanho de entrada do modelo, enquanto as imagens grandes são divididas em mosaicos com sobreposição
+O parâmetro `stride` controla essa sobreposição, sendo `overlap = patch_size - stride`
+
+Os valores da imagem fornecida ao SAM devem estar no intervalo de 0 a 255
+Se a imagem original não estiver nesse intervalo, pode definir um intervalo de valores e reescalá-lo para [0, 255]
+Por predefinição, a ferramenta estima automaticamente os valores mínimo e máximo da imagem e reescala [min, max] para [0, 255]
+
+Os checkpoints dos modelos GeoSAM devem ser descarregados antecipadamente em Geo-SAM Settings
+Ao selecionar um modelo GeoSAM neste codificador, a ferramenta resolve automaticamente o checkpoint correspondente a partir do diretório de modelos configurado
+Se o modelo selecionado ainda não tiver sido descarregado, escolha outro modelo já disponível ou descarregue-o primeiro em Settings e tente novamente
+
+Sugestões para acelerar a codificação
+
+1. Escolha uma extensão de processamento mais pequena
+2. Reduza a resolução de destino
+3. Aumente o valor de `stride` para minimizar a sobreposição
+4. Escolha um modelo GeoSAM mais pequeno
+5. Use a GPU quando houver memória suficiente no acelerador
+6. Use o modo de memória reduzida se o pico de memória for mais importante do que a velocidade
