@@ -6,7 +6,7 @@ rasters/**/*.aux.xml
 .tmp.driveupload/*
 docs/build
 docs/.venv
-models
+.models
 .cache
 .deps
 **/user.json
