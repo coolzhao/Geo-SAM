@@ -74,5 +74,8 @@ The following paths are intentionally excluded from release branches and must ne
 
 - `AGENTS.md`
 - `docs/` (entire directory — documentation is hosted separately, not bundled in the plugin package)
+- `README.md`
+- `CITATION.cff`
+- `clean_pycache.sh` (exists only on release branches, do not sync back to main)
 
 Use `git checkout main -- <file>` or selective cherry-pick to bring over only the files that actually changed. Avoid `git merge main` into release branches, as it will resurrect the deleted files.
