@@ -13,5 +13,7 @@
     "clear_cache_on_plugin_close": true,
     "performance_mode": "balanced",
     "preview_render_mode": "pixel_level",
-    "preview_mode": true
+    "preview_mode": true,
+    "torch_profile": "auto",
+    "custom_index_url": ""
 }

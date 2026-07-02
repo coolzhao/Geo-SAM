@@ -10,12 +10,15 @@ import shutil
 import sys
 import sysconfig
 from pathlib import Path
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_DEPENDENCY_ROOT = PLUGIN_ROOT / ".deps"
 PLUGIN_RUNTIME_DEPENDENCIES_ROOT = PLUGIN_DEPENDENCY_ROOT / "runtimes"
 LEGACY_PLUGIN_MANAGED_SITE_PACKAGES = PLUGIN_DEPENDENCY_ROOT / "python"
+
+if TYPE_CHECKING:
+    from .runtime_profile import TorchProfile
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +45,20 @@ class DependencyPathStats(TypedDict):
     size_bytes: int
 
 
-def get_plugin_managed_site_packages(*, create: bool = False) -> Path:
+def get_plugin_managed_site_packages(
+    *,
+    create: bool = False,
+    profile: TorchProfile | None = None,
+) -> Path:
     """Return the plugin-managed dependency directory for this runtime.
 
     Parameters
     ----------
     create : bool, optional
         Whether to create the dependency directory before returning it.
+    profile : TorchProfile | None, optional
+        Torch profile to use. When ``None``, the currently active profile
+        for this runtime is used.
 
     Returns
     -------
@@ -56,10 +66,20 @@ def get_plugin_managed_site_packages(*, create: bool = False) -> Path:
         Directory used as the pip ``--target`` location for plugin-managed
         Python packages in the active QGIS Python runtime.
 
+    Notes
+    -----
+    Legacy directory migration is performed once at plugin startup via
+    :func:`register_plugin_managed_dependency_path`, not on every call.
+
     """
-    dependency_path = (
-        PLUGIN_RUNTIME_DEPENDENCIES_ROOT / _runtime_dependency_key() / "python"
-    )
+    from .runtime_profile import active_profile, profile_target_path
+
+    key = _runtime_dependency_key()
+
+    if profile is None:
+        profile = active_profile(key)
+    dependency_path = profile_target_path(key, profile)
+
     if create:
         dependency_path.mkdir(parents=True, exist_ok=True)
     return dependency_path
@@ -67,6 +87,9 @@ def get_plugin_managed_site_packages(*, create: bool = False) -> Path:
 
 def register_plugin_managed_dependency_path(*, create: bool = False) -> Path:
     """Expose plugin-managed dependencies to the active Python runtime.
+
+    Performs a one-time legacy directory migration (if needed) before
+    registering the active profile's target directory on ``sys.path``.
 
     Parameters
     ----------
@@ -79,7 +102,16 @@ def register_plugin_managed_dependency_path(*, create: bool = False) -> Path:
         Registered dependency directory path.
 
     """
-    dependency_path = get_plugin_managed_site_packages(create=create)
+    from .runtime_profile import active_profile, migrate_legacy_profile, profile_target_path
+
+    key = _runtime_dependency_key()
+    migrate_legacy_profile(key)
+
+    profile = active_profile(key)
+    dependency_path = profile_target_path(key, profile)
+    if create:
+        dependency_path.mkdir(parents=True, exist_ok=True)
+
     dependency_path_text = str(dependency_path)
     if dependency_path_text not in sys.path:
         sys.path.insert(0, dependency_path_text)
@@ -128,6 +160,9 @@ def get_plugin_managed_dependency_stats(path: Path) -> DependencyPathStats:
 def iter_plugin_managed_runtime_site_packages() -> list[Path]:
     """Return existing plugin-managed dependency directories for all runtimes.
 
+    Scans both the new profile-based layout (``<key>/<profile>/python``) and
+    the legacy flat layout (``<key>/python``).
+
     Returns
     -------
     list[Path]
@@ -138,9 +173,20 @@ def iter_plugin_managed_runtime_site_packages() -> list[Path]:
         return []
     dependency_paths: list[Path] = []
     for runtime_path in sorted(PLUGIN_RUNTIME_DEPENDENCIES_ROOT.iterdir()):
-        site_packages_path = runtime_path / "python"
-        if site_packages_path.exists():
-            dependency_paths.append(site_packages_path)
+        if not runtime_path.is_dir():
+            continue
+        # New profile-based layout: <key>/<profile>/python
+        for child in sorted(runtime_path.iterdir()):
+            if child.is_dir() and child.name in {
+                "auto", "cpu", "cu128", "cu130", "custom",
+            }:
+                site_packages = child / "python"
+                if site_packages.exists():
+                    dependency_paths.append(site_packages)
+        # Legacy flat layout: <key>/python
+        legacy_site_packages = runtime_path / "python"
+        if legacy_site_packages.exists():
+            dependency_paths.append(legacy_site_packages)
     return dependency_paths
 
 
@@ -165,7 +211,7 @@ def iter_all_plugin_managed_site_packages(*, include_legacy: bool = True) -> lis
 
 
 def clear_current_plugin_managed_site_packages() -> int:
-    """Delete dependencies installed for the active runtime.
+    """Delete dependencies installed for the active runtime profile.
 
     Returns
     -------
@@ -174,6 +220,28 @@ def clear_current_plugin_managed_site_packages() -> int:
 
     """
     dependency_path = get_plugin_managed_site_packages()
+    return _remove_dependency_path(dependency_path)
+
+
+def clear_profile_site_packages(key: str, profile: TorchProfile) -> int:
+    """Delete dependencies installed for a specific profile.
+
+    Parameters
+    ----------
+    key : str
+        Runtime dependency key.
+    profile : TorchProfile
+        Torch profile to clear.
+
+    Returns
+    -------
+    int
+        Number of files removed.
+
+    """
+    from .runtime_profile import profile_target_path
+
+    dependency_path = profile_target_path(key, profile)
     return _remove_dependency_path(dependency_path)
 
 
@@ -192,6 +260,27 @@ def clear_all_plugin_managed_site_packages() -> int:
     _remove_empty_directory(PLUGIN_RUNTIME_DEPENDENCIES_ROOT)
     _remove_empty_directory(PLUGIN_DEPENDENCY_ROOT)
     return removed_count
+
+
+def swap_dependency_path(old_path: Path, new_path: Path) -> None:
+    """Replace one dependency path with another in ``sys.path``.
+
+    Parameters
+    ----------
+    old_path : Path
+        Dependency directory to remove from ``sys.path``.
+    new_path : Path
+        Dependency directory to insert at position 0 of ``sys.path``.
+
+    """
+    old_text = str(old_path)
+    new_text = str(new_path)
+
+    sys.path[:] = [p for p in sys.path if p != old_text]
+    if new_text not in sys.path:
+        sys.path.insert(0, new_text)
+    importlib.invalidate_caches()
+    logger.debug("Swapped dependency path: %s → %s", old_path, new_path)
 
 
 def _runtime_dependency_key() -> str:

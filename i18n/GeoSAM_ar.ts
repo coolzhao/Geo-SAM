@@ -737,14 +737,30 @@ Would you like to open the Dependencies page and install them now?</source>
         <translation>تثبيت مفقود</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="351"/>
-        <source>Open Folder</source>
-        <translation>افتح المجلد</translation>
+        <source>Choose Folder</source>
+        <translation>اختر المجلد</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>عرض في المجلد</translation>
+    </message>
+    <message>
+        <source>Browse Packages</source>
+        <translation>استعراض الحزم</translation>
+    </message>
+
+    <message>
+        <source>Copy Install Commands</source>
+        <translation>نسخ أوامر التثبيت</translation>
+    </message>
+    <message>
+        <source>Switch Backend</source>
+        <translation>تبديل الواجهة الخلفية</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="190"/>
-        <source>Clear Current Runtime</source>
-        <translation>مسح وقت التشغيل الحالي</translation>
+        <source>Clear Current Environment</source>
+        <translation>مسح البيئة الحالية</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="197"/>
@@ -765,11 +781,6 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../tools/settingsTool.py" line="252"/>
         <source>Storage</source>
         <translation>التخزين</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="349"/>
-        <source>Browse</source>
-        <translation>تصفح</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="262"/>

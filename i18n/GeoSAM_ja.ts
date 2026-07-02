@@ -737,14 +737,30 @@ Would you like to open the Dependencies page and install them now?</source>
         <translation>未インストールをインストール</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="351"/>
-        <source>Open Folder</source>
-        <translation>フォルダーを開く</translation>
+        <source>Choose Folder</source>
+        <translation>フォルダーを選択</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>フォルダーを表示</translation>
+    </message>
+    <message>
+        <source>Browse Packages</source>
+        <translation>パッケージを参照</translation>
+    </message>
+
+    <message>
+        <source>Copy Install Commands</source>
+        <translation>インストールコマンドをコピー</translation>
+    </message>
+    <message>
+        <source>Switch Backend</source>
+        <translation>バックエンド切替</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="190"/>
-        <source>Clear Current Runtime</source>
-        <translation>現在のランタイムをクリア</translation>
+        <source>Clear Current Environment</source>
+        <translation>現在の環境をクリア</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="197"/>
@@ -765,11 +781,6 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../tools/settingsTool.py" line="252"/>
         <source>Storage</source>
         <translation>ストレージ</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="349"/>
-        <source>Browse</source>
-        <translation>閲覧する</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="262"/>

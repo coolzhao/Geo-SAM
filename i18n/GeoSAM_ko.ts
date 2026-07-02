@@ -737,14 +737,30 @@ Would you like to open the Dependencies page and install them now?</source>
         <translation>미설치 항목 설치</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="351"/>
-        <source>Open Folder</source>
-        <translation>폴더 열기</translation>
+        <source>Choose Folder</source>
+        <translation>폴더 선택</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>폴더에서 보기</translation>
+    </message>
+    <message>
+        <source>Browse Packages</source>
+        <translation>패키지 찾아보기</translation>
+    </message>
+
+    <message>
+        <source>Copy Install Commands</source>
+        <translation>설치 명령어 복사</translation>
+    </message>
+    <message>
+        <source>Switch Backend</source>
+        <translation>백엔드 전환</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="190"/>
-        <source>Clear Current Runtime</source>
-        <translation>현재 런타임 지우기</translation>
+        <source>Clear Current Environment</source>
+        <translation>현재 환경 지우기</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="197"/>
@@ -765,11 +781,6 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../tools/settingsTool.py" line="252"/>
         <source>Storage</source>
         <translation>저장</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="349"/>
-        <source>Browse</source>
-        <translation>찾아보기</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="262"/>

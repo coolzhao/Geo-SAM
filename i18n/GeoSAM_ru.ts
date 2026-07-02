@@ -737,14 +737,30 @@ Would you like to open the Dependencies page and install them now?</source>
         <translation>Установить недостающие</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="351"/>
-        <source>Open Folder</source>
-        <translation>Открыть папку</translation>
+        <source>Choose Folder</source>
+        <translation>Выбрать папку</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>Показать в папке</translation>
+    </message>
+    <message>
+        <source>Browse Packages</source>
+        <translation>Обзор пакетов</translation>
+    </message>
+
+    <message>
+        <source>Copy Install Commands</source>
+        <translation>Копировать команды установки</translation>
+    </message>
+    <message>
+        <source>Switch Backend</source>
+        <translation>Переключить бэкенд</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="190"/>
-        <source>Clear Current Runtime</source>
-        <translation>Очистить текущую среду выполнения</translation>
+        <source>Clear Current Environment</source>
+        <translation>Очистить текущее окружение</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="197"/>
@@ -765,11 +781,6 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../tools/settingsTool.py" line="252"/>
         <source>Storage</source>
         <translation>Хранилище</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="349"/>
-        <source>Browse</source>
-        <translation>Обзор</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="262"/>

@@ -712,14 +712,30 @@ Would you like to open the Dependencies page and install them now?</source>
         <translation>安装缺失</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="351"/>
-        <source>Open Folder</source>
-        <translation>打开文件夹</translation>
+        <source>Choose Folder</source>
+        <translation>选择文件夹</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>在文件管理器中显示</translation>
+    </message>
+    <message>
+        <source>Browse Packages</source>
+        <translation>查看包目录</translation>
+    </message>
+
+    <message>
+        <source>Copy Install Commands</source>
+        <translation>复制安装命令</translation>
+    </message>
+    <message>
+        <source>Switch Backend</source>
+        <translation>切换后端</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="190"/>
-        <source>Clear Current Runtime</source>
-        <translation>清除当前运行环境</translation>
+        <source>Clear Current Environment</source>
+        <translation>清除当前环境</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="197"/>
@@ -740,11 +756,6 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../tools/settingsTool.py" line="252"/>
         <source>Storage</source>
         <translation>存储</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="349"/>
-        <source>Browse</source>
-        <translation>浏览</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="262"/>

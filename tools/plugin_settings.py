@@ -14,7 +14,7 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterable, Literal, TypedDict
+from typing import Any, Iterable, Literal, TypedDict
 
 from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtGui import QDesktopServices
@@ -89,24 +89,14 @@ PIP_RESOLVER_CONSTRAINT_REQUIREMENTS: tuple[str, ...] = (
     "contourpy>=1.2.0",
     "matplotlib>=3.8.0",
 )
-TORCH_RESOLVER_CONSTRAINT_REQUIREMENTS_PY39: tuple[str, ...] = (
-    "torch==2.8.0",
-    "torchvision==0.23.0",
-)
-TORCH_RESOLVER_CONSTRAINT_REQUIREMENTS_PY310_PLUS: tuple[str, ...] = (
-    "torch==2.11.0",
-    "torchvision==0.26.0",
-)
-PIP_ONLY_BINARY_DISTRIBUTIONS: tuple[str, ...] = (
-    "contourpy",
-    "kiwisolver",
-    "matplotlib",
-    "numpy",
-    "opencv-python",
-    "pillow",
-    "torch",
-    "torchvision",
-)
+# PyTorch wheels are platform-sensitive: since torch 2.3.0, macOS x86_64 wheels
+# are no longer published (only arm64). Pinning a specific torch/torchvision
+# version makes resolution fail on x86_64-ABI QGIS Python (e.g. universal2 QGIS
+# running the x86_64 slice). We therefore emit no torch version constraint and
+# let uv select the highest version that actually has wheels for the target
+# platform (see ``_torch_resolver_constraints``).
+TORCH_RESOLVER_CONSTRAINT_REQUIREMENTS_PY39: tuple[str, ...] = ()
+TORCH_RESOLVER_CONSTRAINT_REQUIREMENTS_PY310_PLUS: tuple[str, ...] = ()
 PerformanceMode = Literal["balanced", "fastest", "low_memory"]
 PreviewRenderMode = Literal["pixel_level", "simplified"]
 PERFORMANCE_MODE_VALUES: tuple[PerformanceMode, ...] = (
@@ -119,8 +109,6 @@ PREVIEW_RENDER_MODE_VALUES: tuple[PreviewRenderMode, ...] = (
     "simplified",
 )
 PROJ_DATA_ENV_KEYS = ("PROJ_DATA", "PROJ_LIB")
-DependencyInstallCommand = list[str]
-DependencyInstallPlan = list[DependencyInstallCommand]
 DependencyState = Literal[
     "installed_qgis_runtime",
     "installed_plugin_managed",
@@ -453,6 +441,8 @@ def _default_plugin_settings() -> dict[str, Any]:
     settings.setdefault("default_minimum_pixels", 0)
     settings.setdefault("performance_mode", "balanced")
     settings.setdefault("preview_mode", True)
+    settings.setdefault("torch_profile", "auto")
+    settings.setdefault("custom_index_url", "")
     settings["preview_render_mode"] = _normalize_preview_render_mode(
         settings.get("preview_render_mode")
     )
@@ -718,45 +708,17 @@ def _dependency_install_requirement(module_name: str) -> str:
     return DEPENDENCY_INSTALL_REQUIREMENTS[module_name]
 
 
-def _selected_dependency_module_names(
-    module_names: Iterable[str] | None = None,
-) -> list[str]:
-    """Return known dependency module names selected for installation.
+def _create_qgis_runtime_constraints_file(
+    profile: str | None = None,
+) -> Path | None:
+    """Create a temporary pip constraints file for bundled QGIS packages.
 
     Parameters
     ----------
-    module_names : Iterable[str] | None, optional
-        Dependency package names to install. When omitted, all known plugin
-        dependencies are selected.
-
-    Returns
-    -------
-    list[str]
-        Known dependency module names in installation order.
-
-    Raises
-    ------
-    RuntimeError
-        Raised when no known dependencies were selected.
-
-    """
-    if module_names is None:
-        selected_module_names = list(DEPENDENCY_INSTALL_REQUIREMENTS)
-    else:
-        selected_module_names = [
-            module_name
-            for module_name in module_names
-            if module_name in DEPENDENCY_INSTALL_REQUIREMENTS
-        ]
-    if not selected_module_names:
-        msg = "No known dependencies were selected for installation."
-        logger.error(msg)
-        raise RuntimeError(msg)
-    return selected_module_names
-
-
-def _create_qgis_runtime_constraints_file() -> Path | None:
-    """Create a temporary pip constraints file for bundled QGIS packages.
+    profile : str | None, optional
+        Torch profile identifier. When the profile is not ``"cpu"``,
+        torch and torchvision constraints are excluded so that uv's
+        ``--torch-backend`` can resolve them from the PyTorch index.
 
     Returns
     -------
@@ -785,7 +747,9 @@ def _create_qgis_runtime_constraints_file() -> Path | None:
         installed_versions[distribution_name] = resolved_version
         constraint_lines.append(f"{distribution_name}=={resolved_version}")
 
-    constraint_lines.extend(_qgis_runtime_resolver_constraints(installed_versions))
+    constraint_lines.extend(
+        _qgis_runtime_resolver_constraints(installed_versions, profile=profile)
+    )
 
     if not constraint_lines:
         return None
@@ -807,13 +771,20 @@ def _create_qgis_runtime_constraints_file() -> Path | None:
         raise RuntimeError(msg) from exc
 
 
-def _qgis_runtime_resolver_constraints(installed_versions: dict[str, str]) -> list[str]:
+def _qgis_runtime_resolver_constraints(
+    installed_versions: dict[str, str],
+    profile: str | None = None,
+) -> list[str]:
     """Return extra pip constraints for QGIS runtime compatibility.
 
     Parameters
     ----------
     installed_versions : dict[str, str]
         Installed protected distribution versions keyed by distribution name.
+    profile : str | None, optional
+        Torch profile identifier. When the profile is not ``"cpu"``,
+        torch/torchvision constraints are excluded so uv's ``--torch-backend``
+        can resolve them from the PyTorch index.
 
     Returns
     -------
@@ -828,7 +799,10 @@ def _qgis_runtime_resolver_constraints(installed_versions: dict[str, str]) -> li
 
     """
     constraints = list(PIP_RESOLVER_CONSTRAINT_REQUIREMENTS)
-    constraints.extend(_torch_resolver_constraints())
+    # Only include torch pins for cpu profile; other profiles use
+    # uv's --torch-backend which resolves torch from PyTorch index
+    if profile is None or profile == "cpu":
+        constraints.extend(_torch_resolver_constraints())
     numpy_major_version = _distribution_major_version(installed_versions.get("numpy"))
     if numpy_major_version is not None and numpy_major_version < 2:
         constraints.append("opencv-python==4.11.0.86")
@@ -842,13 +816,17 @@ def _torch_resolver_constraints() -> list[str]:
     Returns
     -------
     list[str]
-        Torch and torchvision constraints for pip resolution.
+        Torch and torchvision constraints for pip resolution. Currently empty:
+        no version is pinned so uv can pick the highest torch/torchvision pair
+        that publishes wheels for the resolved ``--python-platform``.
 
     Notes
     -----
-    PyTorch 2.11 does not publish Python 3.9 wheels. QGIS environments based
-    on Python 3.9 therefore need the latest known PyTorch pair with cp39
-    wheels.
+    PyTorch stopped publishing macOS x86_64 wheels after 2.2.x. A hardcoded pin
+    (e.g. ``torch==2.11.0``) therefore makes resolution fail on x86_64-ABI
+    QGIS Python, which the universal2 macOS QGIS build uses. Leaving torch
+    unconstrained lets uv fall back to 2.2.x automatically on x86_64 while
+    still resolving the newest version on arm64/Linux/Windows.
 
     """
     if sys.version_info < (3, 10):
@@ -1323,110 +1301,14 @@ def resolve_python_interpreter() -> Path:
     raise RuntimeError(msg)
 
 
-def get_dependency_install_command(
-    module_names: Iterable[str] | None = None,
-) -> DependencyInstallCommand:
-    """Build the first pip command used to install plugin dependencies.
-
-    Parameters
-    ----------
-    module_names : Iterable[str] | None, optional
-        Dependency package names to install. When omitted, all known plugin
-        dependencies are installed.
-
-    Returns
-    -------
-    DependencyInstallCommand
-        Command arguments suitable for ``subprocess`` execution.
-
-    Raises
-    ------
-    RuntimeError
-        Raised when the current QGIS runtime Python interpreter cannot be
-        resolved.
-
-    """
-    return get_dependency_install_commands(module_names)[0]
-
-
-def get_dependency_install_commands(
-    module_names: Iterable[str] | None = None,
-) -> DependencyInstallPlan:
-    """Build pip commands used to install plugin dependencies.
-
-    Parameters
-    ----------
-    module_names : Iterable[str] | None, optional
-        Dependency package names to install. When omitted, all known plugin
-        dependencies are installed.
-
-    Returns
-    -------
-    DependencyInstallPlan
-        Command argument lists suitable for ``subprocess`` execution.
-
-    Raises
-    ------
-    RuntimeError
-        Raised when the current QGIS runtime Python interpreter cannot be
-        resolved or no known dependencies were selected.
-
-    Notes
-    -----
-    The local ``geosam`` package is installed in a separate ``--no-deps`` step.
-    QGIS already owns geospatial runtime packages such as rasterio, geopandas,
-    and pyproj; resolving the local package dependencies through pip can force
-    pip to reconcile wheel metadata that does not match QGIS' bundled runtime.
-
-    """
-    selected_module_names = _selected_dependency_module_names(module_names)
-    dependency_target_path = register_plugin_managed_dependency_path(create=True)
-    python_interpreter = resolve_python_interpreter()
-    constraints_path = _create_qgis_runtime_constraints_file()
-    commands: DependencyInstallPlan = []
-    resolver_module_names = [
-        module_name for module_name in selected_module_names if module_name != "geosam"
-    ]
-
-    if resolver_module_names:
-        command = _dependency_install_command_base(
-            python_interpreter,
-            constraints_path,
-            dependency_target_path,
-        )
-        command.extend(
-            [
-                _dependency_install_requirement(module_name)
-                for module_name in resolver_module_names
-            ]
-        )
-        commands.append(command)
-
-    if "geosam" in selected_module_names:
-        commands.append(
-            [
-                str(python_interpreter),
-                "-m",
-                "pip",
-                "install",
-                "--target",
-                str(dependency_target_path),
-                "--upgrade",
-                "--no-deps",
-                _dependency_install_requirement("geosam"),
-            ]
-        )
-
-    return commands
-
-
 def format_dependency_install_commands(commands: Iterable[Iterable[str]]) -> str:
     """Return readable dependency installation commands.
 
     Parameters
     ----------
     commands : Iterable[Iterable[str]]
-        Command argument lists produced by :func:`get_dependency_install_commands`.
+        Command argument lists produced by
+        :func:`dependency_installer.build_uv_commands`.
 
     Returns
     -------
@@ -1437,53 +1319,13 @@ def format_dependency_install_commands(commands: Iterable[Iterable[str]]) -> str
     return "\n".join(format_dependency_install_command(command) for command in commands)
 
 
-def _dependency_install_command_base(
-    python_interpreter: Path,
-    constraints_path: Path | None,
-    dependency_target_path: Path,
-) -> DependencyInstallCommand:
-    """Build the shared pip install command prefix.
-
-    Parameters
-    ----------
-    python_interpreter : Path
-        Python interpreter used by the active QGIS runtime.
-    constraints_path : Path | None
-        Runtime constraints file path, or ``None`` when no constraints exist.
-    dependency_target_path : Path
-        Plugin-managed dependency directory used as the pip ``--target`` path.
-
-    Returns
-    -------
-    DependencyInstallCommand
-        Command prefix for dependency-resolving pip installs.
-
-    """
-    command: DependencyInstallCommand = [
-        str(python_interpreter),
-        "-m",
-        "pip",
-        "install",
-        "--target",
-        str(dependency_target_path),
-        "--upgrade",
-        "--upgrade-strategy",
-        "only-if-needed",
-        "--only-binary",
-        ",".join(PIP_ONLY_BINARY_DISTRIBUTIONS),
-    ]
-    if constraints_path is not None:
-        command.extend(["--constraint", str(constraints_path)])
-    return command
-
-
 def format_dependency_install_command(command: Iterable[str]) -> str:
     """Return a readable dependency installation command.
 
     Parameters
     ----------
     command : Iterable[str]
-        Command arguments produced by :func:`get_dependency_install_command`.
+        Command arguments produced by the dependency installer.
 
     Returns
     -------
@@ -1492,58 +1334,6 @@ def format_dependency_install_command(command: Iterable[str]) -> str:
 
     """
     return subprocess.list2cmdline(list(command))
-
-
-def install_dependencies(
-    log_callback: Callable[[str], None] | None = None,
-) -> tuple[bool, str]:
-    """Install GeoSAM plugin dependencies with pip.
-
-    Parameters
-    ----------
-    log_callback : Callable[[str], None] | None, optional
-        Callback that receives incremental install log lines.
-
-    Returns
-    -------
-    tuple[bool, str]
-        Installation success flag and combined command output.
-
-    """
-    try:
-        commands = get_dependency_install_commands()
-    except RuntimeError as exc:
-        logger.error("Dependency installation aborted: %s", exc)
-        return False, str(exc)
-
-    output_lines: list[str] = []
-
-    for command in commands:
-        if log_callback is not None:
-            log_callback(f"Command: {format_dependency_install_command(command)}")
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-
-        if process.stdout is not None:
-            for raw_line in process.stdout:
-                line = raw_line.rstrip()
-                output_lines.append(line)
-                if log_callback is not None:
-                    log_callback(line)
-
-        return_code = process.wait()
-        if return_code != 0:
-            output = "\n".join(line for line in output_lines if line.strip())
-            return False, output
-
-    output = "\n".join(line for line in output_lines if line.strip())
-    register_plugin_managed_dependency_path()
-    return True, output
 
 
 def open_url(url: str) -> None:

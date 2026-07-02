@@ -737,14 +737,30 @@ Would you like to open the Dependencies page and install them now?</source>
         <translation>Falta instalar</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="351"/>
-        <source>Open Folder</source>
-        <translation>Abrir carpeta</translation>
+        <source>Choose Folder</source>
+        <translation>Elegir carpeta</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>Mostrar en carpeta</translation>
+    </message>
+    <message>
+        <source>Browse Packages</source>
+        <translation>Explorar paquetes</translation>
+    </message>
+
+    <message>
+        <source>Copy Install Commands</source>
+        <translation>Copiar comandos de instalación</translation>
+    </message>
+    <message>
+        <source>Switch Backend</source>
+        <translation>Cambiar backend</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="190"/>
-        <source>Clear Current Runtime</source>
-        <translation>Borrar el tiempo de ejecución actual</translation>
+        <source>Clear Current Environment</source>
+        <translation>Borrar entorno actual</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="197"/>
@@ -765,11 +781,6 @@ Would you like to open the Dependencies page and install them now?</source>
         <location filename="../tools/settingsTool.py" line="252"/>
         <source>Storage</source>
         <translation>Almacenamiento</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="349"/>
-        <source>Browse</source>
-        <translation>Navegar</translation>
     </message>
     <message>
         <location filename="../tools/settingsTool.py" line="262"/>
