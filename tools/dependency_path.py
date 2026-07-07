@@ -45,6 +45,51 @@ class DependencyPathStats(TypedDict):
     size_bytes: int
 
 
+class DependencyPathStatsDedup(TypedDict):
+    """Aggregated disk-usage stats across multiple runtime folders.
+
+    Hardlinked files (identical ``(st_dev, st_ino)`` pair, common on
+    Linux where uv uses ``--link-mode=hardlink``) are counted only once
+    in :attr:`dedup_size_bytes`. Symlinks are skipped entirely, so a
+    symlinked target is never double-counted.
+
+    On macOS, uv uses APFS ``clonefile`` instead of hardlinks. Clones
+    have *distinct* inodes and ``st_nlink == 1``, so they cannot be
+    deduplicated by user-space tools (including this function). On that
+    platform :attr:`dedup_size_bytes` equals :attr:`logical_size_bytes`,
+    and :attr:`shared_bytes` is ``0`` even though real on-disk usage may
+    be substantially lower. Callers should surface that caveat to the
+    user rather than pretending to know the real figure.
+
+    Attributes
+    ----------
+    logical_size_bytes : int
+        Sum of ``st_size`` over every regular file seen (the figure the
+        naive per-folder scan would report).
+    dedup_size_bytes : int
+        Sum of ``st_size`` over unique ``(st_dev, st_ino)`` pairs. This
+        is the best user-space estimate of real disk usage on
+        Linux/Windows; on macOS it is an upper bound.
+    shared_bytes : int
+        ``logical_size_bytes - dedup_size_bytes``. Bytes "saved" by
+        hardlinks/symlinks that the naive scan would have double-counted.
+    file_count : int
+        Total number of regular (non-symlink) files seen.
+    unique_file_count : int
+        Number of unique ``(st_dev, st_ino)`` pairs.
+    symlink_count : int
+        Number of symlinks encountered and skipped.
+
+    """
+
+    logical_size_bytes: int
+    dedup_size_bytes: int
+    shared_bytes: int
+    file_count: int
+    unique_file_count: int
+    symlink_count: int
+
+
 def get_plugin_managed_site_packages(
     *,
     create: bool = False,
@@ -154,6 +199,78 @@ def get_plugin_managed_dependency_stats(path: Path) -> DependencyPathStats:
         "exists": exists,
         "file_count": file_count,
         "size_bytes": size_bytes,
+    }
+
+
+def get_plugin_managed_dependency_stats_dedup(
+    paths: list[Path],
+) -> DependencyPathStatsDedup:
+    """Aggregate disk usage across runtime folders, deduplicating hardlinks.
+
+    Walks every path in *paths* once, groups regular files by their
+    ``(st_dev, st_ino)`` pair, and sums ``st_size`` over unique inodes
+    only. Hardlinked files (the default uv layout on Linux/Windows when
+    ``--link-mode=hardlink`` is used within one filesystem) are therefore
+    counted exactly once, even if they appear under several runtime
+    profile folders. Symlinks are skipped so symlinked targets are never
+    double-counted.
+
+    On macOS, uv installs via APFS ``clonefile``. Clones carry distinct
+    inodes and ``st_nlink == 1``, so they are *not* detected as shared
+    by this function. The returned :attr:`dedup_size_bytes` is therefore
+    an **upper bound** on macOS; the real on-disk usage may be lower
+    (often dramatically, e.g. two full torch installs sharing one set of
+    blocks). Callers should communicate this caveat to the user instead
+    of presenting the dedup figure as ground truth on macOS.
+
+    Parameters
+    ----------
+    paths : list[Path]
+        Runtime dependency directories to scan. Non-existent paths are
+        silently skipped.
+
+    Returns
+    -------
+    DependencyPathStatsDedup
+        Aggregated statistics with hardlink/symlink deduplication applied.
+
+    """
+    seen: dict[tuple[int, int], int] = {}
+    logical_size_bytes = 0
+    file_count = 0
+    symlink_count = 0
+    for path in paths:
+        if not path.exists():
+            continue
+        for child_path in path.rglob("*"):
+            if child_path.is_symlink():
+                symlink_count += 1
+                continue
+            if not child_path.is_file():
+                continue
+            try:
+                stat_result = child_path.stat()
+            except OSError as exc:
+                logger.warning(
+                    "Could not stat dependency file %s while computing "
+                    "deduplicated size: %s",
+                    child_path,
+                    exc,
+                )
+                continue
+            file_count += 1
+            file_size = stat_result.st_size
+            logical_size_bytes += file_size
+            inode_key = (stat_result.st_dev, stat_result.st_ino)
+            seen.setdefault(inode_key, file_size)
+    dedup_size_bytes = sum(seen.values())
+    return {
+        "logical_size_bytes": logical_size_bytes,
+        "dedup_size_bytes": dedup_size_bytes,
+        "shared_bytes": logical_size_bytes - dedup_size_bytes,
+        "file_count": file_count,
+        "unique_file_count": len(seen),
+        "symlink_count": symlink_count,
     }
 
 

@@ -2,71 +2,54 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="es" sourcelanguage="en">
 <context>
-    <name>@default</name>
-    <message>
-        <location filename="../tools/widgetTool.py" line="393"/>
-        <source>The selected model ({model_id}) is not downloaded yet.
-
-Would you like to open Model Management and download it now?</source>
-        <translation type="obsolete">El modelo seleccionado ({model_id}) aún no se ha descargado
-
-¿Desea abrir la gestión de modelos y descargarlo ahora?</translation>
-    </message>
-    <message>
-        <location filename="../tools/widgetTool.py" line="397"/>
-        <source>Model Not Downloaded</source>
-        <translation type="obsolete">Modelo no descargado</translation>
-    </message>
-</context>
-<context>
     <name>EncoderCopilot</name>
     <message>
-        <location filename="../tools/widgetTool.py" line="2866"/>
+        <location filename="../tools/widgetTool.py" line="2914"/>
         <source>Done!</source>
         <translation>¡Hecho!</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="2892"/>
+        <location filename="../tools/widgetTool.py" line="2940"/>
         <source>Done! {count} patches</source>
         <translation>¡Listo! Parches {count}</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="2906"/>
+        <location filename="../tools/widgetTool.py" line="2954"/>
         <source>Not set</source>
         <translation>No establecido</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="2952"/>
+        <location filename="../tools/widgetTool.py" line="3000"/>
         <source>Parse ...</source>
         <translation>Analizar...</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="3131"/>
+        <location filename="../tools/widgetTool.py" line="3179"/>
         <source>Save Encoder Settings</source>
         <translation>Guardar configuración del codificador</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="3131"/>
+        <location filename="../tools/widgetTool.py" line="3179"/>
         <source>JSON Files (*.json)</source>
         <translation>Archivos JSON (*.json)</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="3192"/>
+        <location filename="../tools/widgetTool.py" line="3240"/>
         <source>Failed to compute patch extents: {error}</source>
         <translation>No se pudieron calcular las extensiones del parche: {error}</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="3207"/>
+        <location filename="../tools/widgetTool.py" line="3255"/>
         <source>Computing ...</source>
         <translation>Calculando...</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="2778"/>
+        <location filename="../tools/widgetTool.py" line="2826"/>
         <source>Raster</source>
         <translation>Ráster</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="2784"/>
+        <location filename="../tools/widgetTool.py" line="2832"/>
         <source>Extent</source>
         <translation>Extensión</translation>
     </message>
@@ -180,11 +163,6 @@ Would you like to open Model Management and download it now?</source>
     </message>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
-        <source>Please choose a RealTime Layer or a Feature folder first.</source>
-        <translation type="obsolete">Primero elija una capa en tiempo real o una carpeta de caché de características</translation>
-    </message>
-    <message>
-        <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Please choose a SAM model first.</source>
         <translation>Elija primero un modelo SAM</translation>
     </message>
@@ -234,16 +212,6 @@ Would you like to open Model Management and download it now?</source>
         <translation>Herramienta Geo-SAM</translation>
     </message>
     <message>
-        <location filename="../ui/Selector.ui" line="40"/>
-        <source>Image Source</source>
-        <translation type="obsolete">Fuente de la imagen</translation>
-    </message>
-    <message>
-        <location filename="../ui/Selector.ui" line="80"/>
-        <source>Live Encoding</source>
-        <translation type="obsolete">Codificación en tiempo real</translation>
-    </message>
-    <message>
         <location filename="../ui/Selector.ui" line="101"/>
         <source>Live-Encoding</source>
         <translation>Codificación en vivo</translation>
@@ -267,11 +235,6 @@ Would you like to open Model Management and download it now?</source>
         <location filename="../ui/Selector.ui" line="142"/>
         <source>Model</source>
         <translation>Modelo</translation>
-    </message>
-    <message>
-        <location filename="../ui/Selector.ui" line="174"/>
-        <source>Pre-encoded </source>
-        <translation type="obsolete">Precodificado</translation>
     </message>
     <message>
         <location filename="../ui/Selector.ui" line="218"/>
@@ -374,19 +337,9 @@ Would you like to open Model Management and download it now?</source>
         <translation>Deshacer</translation>
     </message>
     <message>
-        <location filename="../ui/Selector.ui" line="376"/>
-        <source>Output Layer or File</source>
-        <translation type="obsolete">Capa o archivo de salida</translation>
-    </message>
-    <message>
         <location filename="../ui/Selector.ui" line="437"/>
         <source>Vectorization Mode</source>
         <translation>Modo de vectorización</translation>
-    </message>
-    <message>
-        <location filename="../ui/Selector.ui" line="440"/>
-        <source>Vector Layer</source>
-        <translation type="obsolete">Capa vectorial</translation>
     </message>
     <message>
         <location filename="../ui/Selector.ui" line="483"/>
@@ -427,16 +380,6 @@ Would you like to open Model Management and download it now?</source>
         <location filename="../ui/Selector.ui" line="615"/>
         <source>Point Type</source>
         <translation>Tipo de punto</translation>
-    </message>
-    <message>
-        <location filename="../ui/Selector.ui" line="598"/>
-        <source>Foreground Point</source>
-        <translation type="obsolete">Punto de primer plano</translation>
-    </message>
-    <message>
-        <location filename="../ui/Selector.ui" line="619"/>
-        <source>Background Point</source>
-        <translation type="obsolete">Punto de fondo</translation>
     </message>
     <message>
         <location filename="../ui/Selector.ui" line="700"/>
@@ -549,11 +492,6 @@ Would you like to open Model Management and download it now?</source>
         <translation>Segmentación Geo-SAM: úsela para etiquetar accidentes geográficos</translation>
     </message>
     <message>
-        <location filename="../geo_sam_tool.py" line="81"/>
-        <source>Geo-SAM Image Encoder: Use it to encode/preprocess image before labeling</source>
-        <translation type="obsolete">Codificador de imágenes de Geo-SAM: codifica o preprocesa la imagen antes del etiquetado</translation>
-    </message>
-    <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Encoder Copilot: Assist you in optimizing your Encoder Settings</source>
         <translation>Asistente del codificador: le ayuda a optimizar la configuración de codificación</translation>
@@ -569,15 +507,6 @@ Would you like to open Model Management and download it now?</source>
         <translation>Herramientas Geo-SAM</translation>
     </message>
     <message>
-        <location filename="../geo_sam_tool.py" line="160"/>
-        <source>Geo-SAM needs {dependency} for this action.
-
-Open Geo-SAM Settings and install dependencies first.</source>
-        <translation type="obsolete">Geo-SAM necesita {dependency} para esta acción. 
- 
- Abra la configuración de Geo-SAM e instale las dependencias primero</translation>
-    </message>
-    <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Segmentation</source>
         <translation>Segmentación</translation>
@@ -586,19 +515,6 @@ Open Geo-SAM Settings and install dependencies first.</source>
         <location filename="../tools/translation_catalog.py" line="11"/>
         <source>Encoder Copilot</source>
         <translation>Asistente del codificador</translation>
-    </message>
-    <message>
-        <location filename="../geo_sam_tool.py" line="214"/>
-        <source>Geo-SAM requires the following dependencies for {action}:
-
-{dependencies}
-
-Would you like to open the Dependencies page and install them now?</source>
-        <translation type="obsolete">Geo-SAM requiere las siguientes dependencias para {action}: 
- 
- {dependencies} 
- 
- ¿Le gustaría abrir la página Dependencias e instalarlas ahora?</translation>
     </message>
     <message>
         <location filename="../tools/translation_catalog.py" line="11"/>
@@ -677,275 +593,244 @@ Would you like to open the Dependencies page and install them now?</source>
 <context>
     <name>GeoSamSettingsDialog</name>
     <message>
-        <location filename="../tools/settingsTool.py" line="96"/>
+        <location filename="../tools/settingsTool.py" line="806"/>
         <source>Geo-SAM Settings</source>
         <translation>Configuración Geo-SAM</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="107"/>
+        <location filename="../tools/settingsTool.py" line="830"/>
         <source>Dependencies</source>
         <translation>Dependencias</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="108"/>
+        <location filename="../tools/settingsTool.py" line="831"/>
         <source>Model Management</source>
         <translation>Gestión de modelos</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="399"/>
+        <location filename="../tools/settingsTool.py" line="1345"/>
         <source>Cache</source>
         <translation>caché</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="110"/>
+        <location filename="../tools/settingsTool.py" line="833"/>
         <source>Help</source>
         <translation>Ayuda</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="112"/>
+        <location filename="../tools/settingsTool.py" line="835"/>
         <source>Close</source>
         <translation>Cerrar</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="160"/>
+        <location filename="../tools/settingsTool.py" line="1004"/>
         <source>Package</source>
         <translation>Paquete</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="160"/>
+        <location filename="../tools/settingsTool.py" line="1004"/>
         <source>Status</source>
         <translation>Estado</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="160"/>
+        <location filename="../tools/settingsTool.py" line="1004"/>
         <source>Version</source>
         <translation>Versión</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="160"/>
+        <location filename="../tools/settingsTool.py" line="1004"/>
         <source>Source</source>
         <translation>Fuente</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="180"/>
+        <location filename="../tools/settingsTool.py" line="1037"/>
         <source>Refresh Status</source>
         <translation>Actualizar estado</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="182"/>
+        <location filename="../tools/settingsTool.py" line="1025"/>
         <source>Install Missing</source>
         <translation>Falta instalar</translation>
     </message>
     <message>
+        <location filename="../tools/settingsTool.py" line="1295"/>
         <source>Choose Folder</source>
         <translation>Elegir carpeta</translation>
     </message>
     <message>
+        <location filename="../tools/settingsTool.py" line="1297"/>
         <source>Show in Folder</source>
         <translation>Mostrar en carpeta</translation>
     </message>
     <message>
+        <location filename="../tools/settingsTool.py" line="1048"/>
         <source>Browse Packages</source>
         <translation>Explorar paquetes</translation>
     </message>
-
     <message>
+        <location filename="../tools/settingsTool.py" line="1031"/>
         <source>Copy Install Commands</source>
         <translation>Copiar comandos de instalación</translation>
     </message>
     <message>
-        <source>Switch Backend</source>
-        <translation>Cambiar backend</translation>
+        <location filename="../tools/settingsTool.py" line="976"/>
+        <source>Switch</source>
+        <translation>Cambiar</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="190"/>
-        <source>Clear Current Environment</source>
-        <translation>Borrar entorno actual</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="197"/>
+        <location filename="../tools/settingsTool.py" line="1060"/>
         <source>Clear All Runtimes</source>
         <translation>Borrar todos los tiempos de ejecución</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="209"/>
+        <location filename="../tools/settingsTool.py" line="1071"/>
         <source>Installable dependency status will appear here.</source>
         <translation>El estado de dependencia instalable aparecerá aquí</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="220"/>
+        <location filename="../tools/settingsTool.py" line="1082"/>
         <source>Dependency installation output will appear here.</source>
         <translation>El resultado de la instalación de dependencia aparecerá aquí</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="252"/>
+        <location filename="../tools/settingsTool.py" line="1198"/>
         <source>Storage</source>
         <translation>Almacenamiento</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="262"/>
+        <location filename="../tools/settingsTool.py" line="1208"/>
         <source>Model Folder</source>
         <translation>Carpeta de modelo</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="268"/>
+        <location filename="../tools/settingsTool.py" line="1214"/>
         <source>Models</source>
         <translation>Modelos</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="306"/>
+        <location filename="../tools/settingsTool.py" line="1252"/>
         <source>Ready</source>
         <translation>Listo</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="875"/>
+        <location filename="../tools/settingsTool.py" line="2189"/>
         <source>Download</source>
         <translation>Descargar</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="882"/>
+        <location filename="../tools/settingsTool.py" line="2196"/>
         <source>Delete</source>
         <translation>Eliminar</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="271"/>
-        <source>Release Loaded Models</source>
-        <translation type="obsolete">Liberar modelos cargados</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="324"/>
+        <location filename="../tools/settingsTool.py" line="1270"/>
         <source>Refresh</source>
         <translation>Actualizar</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="342"/>
+        <location filename="../tools/settingsTool.py" line="1288"/>
         <source>Enable cache</source>
         <translation>Habilitar caché</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="371"/>
+        <location filename="../tools/settingsTool.py" line="1317"/>
         <source>Balanced</source>
         <translation>equilibrado</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="372"/>
+        <location filename="../tools/settingsTool.py" line="1318"/>
         <source>Fastest</source>
         <translation>Más rápido</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="373"/>
+        <location filename="../tools/settingsTool.py" line="1319"/>
         <source>Low Memory</source>
         <translation>Memoria baja</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="386"/>
+        <location filename="../tools/settingsTool.py" line="1332"/>
         <source>Clear cache when the plugin closes</source>
         <translation>Borrar caché cuando se cierre el complemento</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="337"/>
-        <source>Cleanup Now</source>
-        <translation type="obsolete">Limpiar ahora</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="339"/>
-        <source>Clear All Cache</source>
-        <translation type="obsolete">Borrar todo el caché</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="400"/>
+        <location filename="../tools/settingsTool.py" line="1346"/>
         <source>Location</source>
         <translation>Ubicación</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="344"/>
-        <source>Max Size (MB)</source>
-        <translation type="obsolete">Tamaño máximo (MB)</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="345"/>
-        <source>Performance</source>
-        <translation type="obsolete">Rendimiento</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="403"/>
+        <location filename="../tools/settingsTool.py" line="1349"/>
         <source>Close Behavior</source>
         <translation>Comportamiento al cerrar</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="406"/>
+        <location filename="../tools/settingsTool.py" line="1352"/>
         <source>Current Usage</source>
         <translation>Uso actual</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="433"/>
+        <location filename="../tools/settingsTool.py" line="1379"/>
         <source>unknown</source>
         <translation>desconocido</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="439"/>
+        <location filename="../tools/settingsTool.py" line="1385"/>
         <source>Geo-SAM Version: {version}</source>
         <translation>Versión Geo-SAM: {version}</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="451"/>
-        <source>Dependencies: {installed} installed, {missing} missing. {installable} installable. Installation runs in the background.</source>
-        <translation>Dependencias: {installed} instalado, falta {missing}. {installable} instalable. La instalación se ejecuta en segundo plano</translation>
+        <location filename="../tools/settingsTool.py" line="1436"/>
+        <source>Dependencies: {installed} installed, {missing} missing.</source>
+        <translation>Dependencias: {installed} instaladas, {missing} faltantes.</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="471"/>
-        <source>Plugin-managed install: {current_size} in current runtime, {total_size} across {folder_count} runtime folder(s). Current path: {current_path}</source>
-        <translation>Instalación administrada por complemento: {current_size} en el tiempo de ejecución actual, {total_size} en las carpetas de tiempo de ejecución {folder_count}. Ruta actual: {current_path}</translation>
+        <location filename="../tools/settingsTool.py" line="1416"/>
+        <source>Plugin-managed dependencies: {current_size} in current runtime, {total_size} across {folder_count} runtime folder(s). Current path: {current_path}</source>
+        <translation type="obsolete">Dependencias del plugin: {current_size} en el entorno actual, {total_size} en {folder_count} carpeta(s) de entorno. Ruta actual: {current_path}</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="515"/>
+        <location filename="../tools/settingsTool.py" line="1656"/>
         <source>No installable dependencies are missing.</source>
         <translation>No faltan dependencias instalables</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="522"/>
+        <location filename="../tools/settingsTool.py" line="1665"/>
         <source>Installing missing dependencies: {dependencies}</source>
         <translation>Instalación de dependencias faltantes: {dependencies}</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="535"/>
+        <location filename="../tools/settingsTool.py" line="1673"/>
         <source>Starting dependency installation: {dependencies}</source>
         <translation>Iniciando instalación de dependencia: {dependencies}</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="545"/>
+        <location filename="../tools/settingsTool.py" line="1698"/>
         <source>Commands:
 {commands}</source>
         <translation>Comandos: 
  {commands}</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="568"/>
+        <location filename="../tools/settingsTool.py" line="1828"/>
         <source>Running command: {command}</source>
         <translation>Comando en ejecución: {command}</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="641"/>
-        <source>Dependency installer process failed to start.</source>
-        <translation>El proceso de instalación de dependencias no pudo iniciarse</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="667"/>
+        <location filename="../tools/settingsTool.py" line="1977"/>
         <source>Dependency installation completed.</source>
         <translation>Instalación de dependencia completada</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="671"/>
+        <location filename="../tools/settingsTool.py" line="1981"/>
         <source>Dependency installation failed.</source>
         <translation>La instalación de la dependencia falló</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="691"/>
+        <location filename="../tools/settingsTool.py" line="1993"/>
         <source>Clear Current Runtime Dependencies</source>
         <translation>Borrar dependencias de tiempo de ejecución actuales</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="691"/>
+        <location filename="../tools/settingsTool.py" line="1993"/>
         <source>Delete plugin-managed dependencies for the current QGIS runtime?
 
 Path:
@@ -960,22 +845,22 @@ Restart QGIS after clearing if any dependency was already imported.</source>
  Reinicie QGIS después de borrar si ya se importó alguna dependencia</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="736"/>
+        <location filename="../tools/settingsTool.py" line="2050"/>
         <source>Dependency Cleanup Failed</source>
         <translation>Error en la limpieza de dependencias</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="710"/>
+        <location filename="../tools/settingsTool.py" line="2018"/>
         <source>Cleared {count} file(s) from current runtime dependencies.</source>
         <translation>Se borraron los archivos {count} de las dependencias de tiempo de ejecución actuales</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="721"/>
+        <location filename="../tools/settingsTool.py" line="2029"/>
         <source>Clear All Runtime Dependencies</source>
         <translation>Borrar todas las dependencias del tiempo de ejecución</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="721"/>
+        <location filename="../tools/settingsTool.py" line="2029"/>
         <source>Delete all plugin-managed dependency installs for Geo-SAM?
 
 Paths:
@@ -990,164 +875,300 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
  Esto no elimina QGIS, conda o paquetes globales de Python. Reinicie QGIS después de borrar si ya se importó alguna dependencia</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="741"/>
+        <location filename="../tools/settingsTool.py" line="2055"/>
         <source>Cleared {count} file(s) from all runtime dependencies.</source>
         <translation>Se borraron los archivos {count} de todas las dependencias del tiempo de ejecución</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="779"/>
+        <location filename="../tools/settingsTool.py" line="2093"/>
         <source>Select Model Directory</source>
         <translation>Seleccionar directorio de modelos</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="902"/>
+        <location filename="../tools/settingsTool.py" line="2216"/>
         <source>Downloaded</source>
         <translation>Descargado</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="735"/>
-        <source>Missing</source>
-        <translation type="obsolete">Faltante</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="968"/>
+        <location filename="../tools/settingsTool.py" line="2282"/>
         <source>Downloading {model_id}...</source>
         <translation>Descargando {model_id}...</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="1004"/>
+        <location filename="../tools/settingsTool.py" line="2318"/>
         <source>Download completed.</source>
         <translation>Descarga completada</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="1005"/>
+        <location filename="../tools/settingsTool.py" line="2319"/>
         <source>Model downloaded to {path}</source>
         <translation>Modelo descargado a {path}</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="1014"/>
+        <location filename="../tools/settingsTool.py" line="2328"/>
         <source>Download failed.</source>
         <translation>La descarga falló</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="1015"/>
+        <location filename="../tools/settingsTool.py" line="2329"/>
         <source>Model Download Failed</source>
         <translation>Error al descargar el modelo</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="992"/>
+        <location filename="../tools/settingsTool.py" line="2306"/>
         <source>Delete Model</source>
         <translation>Eliminar modelo</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="992"/>
+        <location filename="../tools/settingsTool.py" line="2306"/>
         <source>Delete the selected checkpoint from the local model folder?</source>
         <translation>¿Eliminar el punto de control seleccionado de la carpeta del modelo local?</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="1035"/>
+        <location filename="../tools/settingsTool.py" line="2349"/>
         <source>Released {count} loaded model session(s).</source>
         <translation>Sesiones de modelo cargadas {count} publicadas</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="1079"/>
+        <location filename="../tools/settingsTool.py" line="2393"/>
         <source>Select Cache Directory</source>
         <translation>Seleccionar directorio de caché</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="869"/>
-        <source>Removed {count} cached file(s).</source>
-        <translation type="obsolete">Se eliminaron los archivos en caché {count}</translation>
-    </message>
-    <message>
-        <location filename="../tools/settingsTool.py" line="1096"/>
+        <location filename="../tools/settingsTool.py" line="2410"/>
         <source>Deleted {count} cached file(s).</source>
         <translation>Archivo(s) en caché {count} eliminados</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="273"/>
+        <location filename="../tools/settingsTool.py" line="1219"/>
         <source>All</source>
         <translation>Todos</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="812"/>
+        <location filename="../tools/settingsTool.py" line="2126"/>
         <source>Not Downloaded</source>
         <translation>No descargado</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="820"/>
+        <location filename="../tools/settingsTool.py" line="2134"/>
         <source>In Memory</source>
         <translation>En memoria</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="283"/>
+        <location filename="../tools/settingsTool.py" line="1229"/>
         <source>Model Name</source>
         <translation>Nombre del modelo</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="283"/>
+        <location filename="../tools/settingsTool.py" line="1229"/>
         <source>Series</source>
         <translation>Serie</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="283"/>
+        <location filename="../tools/settingsTool.py" line="1229"/>
         <source>File Status</source>
         <translation>Estado del archivo</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="283"/>
+        <location filename="../tools/settingsTool.py" line="1229"/>
         <source>Load Status</source>
         <translation>Estado de carga</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="283"/>
+        <location filename="../tools/settingsTool.py" line="1229"/>
         <source>Actions</source>
         <translation>Acciones</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="321"/>
+        <location filename="../tools/settingsTool.py" line="1267"/>
         <source>Unload Current</source>
         <translation>Descargar actual</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="363"/>
+        <location filename="../tools/settingsTool.py" line="1309"/>
         <source>MB</source>
         <translation>MB</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="396"/>
+        <location filename="../tools/settingsTool.py" line="1342"/>
         <source>Clear Cache Now</source>
         <translation>Limpiar caché ahora</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="401"/>
+        <location filename="../tools/settingsTool.py" line="1347"/>
         <source>Max Size</source>
         <translation>Tamaño máx.</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="402"/>
+        <location filename="../tools/settingsTool.py" line="1348"/>
         <source>Model Performance</source>
         <translation>Rendimiento del modelo</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="932"/>
+        <location filename="../tools/settingsTool.py" line="2246"/>
         <source>Current Model: {model}</source>
         <translation>Modelo actual: {model}</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="935"/>
+        <location filename="../tools/settingsTool.py" line="2249"/>
         <source>Status: Loaded, ready for segmentation</source>
         <translation>Estado: cargado, listo para segmentación</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="940"/>
+        <location filename="../tools/settingsTool.py" line="2254"/>
         <source>Current Model: —</source>
         <translation>Modelo actual: —</translation>
     </message>
     <message>
-        <location filename="../tools/settingsTool.py" line="941"/>
+        <location filename="../tools/settingsTool.py" line="2255"/>
         <source>Status: No model loaded</source>
         <translation>Estado: ningún modelo cargado</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="927"/>
+        <source>Torch Runtime</source>
+        <translation>Tiempo de ejecución PyTorch</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="936"/>
+        <source>{name} (Recommended)</source>
+        <translation>{name} (Recomendado)</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="967"/>
+        <source>Custom Index URL:</source>
+        <translation>URL de índice personalizado:</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1054"/>
+        <source>Clear Current Runtime Environment</source>
+        <translation>Limpiar entorno de ejecución actual</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1150"/>
+        <source>Active Runtime: {profile}</source>
+        <translation>Tiempo de ejecución activo: {profile}</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1154"/>
+        <source>Active Runtime: {active} | Selected Runtime: {selected}</source>
+        <translation>Tiempo de ejecución activo: {active} | Tiempo de ejecución seleccionado: {selected}</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1419"/>
+        <source>Dependencies: {installed} installed, {missing} missing — click 'Install Missing' to install.</source>
+        <translation>Dependencias: {installed} instaladas, {missing} faltantes — haga clic en 'Instalar faltantes'.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1425"/>
+        <source>Selected runtime &apos;{selected}&apos;: {installed} installed, {missing} missing.</source>
+        <translation>Tiempo de ejecución seleccionado '{selected}': {installed} instaladas, {missing} faltantes.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1555"/>
+        <source>Already active.</source>
+        <translation>Ya está activo.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1557"/>
+        <source>Install missing dependencies for &apos;{selected}&apos; first.</source>
+        <translation>Instale primero las dependencias faltantes para '{selected}'.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1682"/>
+        <source>Target runtime: {profile}</source>
+        <translation>Tiempo de ejecución de destino: {profile}</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1764"/>
+        <source>Switch Torch Runtime</source>
+        <translation>Cambiar tiempo de ejecución de PyTorch</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1720"/>
+        <source>Switching the torch runtime will unload loaded models.
+
+Target runtime: {profile}
+
+Continue?</source>
+        <translation>Cambiar el tiempo de ejecución de PyTorch descargará los modelos cargados.
+
+Tiempo de ejecución de destino: {profile}
+
+¿Continuar?</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1750"/>
+        <source>{error}
+
+Use &apos;Install Missing&apos; to install dependencies for the &apos;{profile}&apos; runtime first.</source>
+        <translation>{error}
+
+Primero use 'Instalar faltantes' para instalar las dependencias del tiempo de ejecución '{profile}'.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1764"/>
+        <source>Switch failed: {error}</source>
+        <translation>Error al cambiar: {error}</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1771"/>
+        <source>Switched to {profile}.</source>
+        <translation>Cambiado a {profile}.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1789"/>
+        <source>Copied install commands to clipboard.</source>
+        <translation>Comandos de instalación copiados al portapapeles.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1793"/>
+        <source>Failed to build command: {error}</source>
+        <translation>Error al construir el comando: {error}</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="2046"/>
+        <source>
+
+On Windows, files may be locked by running processes. Please restart QGIS and try again.</source>
+        <translation>
+
+En Windows, los archivos pueden estar bloqueados por procesos en ejecución. Reinicie QGIS e intente de nuevo.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="985"/>
+        <source>Runtime:</source>
+        <translation>Tiempo de ejecución:</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1468"/>
+        <source>All runtimes (logical total): {total_size} · {files} file(s) across {folder_count} folder(s)</source>
+        <translation>Todos los entornos (total lógico): {total_size} · {files} archivo(s) en {folder_count} carpeta(s)</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1484"/>
+        <source>Actual disk usage (deduplicated): {dedup_size} · {unique_files} unique file(s)</source>
+        <translation>Uso real en disco: {dedup_size} · {unique_files} archivo(s) único(s)</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1493"/>
+        <source>Saved {shared_size} via hardlinks/symlinks ({unique_files} unique out of {total_files} files, {symlink_count} symlink(s)).</source>
+        <translation>Ahorrado {shared_size} mediante hardlinks/symlinks ({unique_files} únicos de {total_files} archivos, {symlink_count} enlace(s) simbólico(s)).</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1506"/>
+        <source>On macOS, uv shares files via APFS clonefiles, so real usage may be smaller than the logical total.</source>
+        <translation>En macOS, uv comparte archivos mediante clonefiles de APFS, por lo que el uso real puede ser menor que el total lógico.</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1513"/>
+        <source>Actual disk usage (deduplicated): {dedup_size} · {symlink_count} symlink(s) skipped</source>
+        <translation>Uso real en disco: {dedup_size} · {symlink_count} enlace(s) simbólico(s) omitido(s)</translation>
+    </message>
+    <message>
+        <location filename="../tools/settingsTool.py" line="1459"/>
+        <source>Current runtime ({profile}): {size} · {files} file(s)</source>
+        <translation>Entorno actual ({profile}): {size} · {files} archivo(s)</translation>
     </message>
 </context>
 <context>
@@ -1161,7 +1182,7 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
 <context>
     <name>SamProcessingAlgorithm</name>
     <message>
-        <location filename="../tools/translation_catalog.py" line="11"/>
+        <location filename="../tools/sam_processing_algorithm.py" line="113"/>
         <source>Input raster layer or image file path</source>
         <translation>Ingrese la capa ráster o la ruta del archivo de imagen</translation>
     </message>
@@ -1196,11 +1217,6 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
         <translation>Extensión del procesamiento (predeterminado para toda la imagen)</translation>
     </message>
     <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="149"/>
-        <source>Sliding-window stride.</source>
-        <translation type="obsolete">Paso de ventana corredera</translation>
-    </message>
-    <message>
         <location filename="../tools/sam_processing_algorithm.py" line="182"/>
         <source>Encoding memory strategy</source>
         <translation>Modo de memoria de codificación</translation>
@@ -1214,16 +1230,6 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
         <location filename="../tools/sam_processing_algorithm.py" line="200"/>
         <source>Output feature-cache directory</source>
         <translation>Directorio de caché de características de salida</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="183"/>
-        <source>Use GPU if CUDA is available.</source>
-        <translation type="obsolete">Utilice GPU si CUDA está disponible</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="190"/>
-        <source>Batch size placeholder. GeoSAM currently encodes one chip at a time.</source>
-        <translation type="obsolete">Marcador de posición de tamaño de lote. GeoSAM actualmente codifica un chip a la vez</translation>
     </message>
     <message>
         <location filename="../tools/sam_processing_algorithm.py" line="225"/>
@@ -1386,46 +1392,6 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
         <translation>Genere características de imágenes reutilizables utilizando GeoSAM</translation>
     </message>
     <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="92"/>
-        <source>Input raster layer or image file path *</source>
-        <translation type="obsolete">Capa ráster de entrada o ruta del archivo de imagen *</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="149"/>
-        <source>Sliding-window stride *</source>
-        <translation type="obsolete">Paso de la ventana deslizante *</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="159"/>
-        <source>Encoding memory strategy *</source>
-        <translation type="obsolete">Estrategia de memoria para la codificación *</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="169"/>
-        <source>GeoSAM model *</source>
-        <translation type="obsolete">Modelo de GeoSAM *</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="177"/>
-        <source>Output feature-cache directory *</source>
-        <translation type="obsolete">Directorio de salida de la caché de características *</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="183"/>
-        <source>Use GPU if CUDA is available *</source>
-        <translation type="obsolete">Usar GPU si CUDA está disponible *</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="190"/>
-        <source>Batch size placeholder. GeoSAM currently encodes one chip at a time *</source>
-        <translation type="obsolete">Marcador de tamaño de lote. GeoSAM actualmente codifica un chip a la vez *</translation>
-    </message>
-    <message>
-        <location filename="../tools/sam_processing_algorithm.py" line="203"/>
-        <source>Load output features in Geo-SAM tool after processing *</source>
-        <translation type="obsolete">Cargar las características de salida en la herramienta Geo-SAM después del procesamiento *</translation>
-    </message>
-    <message>
         <location filename="../tools/sam_processing_algorithm.py" line="172"/>
         <source>Sliding-window stride</source>
         <translation>Paso de ventana corredera</translation>
@@ -1444,57 +1410,32 @@ This does not remove QGIS, conda, or global Python packages. Restart QGIS after 
 <context>
     <name>Selector</name>
     <message>
-        <location filename="../tools/widgetTool.py" line="725"/>
-        <source>Live Encoding</source>
-        <translation type="obsolete">Codificación en tiempo real</translation>
-    </message>
-    <message>
-        <location filename="../tools/widgetTool.py" line="729"/>
-        <source>Live Encoding (feature mode uses {model_id})</source>
-        <translation type="obsolete">Codificación en vivo (el modo de función usa {model_id})</translation>
-    </message>
-    <message>
-        <location filename="../tools/widgetTool.py" line="733"/>
-        <source>Live Encoding (select model for feature mode)</source>
-        <translation type="obsolete">Codificación en vivo (seleccione el modelo para el modo de función)</translation>
-    </message>
-    <message>
-        <location filename="../tools/widgetTool.py" line="736"/>
-        <source>Pre-encoded</source>
-        <translation type="obsolete">Precodificado</translation>
-    </message>
-    <message>
-        <location filename="../tools/widgetTool.py" line="1179"/>
+        <location filename="../tools/widgetTool.py" line="1181"/>
         <source>unknown model</source>
         <translation>modelo desconocido</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="1180"/>
+        <location filename="../tools/widgetTool.py" line="1182"/>
         <source>Loaded feature folder &apos;{folder}&apos; with {chip_count} cached chips ({model}).</source>
         <translation>Carpeta de funciones cargada '{folder}' con chips en caché {chip_count} ({model})</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="1207"/>
-        <source>Loaded realtime layer &apos;{layer}&apos;.</source>
-        <translation type="obsolete">Capa en tiempo real cargada '{layer}'</translation>
-    </message>
-    <message>
-        <location filename="../tools/widgetTool.py" line="2473"/>
+        <location filename="../tools/widgetTool.py" line="2521"/>
         <source>Save Shapefile</source>
         <translation>Guardar archivo de forma</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="2473"/>
+        <location filename="../tools/widgetTool.py" line="2521"/>
         <source>Shapefile (*.shp)</source>
         <translation>Archivo de forma (*.shp)</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="2503"/>
+        <location filename="../tools/widgetTool.py" line="2551"/>
         <source>Layer &apos;{layer}&apos; is already in the project; you can start labeling now.</source>
         <translation>La capa '{layer}' ya está en el proyecto; Puedes empezar a etiquetar ahora</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="1255"/>
+        <location filename="../tools/widgetTool.py" line="1257"/>
         <source>The model recorded in the selected feature folder ({model_id}) is not downloaded yet.
 
 Would you like to open Model Management and download it now?</source>
@@ -1543,44 +1484,44 @@ Would you like to open Model Management and download it now?</source>
         <translation>Triángulo invertido</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="514"/>
+        <location filename="../tools/widgetTool.py" line="516"/>
         <source>Pixel-Level</source>
         <translation>Nivel de píxel</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="518"/>
+        <location filename="../tools/widgetTool.py" line="520"/>
         <source>Simplified</source>
         <translation>Simplificado</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="491"/>
+        <location filename="../tools/widgetTool.py" line="493"/>
         <source>Input / Output</source>
         <translation>Entrada/Salida</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="491"/>
+        <location filename="../tools/widgetTool.py" line="493"/>
         <source>Prompts</source>
         <translation>Indicaciones</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="492"/>
+        <location filename="../tools/widgetTool.py" line="494"/>
         <source>Styles</source>
         <translation>Estilos</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="492"/>
+        <location filename="../tools/widgetTool.py" line="494"/>
         <source>Options</source>
         <translation>Opciones</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="551"/>
+        <location filename="../tools/widgetTool.py" line="553"/>
         <source>Live-Encoding: pick an image layer and model, the tool computes SAM features on the fly.
 Pre-Encoded: load a previously saved feature folder to skip encoding, useful when segmenting the same image repeatedly.</source>
         <translation>Codificación en vivo: seleccione una capa de imagen y un modelo, la herramienta calcula las características SAM sobre la marcha.
 Precodificado: cargue una carpeta de características guardada previamente para omitir la codificación, útil al segmentar la misma imagen repetidamente.</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="1261"/>
+        <location filename="../tools/widgetTool.py" line="1263"/>
         <source>The selected model ({model_id}) is not downloaded yet.
 
 Would you like to open Model Management and download it now?</source>
@@ -1589,14 +1530,14 @@ Would you like to open Model Management and download it now?</source>
 ¿Desea abrir la gestión de modelos y descargarlo ahora?</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="1266"/>
+        <location filename="../tools/widgetTool.py" line="1268"/>
         <source>Model Not Downloaded</source>
         <translation>Modelo no descargado</translation>
     </message>
     <message>
-        <location filename="../tools/widgetTool.py" line="1207"/>
+        <location filename="../tools/widgetTool.py" line="1209"/>
         <source>Loaded live encoding layer &apos;{layer}&apos;.</source>
-        <translation>Capa de codificación en vivo cargada &apos;{layer}&apos;</translation>
+        <translation>Capa de codificación en vivo cargada '{layer}'</translation>
     </message>
 </context>
 <context>
@@ -1605,11 +1546,6 @@ Would you like to open Model Management and download it now?</source>
         <location filename="../ui/EncoderCopilot.ui" line="20"/>
         <source>Encoder Copilot</source>
         <translation>Asistente del codificador</translation>
-    </message>
-    <message>
-        <location filename="../ui/EncoderCopilot.ui" line="47"/>
-        <source>Extent</source>
-        <translation type="obsolete">Extensión</translation>
     </message>
     <message>
         <location filename="../ui/EncoderCopilot.ui" line="76"/>
@@ -1647,11 +1583,6 @@ Would you like to open Model Management and download it now?</source>
         <translation>Exportar configuración</translation>
     </message>
     <message>
-        <location filename="../ui/EncoderCopilot.ui" line="216"/>
-        <source>Raster</source>
-        <translation type="obsolete">Ráster</translation>
-    </message>
-    <message>
         <location filename="../ui/EncoderCopilot.ui" line="229"/>
         <source>RGB Bands</source>
         <translation>Bandas RGB</translation>
@@ -1685,16 +1616,6 @@ Would you like to open Model Management and download it now?</source>
         <location filename="../ui/EncoderCopilot.ui" line="307"/>
         <source>SAM Model</source>
         <translation>Modelo SAM</translation>
-    </message>
-    <message>
-        <location filename="../ui/EncoderCopilot.ui" line="275"/>
-        <source>SAM Checkpoint Path</source>
-        <translation type="obsolete">Ruta del punto de control SAM</translation>
-    </message>
-    <message>
-        <location filename="../ui/EncoderCopilot.ui" line="287"/>
-        <source>SAM Model Type</source>
-        <translation type="obsolete">Tipo de modelo SAM</translation>
     </message>
     <message>
         <location filename="../ui/EncoderCopilot.ui" line="319"/>
@@ -1735,16 +1656,6 @@ Would you like to open Model Management and download it now?</source>
         <location filename="../ui/EncoderCopilot.ui" line="447"/>
         <source>GPU Device ID</source>
         <translation>ID del dispositivo GPU</translation>
-    </message>
-    <message>
-        <location filename="../ui/EncoderCopilot.ui" line="194"/>
-        <source>RGB Bands *</source>
-        <translation type="obsolete">Bandas RGB *</translation>
-    </message>
-    <message>
-        <location filename="../ui/EncoderCopilot.ui" line="239"/>
-        <source>Layer *</source>
-        <translation type="obsolete">Capa *</translation>
     </message>
 </context>
 </TS>

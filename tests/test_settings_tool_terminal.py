@@ -107,7 +107,6 @@ def _load_settings_tool():
             "PLUGIN_ROOT",
             "clear_cache",
             "dependency_status_text",
-            "dependency_status_rows",
             "format_dependency_install_command",
             "format_dependency_install_commands",
             "get_cache_directory",

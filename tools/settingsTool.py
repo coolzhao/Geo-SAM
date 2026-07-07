@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import html
 import os
+import platform
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from qgis.PyQt.QtCore import QThread, Qt, QTimer, pyqtSignal
+from qgis.PyQt.QtCore import QSize, QThread, Qt, QTimer, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QCloseEvent
 from qgis.PyQt.QtWidgets import (
     QAbstractItemView,
@@ -20,6 +21,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -45,6 +47,7 @@ from .dependency_path import (
     clear_all_plugin_managed_site_packages,
     clear_current_plugin_managed_site_packages,
     get_plugin_managed_dependency_stats,
+    get_plugin_managed_dependency_stats_dedup,
     get_plugin_managed_site_packages,
     iter_all_plugin_managed_site_packages,
 )
@@ -234,6 +237,134 @@ _CSI_RE = re.compile(r"\x1b\[(\d*)([A-Za-z])")
 # ``\x1b[3`` as a visible row (verified against real uv output). We detect such
 # tails and buffer them for the next :meth:`_ProgressTerminal.feed` call.
 _PARTIAL_CSI_TAIL_RE = re.compile(r"\x1b(?:\[(?:[0-9;?]*))?$")
+
+
+class WarningBanner(QFrame):
+    """Inline banner combining a QGIS theme warning icon and styled text.
+
+    Uses ``QIcon.pixmap`` with the widget's :func:`devicePixelRatio` so the
+    SVG is rasterized at native HiDPI resolution — keeping the icon crisp on
+    retina displays (a plain rich-text ``<img>`` renders at 1x and appears
+    blurry/jagged).
+
+    Parameters
+    ----------
+    parent : QWidget, optional
+        Parent widget.
+
+    """
+
+    _ICON_SIZE = 8
+    _WARNING_COLOR = "#b00020"
+    _INFO_COLOR = "#0b5394"
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._icon_label = QLabel(self)
+        self._icon_label.setAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._icon_label.setContentsMargins(2, 2, 2, 2)
+        self._text_label = QLabel(self)
+        self._text_label.setWordWrap(True)
+        self._text_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+        layout.addWidget(
+            self._icon_label,
+            alignment=Qt.AlignmentFlag.AlignVCenter,
+        )
+        layout.addWidget(self._text_label, stretch=1)
+        self._text_label.setStyleSheet(
+            f"color:{self._WARNING_COLOR}; font-weight:bold;"
+        )
+        self._refresh_icon()
+        self.setPlain("")
+
+    def _refresh_icon(self, icon_name: str = "mIconWarning.svg") -> None:
+        """Render a QGIS theme icon at the current device pixel ratio.
+
+        Parameters
+        ----------
+        icon_name : str
+            Theme icon file name, e.g. ``"mIconWarning.svg"`` or
+            ``"mIconInfo.svg"``. Falls back to a blank icon when the
+            theme lacks the requested asset.
+
+        """
+        from qgis.core import QgsApplication
+
+        icon = QgsApplication.getThemeIcon(icon_name)
+        if icon.isNull():
+            self._icon_label.clear()
+            return
+        dpr = self.devicePixelRatioF()
+        physical_size = QSize(
+            int(self._ICON_SIZE * dpr), int(self._ICON_SIZE * dpr)
+        )
+        pixmap = icon.pixmap(physical_size)
+        pixmap.setDevicePixelRatio(dpr)
+        self._icon_label.setPixmap(pixmap)
+
+    def setWarning(self, text: str) -> None:
+        """Show the banner with a warning icon and red bold text.
+
+        Parameters
+        ----------
+        text : str
+            Plain-text warning message (HTML escaping is applied internally).
+
+        """
+        self._refresh_icon("mIconWarning.svg")
+        self._icon_label.setVisible(True)
+        self._text_label.setStyleSheet(
+            f"color:{self._WARNING_COLOR}; font-weight:bold;"
+        )
+        self._text_label.setText(text)
+
+    def setInfo(self, text: str) -> None:
+        """Show the banner with an info icon and blue bold text.
+
+        Used for advisory messages that are not errors (e.g. dedup
+        savings, APFS clone caveats). The blue colour and ``mIconInfo``
+        icon distinguish it from genuine errors shown via
+        :meth:`setWarning`.
+
+        Parameters
+        ----------
+        text : str
+            Plain-text advisory message.
+
+        """
+        self._refresh_icon("mIconInfo.svg")
+        self._icon_label.setVisible(True)
+        self._text_label.setStyleSheet(
+            f"color:{self._INFO_COLOR}; font-weight:bold;"
+        )
+        self._text_label.setText(text)
+
+    def setPlain(self, text: str) -> None:
+        """Show plain non-warning text without the icon.
+
+        Parameters
+        ----------
+        text : str
+            Plain-text status message.
+
+        """
+        self._icon_label.clear()
+        self._icon_label.setVisible(False)
+        self._text_label.setStyleSheet("")
+        self._text_label.setText(text)
+
+    def clear(self) -> None:
+        """Hide all content."""
+        self._icon_label.clear()
+        self._icon_label.setVisible(False)
+        self._text_label.setText("")
 
 
 class _ProgressTerminal:
@@ -792,8 +923,8 @@ class GeoSamSettingsDialog(QDialog):
         tab = QWidget(self)
         layout = QVBoxLayout(tab)
 
-        # -- Torch backend profile selector --------------------------------
-        profile_group = QGroupBox(self.tr("Torch Backend"), tab)
+        # -- Torch runtime profile selector --------------------------------
+        profile_group = QGroupBox(self.tr("Torch Runtime"), tab)
         profile_layout = QFormLayout(profile_group)
 
         self.torch_profile_combo = QComboBox(tab)
@@ -840,28 +971,32 @@ class GeoSamSettingsDialog(QDialog):
 
         self.profile_status_label = QLabel(tab)
         self.profile_status_label.setWordWrap(True)
+        self.profile_status_label.setTextFormat(Qt.TextFormat.RichText)
 
-        self.switch_backend_button = QPushButton(
-            self.tr("Switch Backend"), tab
+        self.switch_runtime_button = QPushButton(
+            self.tr("Switch"), tab
         )
-        self.switch_backend_button.clicked.connect(
-            self.switch_backend_clicked
+        self.switch_runtime_button.clicked.connect(
+            self.switch_runtime_clicked
         )
-        backend_row = QHBoxLayout()
-        backend_row.addWidget(self.torch_profile_combo, stretch=1)
-        backend_row.addWidget(self.switch_backend_button)
-        profile_layout.addRow(self.tr("Backend:"), backend_row)
+        runtime_row = QHBoxLayout()
+        runtime_row.addWidget(self.torch_profile_combo, stretch=1)
+        runtime_row.addWidget(self.switch_runtime_button)
+        profile_layout.addRow(self.tr("Runtime:"), runtime_row)
         profile_layout.addRow(self.custom_index_url_label, self.custom_index_url_edit)
         profile_layout.addRow(self.profile_status_label)
 
         # -- Summary labels ------------------------------------------------
-        self.dependency_summary_label = QLabel(tab)
-        self.dependency_summary_label.setWordWrap(True)
+        self.dependency_summary_label = WarningBanner(tab)
         self.dependency_storage_label = QLabel(tab)
         self.dependency_storage_label.setWordWrap(True)
         self.dependency_storage_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
+        self.dependency_storage_label.setStyleSheet(
+            "padding:2px 4px;"
+        )
+        self.dependency_storage_dedup_label = WarningBanner(tab)
 
         # -- Dependency table ----------------------------------------------
         self.dependency_table = QTableWidget(tab)
@@ -954,6 +1089,7 @@ class GeoSamSettingsDialog(QDialog):
         layout.addWidget(profile_group)
         layout.addWidget(self.dependency_summary_label)
         layout.addWidget(self.dependency_storage_label)
+        layout.addWidget(self.dependency_storage_dedup_label)
         layout.addWidget(self.dependency_table)
         layout.addLayout(button_row)
         layout.addLayout(button_row2)
@@ -1012,24 +1148,12 @@ class GeoSamSettingsDialog(QDialog):
         selected_text = profile_display_name(selected)
         if active == selected:
             self.profile_status_label.setText(
-                self.tr("Active: {profile}").format(profile=active_text)
-            )
-        elif not selected_fully_installed:
-            missing_text = ", ".join(selected_missing) if selected_missing else "torch"
-            self.profile_status_label.setText(
-                self.tr(
-                    "Active: {active} | Selected: {selected} — install missing "
-                    "({missing}) via 'Install Missing' before switching."
-                ).format(
-                    active=active_text,
-                    selected=selected_text,
-                    missing=missing_text,
-                )
+                self.tr("Active Runtime: {profile}").format(profile=active_text)
             )
         else:
             self.profile_status_label.setText(
                 self.tr(
-                    "Active: {active} | Selected: {selected} (ready to switch)"
+                    "Active Runtime: {active} | Selected Runtime: {selected}"
                 ).format(active=active_text, selected=selected_text)
             )
 
@@ -1291,12 +1415,17 @@ class GeoSamSettingsDialog(QDialog):
         self._update_profile_status_label(
             selected_fully_installed, selected_missing
         )
-        if selected != active:
-            self.dependency_summary_label.setText(
+        if not selected_fully_installed and missing_count > 0:
+            summary_text = self.tr(
+                "Dependencies: {installed} installed, {missing} missing — "
+                "click 'Install Missing' to install."
+            ).format(installed=installed_count, missing=missing_count)
+            self.dependency_summary_label.setWarning(summary_text)
+        elif selected != active:
+            self.dependency_summary_label.setPlain(
                 self.tr(
-                    "Selected backend '{selected}': {installed} installed, "
-                    "{missing} missing. Use 'Install Missing' to fill it before "
-                    "switching."
+                    "Selected runtime '{selected}': {installed} installed, "
+                    "{missing} missing."
                 ).format(
                     selected=profile_display_name(selected),
                     installed=installed_count,
@@ -1304,14 +1433,12 @@ class GeoSamSettingsDialog(QDialog):
                 )
             )
         else:
-            self.dependency_summary_label.setText(
+            self.dependency_summary_label.setPlain(
                 self.tr(
-                    "Dependencies: {installed} installed, {missing} missing. "
-                    "{installable} installable. Installation runs in the background."
+                    "Dependencies: {installed} installed, {missing} missing."
                 ).format(
                     installed=installed_count,
                     missing=missing_count,
-                    installable=len(installable_missing_rows),
                 )
             )
         current_dependency_path = get_plugin_managed_site_packages()
@@ -1324,18 +1451,78 @@ class GeoSamSettingsDialog(QDialog):
             for dependency_path in all_dependency_paths
         ]
         total_size_bytes = sum(row["size_bytes"] for row in all_stats)
-        self.dependency_storage_label.setText(
+        total_file_count = sum(row["file_count"] for row in all_stats)
+        dedup_stats = get_plugin_managed_dependency_stats_dedup(
+            all_dependency_paths,
+        )
+        storage_lines: list[str] = []
+        storage_lines.append(
             self.tr(
-                "Plugin-managed install: {current_size} in current runtime, "
-                "{total_size} across {folder_count} runtime folder(s). "
-                "Current path: {current_path}"
+                "Current runtime ({profile}): {size} · {files} file(s)"
             ).format(
-                current_size=self._format_bytes(current_stats["size_bytes"]),
-                total_size=self._format_bytes(total_size_bytes),
-                folder_count=len(all_dependency_paths),
-                current_path=current_dependency_path,
+                profile=profile_display_name(active),
+                size=self._format_bytes(current_stats["size_bytes"]),
+                files=current_stats["file_count"],
             )
         )
+        storage_lines.append(
+            self.tr(
+                "All runtimes (logical total): {total_size} · "
+                "{files} file(s) across {folder_count} folder(s)"
+            ).format(
+                total_size=self._format_bytes(total_size_bytes),
+                files=total_file_count,
+                folder_count=len(all_dependency_paths),
+            )
+        )
+        dedup_bytes = dedup_stats["dedup_size_bytes"]
+        shared_bytes = dedup_stats["shared_bytes"]
+        unique_files = dedup_stats["unique_file_count"]
+        dedup_file_count = dedup_stats["file_count"]
+        symlink_count = dedup_stats["symlink_count"]
+        if shared_bytes > 0:
+            storage_lines.append(
+                self.tr(
+                    "Actual disk usage (deduplicated): {dedup_size} · "
+                    "{unique_files} unique file(s)"
+                ).format(
+                    dedup_size=self._format_bytes(dedup_bytes),
+                    unique_files=unique_files,
+                )
+            )
+            self.dependency_storage_dedup_label.setInfo(
+                self.tr(
+                    "Saved {shared_size} via hardlinks/symlinks "
+                    "({unique_files} unique out of {total_files} files, "
+                    "{symlink_count} symlink(s))."
+                ).format(
+                    shared_size=self._format_bytes(shared_bytes),
+                    unique_files=unique_files,
+                    total_files=dedup_file_count,
+                    symlink_count=symlink_count,
+                )
+            )
+        elif dedup_file_count > 0 and platform.system() == "Darwin":
+            self.dependency_storage_dedup_label.setInfo(
+                self.tr(
+                    "On macOS, uv shares files via APFS clonefiles, so "
+                    "real usage may be smaller than the logical total."
+                )
+            )
+        elif symlink_count > 0:
+            storage_lines.append(
+                self.tr(
+                    "Actual disk usage (deduplicated): {dedup_size} · "
+                    "{symlink_count} symlink(s) skipped"
+                ).format(
+                    dedup_size=self._format_bytes(dedup_bytes),
+                    symlink_count=symlink_count,
+                )
+            )
+            self.dependency_storage_dedup_label.clear()
+        else:
+            self.dependency_storage_dedup_label.clear()
+        self.dependency_storage_label.setText("\n".join(storage_lines))
         self.dependency_table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             status_text = translate(dependency_status_text(row["state"]))
@@ -1354,15 +1541,15 @@ class GeoSamSettingsDialog(QDialog):
         self.install_dependencies_button.setEnabled(
             bool(self._missing_dependency_names) and not is_installing
         )
-        # Switch Backend is a pure sys.path swap: only allow it when the
-        # selected backend is fully installed AND differs from the active one.
+        # Switch Runtime is a pure sys.path swap: only allow it when the
+        # selected runtime is fully installed AND differs from the active one.
         # Hint the reason via tooltip when disabled.
         can_switch = (
             not is_installing
             and selected != active
             and selected_fully_installed
         )
-        self.switch_backend_button.setEnabled(can_switch)
+        self.switch_runtime_button.setEnabled(can_switch)
         if not can_switch and not is_installing:
             if selected == active:
                 hint = self.tr("Already active.")
@@ -1372,9 +1559,9 @@ class GeoSamSettingsDialog(QDialog):
                 ).format(selected=profile_display_name(selected))
             else:
                 hint = ""
-            self.switch_backend_button.setToolTip(hint)
+            self.switch_runtime_button.setToolTip(hint)
         else:
-            self.switch_backend_button.setToolTip("")
+            self.switch_runtime_button.setToolTip("")
         self.copy_install_commands_button.setEnabled(not is_installing)
         self.refresh_dependencies_button.setEnabled(not is_installing)
         self.open_dependency_folder_button.setEnabled(not is_installing)
@@ -1493,7 +1680,7 @@ class GeoSamSettingsDialog(QDialog):
         custom_url = self.custom_index_url_edit.text().strip() or None
 
         self._append_dependency_install_log(
-            self.tr("Target backend: {profile}").format(
+            self.tr("Target runtime: {profile}").format(
                 profile=profile_display_name(profile)
             )
         )
@@ -1518,13 +1705,13 @@ class GeoSamSettingsDialog(QDialog):
         self._dependency_install_command_index = 0
         self._start_next_dependency_install_command()
 
-    def switch_backend_clicked(self) -> None:
-        """Handle the Switch Backend button click.
+    def switch_runtime_clicked(self) -> None:
+        """Handle the Switch Runtime button click.
 
         Switching is a pure ``sys.path`` swap: it persists the new active
         profile and releases loaded models. It does **not** install anything
         — all installation is managed by the "Install Missing" button. The
-        button is only enabled when the selected backend is fully installed,
+        button is only enabled when the selected runtime is fully installed,
         so reaching here means the target is ready; we keep a defensive
         check that hints the user to use "Install Missing" if the state has
         changed underneath us.
@@ -1532,10 +1719,10 @@ class GeoSamSettingsDialog(QDialog):
         profile = self._current_torch_profile()
         answer = QMessageBox.question(
             self,
-            self.tr("Switch Torch Backend"),
+            self.tr("Switch Torch Runtime"),
             self.tr(
-                "Switching the torch backend will unload loaded models.\n\n"
-                "Target backend: {profile}\n\n"
+                "Switching the torch runtime will unload loaded models.\n\n"
+                "Target runtime: {profile}\n\n"
                 "Continue?"
             ).format(profile=profile_display_name(profile)),
         )
@@ -1553,7 +1740,7 @@ class GeoSamSettingsDialog(QDialog):
             # Profile not allowed on this platform.
             QMessageBox.warning(
                 self,
-                self.tr("Switch Torch Backend"),
+                self.tr("Switch Torch Runtime"),
                 str(exc),
             )
             return
@@ -1562,10 +1749,10 @@ class GeoSamSettingsDialog(QDialog):
             # already be disabled, but guard against races).
             QMessageBox.information(
                 self,
-                self.tr("Switch Torch Backend"),
+                self.tr("Switch Torch Runtime"),
                 self.tr(
                     "{error}\n\nUse 'Install Missing' to install dependencies "
-                    "for the '{profile}' backend first."
+                    "for the '{profile}' runtime first."
                 ).format(error=str(exc), profile=profile_display_name(profile)),
             )
             return
@@ -1576,7 +1763,7 @@ class GeoSamSettingsDialog(QDialog):
             self._append_dependency_install_log(str(exc))
             QMessageBox.critical(
                 self,
-                self.tr("Switch Torch Backend"),
+                self.tr("Switch Torch Runtime"),
                 self.tr("Switch failed: {error}").format(error=str(exc)),
             )
             self.refresh_dependency_status()
@@ -1618,7 +1805,7 @@ class GeoSamSettingsDialog(QDialog):
     def _set_install_buttons_enabled(self, enabled: bool) -> None:
         """Enable or disable all action buttons during installation."""
         self.install_dependencies_button.setEnabled(enabled)
-        self.switch_backend_button.setEnabled(enabled)
+        self.switch_runtime_button.setEnabled(enabled)
         self.copy_install_commands_button.setEnabled(enabled)
         self.refresh_dependencies_button.setEnabled(enabled)
         self.open_dependency_folder_button.setEnabled(enabled)

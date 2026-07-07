@@ -158,4 +158,8 @@ DYNAMIC_USER_TEXT = (
     QCoreApplication.translate("Selector", "Inverted Triangle"),
     QCoreApplication.translate("Selector", "Pixel-Level"),
     QCoreApplication.translate("Selector", "Simplified"),
+    QCoreApplication.translate(
+        "GeoSamSettingsDialog",
+        "Current runtime ({profile}): {size} · {files} file(s)",
+    ),
 )
