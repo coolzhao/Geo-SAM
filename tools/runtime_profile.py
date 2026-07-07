@@ -276,12 +276,13 @@ def profile_install_status(
 ) -> tuple[bool, list[str]]:
     """Return install completeness and the missing module list for a profile.
 
-    Unlike :func:`profile_is_installed` (which only gates on torch +
-    torchvision), this checks the profile's target directory against the full
-    set of plugin runtime dependencies. It scans dist-info directories on
-    disk rather than :mod:`importlib.metadata`, so it reports the state of a
-    profile that is *not* the active one (the settings dialog uses this to
-    show per-backend status before a switch).
+    Plugin-managed packages (torch, torchvision, ultralytics, geosam) are
+    checked by scanning the profile's target directory for dist-info
+    directories on disk, so the result is authoritative for a profile that
+    is *not* the active one. QGIS runtime-provided packages (rasterio,
+    geopandas, shapely, pyproj) are checked via
+    :func:`importlib.metadata.distribution` because they live in the QGIS
+    Python environment.
 
     Parameters
     ----------
@@ -296,25 +297,34 @@ def profile_install_status(
         ``(fully_installed, missing_module_names)``. ``fully_installed`` is
         ``True`` only when torch and torchvision are both present (the same
         gate as :func:`profile_is_installed`); ``missing_module_names`` lists
-        every plugin runtime dependency whose dist-info is absent, in
-        canonical order.
+        every plugin runtime dependency that is absent, in canonical order.
 
     """
-    from .plugin_settings import PLUGIN_RUNTIME_DEPENDENCY_NAMES
+    import importlib.metadata
+
+    from .plugin_settings import (
+        PLUGIN_RUNTIME_DEPENDENCY_NAMES,
+        RUNTIME_PROVIDED_DEPENDENCY_NAMES,
+    )
 
     target = profile_target_path(key, profile)
     if not target.exists():
         return False, list(PLUGIN_RUNTIME_DEPENDENCY_NAMES)
+    _SUFFIX_LEN = len(".dist-info")
     installed_distributions = {
-        child.name.rsplit("-", 1)[0]
+        child.name[:-_SUFFIX_LEN].rsplit("-", 1)[0]
         for child in target.iterdir()
         if child.is_dir() and child.name.endswith(".dist-info")
     }
-    missing = [
-        module_name
-        for module_name in PLUGIN_RUNTIME_DEPENDENCY_NAMES
-        if module_name not in installed_distributions
-    ]
+    missing: list[str] = []
+    for module_name in PLUGIN_RUNTIME_DEPENDENCY_NAMES:
+        if module_name in RUNTIME_PROVIDED_DEPENDENCY_NAMES:
+            try:
+                importlib.metadata.distribution(module_name)
+            except importlib.metadata.PackageNotFoundError:
+                missing.append(module_name)
+        elif module_name not in installed_distributions:
+            missing.append(module_name)
     required = {"torch", "torchvision"}
     fully_installed = required.issubset(installed_distributions)
     return fully_installed, missing

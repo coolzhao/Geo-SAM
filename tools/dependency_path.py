@@ -262,6 +262,36 @@ def clear_all_plugin_managed_site_packages() -> int:
     return removed_count
 
 
+def _clear_metadata_cache() -> None:
+    """Clear :mod:`importlib.metadata` internal caches.
+
+    :func:`importlib.invalidate_caches` only clears the import machinery's
+    meta-path finder caches — it does **not** necessarily clear
+    :mod:`importlib.metadata`'s own internal ``FastPath`` / ``_cache``
+    state.  After modifying ``sys.path`` (e.g. swapping the active torch
+    profile), stale metadata caches can cause
+    :func:`importlib.metadata.distribution` to return outdated results.
+
+    This helper attempts the public ``invalidate_caches`` API (Python 3.12+)
+    and falls back to clearing the private ``MetadataPathFinder._cache``
+    attribute on older interpreters.
+
+    """
+    try:
+        import importlib.metadata as _meta
+
+        invalidate = getattr(_meta, "invalidate_caches", None)
+        if callable(invalidate):
+            invalidate()
+            return
+        # Python 3.9–3.11: clear the private cache attribute directly.
+        finder_cls = getattr(_meta, "MetadataPathFinder", None)
+        if finder_cls is not None and hasattr(finder_cls, "_cache"):
+            finder_cls._cache = None  # type: ignore[attr-defined]
+    except Exception:
+        logger.debug("Could not clear importlib.metadata cache", exc_info=True)
+
+
 def swap_dependency_path(old_path: Path, new_path: Path) -> None:
     """Replace one dependency path with another in ``sys.path``.
 
@@ -280,6 +310,7 @@ def swap_dependency_path(old_path: Path, new_path: Path) -> None:
     if new_text not in sys.path:
         sys.path.insert(0, new_text)
     importlib.invalidate_caches()
+    _clear_metadata_cache()
     logger.debug("Swapped dependency path: %s → %s", old_path, new_path)
 
 

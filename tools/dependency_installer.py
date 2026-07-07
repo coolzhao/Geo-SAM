@@ -24,7 +24,6 @@ from .runtime_profile import (
     profile_target_path,
 )
 from .torch_profile import uv_torch_flag
-from .uv_manager import UV_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +133,11 @@ def _build_uv_command_prefix(plan: DependencyPlan) -> list[str]:
     macOS QGIS (the ``-I`` isolated probe strips ``PYTHONHOME`` and breaks the
     wrapper interpreter). See :func:`resolve_uv_python_flags`.
 
+    The cache directory is intentionally left to uv's platform default
+    (``~/Library/Caches/uv`` on macOS, ``~/.cache/uv`` on Linux,
+    ``%LOCALAPPDATA%\\uv\\cache`` on Windows) so it is shared with any
+    system uv and across all QGIS plugins.
+
     """
     cmd = [
         str(plan.uv_binary),
@@ -142,8 +146,6 @@ def _build_uv_command_prefix(plan: DependencyPlan) -> list[str]:
         "--target",
         str(plan.target_path),
         "--no-config",
-        "--cache-dir",
-        str(UV_CACHE_DIR),
         "--no-python-downloads",
         "--strict",
     ]
@@ -193,8 +195,6 @@ def build_uv_commands(plan: DependencyPlan) -> list[list[str]]:
             "--target",
             str(plan.target_path),
             "--no-config",
-            "--cache-dir",
-            str(UV_CACHE_DIR),
             "--no-python-downloads",
             "--strict",
             "--upgrade",
@@ -208,11 +208,12 @@ def build_uv_commands(plan: DependencyPlan) -> list[list[str]]:
 
 
 def build_full_commands(plan: DependencyPlan) -> list[list[str]]:
-    """Build complete commands including the one-time uv installation.
+    """Build complete commands for terminal reproduction.
 
-    This produces a two-step command sequence:
-    1. ``pip install uv`` (one-time setup)
-    2. ``uv pip install <deps>`` (dependency installation)
+    Conditionally includes a ``pip install uv`` bootstrap step when no
+    usable uv is already available on ``PATH`` or in the user-level bin
+    directory. If uv is present, only the ``uv pip install <deps>``
+    commands are emitted.
 
     Used by the "Copy Full Command" button so users can reproduce the
     installation from a terminal.
@@ -220,36 +221,54 @@ def build_full_commands(plan: DependencyPlan) -> list[list[str]]:
     Parameters
     ----------
     plan : DependencyPlan
-        Installation plan. ``plan.python_path`` is used for the ``pip install
-        uv`` step; the uv dependency step relies on
-        :func:`resolve_uv_python_flags` instead of ``--python``.
+        Installation plan. ``plan.python_path`` is used for the
+        ``pip install uv`` step (when included); the uv dependency step
+        relies on :func:`resolve_uv_python_flags` instead of ``--python``.
 
     Returns
     -------
     list[list[str]]
-        List of command argument lists.
+        List of command argument lists. The uv bootstrap step, if
+        needed, is the first element.
 
     """
-    from .uv_manager import MIN_UV, UV_PKG_DIR
+    from .uv_manager import (
+        MIN_UV,
+        _find_system_uv,
+        _pip_target_for_uv,
+        _user_uv_binary,
+        version_ok,
+    )
 
-    # Step 1: pip install uv (uses the QGIS interpreter directly)
-    pip_install_uv = [
-        str(plan.python_path),
-        "-m",
-        "pip",
-        "install",
-        "--target",
-        str(UV_PKG_DIR),
-        "--upgrade",
-        "--only-binary",
-        ":all:",
-        f"uv>={MIN_UV}",
-    ]
+    commands: list[list[str]] = []
 
-    # Step 2: uv pip install deps
-    uv_commands = build_uv_commands(plan)
+    # Determine whether a usable uv is already available. If so, the
+    # pip-install-uv bootstrap step is omitted.
+    system_uv = _find_system_uv()
+    user_uv = _user_uv_binary()
+    has_usable_uv = (
+        (system_uv is not None and version_ok(system_uv))
+        or (user_uv.exists() and version_ok(user_uv))
+    )
 
-    return [pip_install_uv, *uv_commands]
+    if not has_usable_uv:
+        commands.append(
+            [
+                str(plan.python_path),
+                "-m",
+                "pip",
+                "install",
+                "--target",
+                str(_pip_target_for_uv()),
+                "--upgrade",
+                "--only-binary",
+                ":all:",
+                f"uv>={MIN_UV}",
+            ]
+        )
+
+    commands.extend(build_uv_commands(plan))
+    return commands
 
 
 def make_plan(

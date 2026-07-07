@@ -63,7 +63,6 @@ from .plugin_settings import (
     PLUGIN_ROOT,
     clear_cache,
     dependency_status_text,
-    dependency_status_rows,
     format_dependency_install_command,
     format_dependency_install_commands,
     get_cache_directory,
@@ -918,7 +917,7 @@ class GeoSamSettingsDialog(QDialog):
             self.open_dependency_folder_clicked
         )
         self.clear_current_dependencies_button = QPushButton(
-            self.tr("Clear Current Environment"), tab,
+            self.tr("Clear Current Runtime Environment"), tab,
         )
         self.clear_current_dependencies_button.clicked.connect(
             self.clear_current_dependencies_clicked
@@ -1270,15 +1269,13 @@ class GeoSamSettingsDialog(QDialog):
         active = active_profile(key)
         selected = self._current_torch_profile()
 
-        # Status table reflects the SELECTED profile when it differs from the
-        # active one (so the user can see what "Install Missing" would fill
-        # before switching). For the active profile, use the authoritative
-        # importlib.metadata-backed rows.
+        # Always use disk-scanning for the status table so that the result
+        # is immune to importlib.metadata cache staleness after a profile
+        # switch.  ``_rows_for_profile`` reads .dist-info directories from
+        # the target folder, which is authoritative for *any* profile
+        # (active or not).
         selected_fully_installed, selected_missing = self._selected_profile_status()
-        if selected != active:
-            rows = self._rows_for_profile(key, selected)
-        else:
-            rows = dependency_status_rows()
+        rows = self._rows_for_profile(key, selected)
 
         installed_count = sum(1 for row in rows if row["installed"])
         missing_count = len(rows) - installed_count
@@ -1393,12 +1390,15 @@ class GeoSamSettingsDialog(QDialog):
         key: str,
         profile: TorchProfile,
     ) -> list[DependencyStatusRow]:
-        """Build dependency status rows by scanning a profile's target dir.
+        """Build dependency status rows for a given profile.
 
-        Used when the selected profile is not the active one —
-        :func:`dependency_status_rows` reads :mod:`importlib.metadata` which
-        only reflects the active profile on ``sys.path``. This scans the
-        selected profile's dist-info directories on disk instead.
+        Plugin-managed packages (torch, torchvision, ultralytics, geosam) are
+        checked by scanning the profile's :file:`*.dist-info` directories on
+        disk, so the result is authoritative regardless of whether *profile*
+        is the active one. QGIS runtime-provided packages (rasterio,
+        geopandas, shapely, pyproj) are checked via
+        :func:`importlib.metadata.distribution` because they live in the QGIS
+        Python environment, not in the profile target directory.
 
         Parameters
         ----------
@@ -1413,8 +1413,11 @@ class GeoSamSettingsDialog(QDialog):
             One row per plugin runtime dependency.
 
         """
+        import importlib.metadata
+
         from .plugin_settings import (
             DEPENDENCY_DISTRIBUTIONS,
+            RUNTIME_PROVIDED_DEPENDENCY_NAMES,
             dependency_source_text,
             dependency_state,
         )
@@ -1432,7 +1435,17 @@ class GeoSamSettingsDialog(QDialog):
                     installed_versions[name] = version
         rows: list[DependencyStatusRow] = []
         for module_name, distribution_name in DEPENDENCY_DISTRIBUTIONS.items():
-            version = installed_versions.get(distribution_name, "")
+            if module_name in RUNTIME_PROVIDED_DEPENDENCY_NAMES:
+                try:
+                    distribution = importlib.metadata.distribution(
+                        distribution_name
+                    )
+                except importlib.metadata.PackageNotFoundError:
+                    version = ""
+                else:
+                    version = distribution.version
+            else:
+                version = installed_versions.get(distribution_name, "")
             installed = bool(version)
             state = dependency_state(module_name, installed)
             rows.append(
