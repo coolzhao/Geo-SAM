@@ -10,3 +10,14 @@ docs/.venv
 .cache
 .deps
 **/user.json
+# OMO / OpenCode workspace artifacts
+.omo/*
+!.omo/rules/
+!.omo/rules/**
+.sisyphus/*
+!.sisyphus/rules/
+!.sisyphus/rules/**
+.debugging
+.debug-journal*.md
+session-ses_*.md
+plans/
